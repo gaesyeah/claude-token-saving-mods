@@ -1,0 +1,114 @@
+{
+  "$comment": "The Coding Kit pane is drawn from this file. To add a skill: put its folder in skills/<name>/ (SKILL.md with disable-model-invocation: true so it costs no context until clicked) and add an item here with kind \"skill\". kind \"builtin\" is a Claude Code command; \"mcp\" an MCP server the pane installs with `claude mcp add`; \"tool\" a CLI the pane installs with the argv steps given. Items sharing an `exclusive` group can not be installed together. `hint` is a case-insensitive regex on your prompt that marks the item as suggested (no model call).",
+  "groups": [
+    { "id": "plan", "title": "Planejar" },
+    { "id": "build", "title": "Construir" },
+    { "id": "fix", "title": "Corrigir" },
+    { "id": "review", "title": "Revisar" },
+    { "id": "tools", "title": "Ferramentas (instalar com um clique)" }
+  ],
+  "items": [
+    {
+      "id": "grill-me",
+      "kind": "skill",
+      "group": "plan",
+      "label": "Interrogar o plano",
+      "command": "/coding-kit:grill-me",
+      "description": "Entrevista em rodadas até o plano ficar claro, com uma resposta recomendada para cada pergunta. Use antes de uma funcionalidade grande ou ainda nebulosa.",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "test-driven-development",
+      "kind": "skill",
+      "group": "build",
+      "label": "Testes primeiro (TDD)",
+      "command": "/coding-kit:test-driven-development",
+      "description": "Escreve o teste, vê falhar, implementa o mínimo, vê passar. Para lógica crítica: cálculos, regras de negócio, parsers.",
+      "source": "obra/superpowers (MIT)"
+    },
+    {
+      "id": "systematic-debugging",
+      "kind": "skill",
+      "group": "fix",
+      "label": "Depurar a fundo",
+      "command": "/coding-kit:systematic-debugging",
+      "description": "Acha a causa raiz antes de mexer no código: reproduz, compara, testa uma hipótese por vez. Para bug difícil ou que já resistiu a uma tentativa.",
+      "source": "obra/superpowers (MIT)",
+      "hint": "stack ?trace|traceback|exception|\\berro\\b|\\berror\\b|n[aã]o funciona|quebrou|falhando|\\bbug\\b|nullpointer|undefined is not|segfault"
+    },
+    {
+      "id": "code-review",
+      "kind": "builtin",
+      "group": "review",
+      "label": "Revisar o diff",
+      "command": "/code-review",
+      "description": "Procura bugs no diff atual antes de um commit ou PR."
+    },
+    {
+      "id": "simplify",
+      "kind": "builtin",
+      "group": "review",
+      "label": "Simplificar",
+      "command": "/simplify",
+      "description": "Revisa o código alterado atrás de duplicação e excesso, e aplica as limpezas."
+    },
+    {
+      "id": "security-review",
+      "kind": "builtin",
+      "group": "review",
+      "label": "Revisão de segurança",
+      "command": "/security-review",
+      "description": "Para mudanças em login, permissões, dados sensíveis ou entradas de usuário."
+    },
+    {
+      "id": "context7",
+      "kind": "mcp",
+      "group": "tools",
+      "label": "Context7",
+      "server": "context7",
+      "fill": "use context7 para ",
+      "description": "Documentação atualizada de bibliotecas (React, Spring, Prisma...). Servidor remoto, sem instalar nada local; suas ferramentas ficam atrás da busca e só custam contexto quando usadas.",
+      "install": [["claude", "mcp", "add", "--scope", "user", "--transport", "http", "context7", "https://mcp.context7.com/mcp"]],
+      "uninstall": [["claude", "mcp", "remove", "--scope", "user", "context7"]]
+    },
+    {
+      "id": "serena",
+      "kind": "mcp",
+      "group": "tools",
+      "label": "Serena (busca semântica e refatoração)",
+      "server": "serena",
+      "exclusive": "code-intel",
+      "needs": ["uvx"],
+      "fill": "Use o Serena (find_symbol, find_referencing_symbols) para ",
+      "description": "Encontra símbolos e quem os usa via LSP e renomeia com segurança. Bom para refatorar em projetos grandes (Java, TS). Teste num projeto grande e compare.",
+      "install": [["claude", "mcp", "add", "--scope", "user", "serena", "--", "uvx", "--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server", "--context", "claude-code", "--project-from-cwd"]],
+      "uninstall": [["claude", "mcp", "remove", "--scope", "user", "serena"]]
+    },
+    {
+      "id": "codebase-memory",
+      "kind": "mcp",
+      "group": "tools",
+      "label": "codebase-memory (grafo do código)",
+      "server": "codebase-memory",
+      "exclusive": "code-intel",
+      "needs": ["npx"],
+      "fill": "Use o grafo do codebase-memory (indexe o repositório se preciso) para ",
+      "description": "Grafo pré-indexado: quem chama o quê, inclusive rotas HTTP entre front e back. Instalado sem os hooks automáticos. Confira as respostas sobre rotas com grep.",
+      "install": [["claude", "mcp", "add", "--scope", "user", "codebase-memory", "--", "npx", "-y", "codebase-memory-mcp"]],
+      "uninstall": [["claude", "mcp", "remove", "--scope", "user", "codebase-memory"]]
+    },
+    {
+      "id": "graphify",
+      "kind": "tool",
+      "group": "tools",
+      "label": "Graphify (grafo de código e docs)",
+      "exclusive": "code-intel",
+      "needs": ["uv"],
+      "fill": "/graphify .",
+      "description": "Grafo do código, docs e configs, com um relatório do projeto. Instala a skill /graphify e hooks que sugerem consultar o grafo antes de buscar.",
+      "check": { "argv": ["uv", "tool", "list"], "match": "graphifyy" },
+      "install": [["uv", "tool", "install", "graphifyy"], ["graphify", "install"]],
+      "uninstall": [["graphify", "uninstall"], ["uv", "tool", "uninstall", "graphifyy"]]
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 # token-saving-mods
 
 Nine Claude Code mods (function-hook plugins) that cut token cost, ported from macOS to
-**Linux**. They still run on a Mac. Tested on Pop!_OS 24.04 (COSMIC, Wayland) with the Claude
+**Linux**, plus a **Coding Kit** for better code at lower cost. They still run on a Mac. Tested on Pop!_OS 24.04 (COSMIC, Wayland) with the Claude
 desktop app for Linux and Claude Code 2.1.325.
 
 ## The mods
@@ -17,12 +17,13 @@ desktop app for Linux and Claude Code 2.1.325.
 | **efficient-browser-use** | Shrinks every browser screenshot before Claude reads it (about 60% fewer tokens), or has Haiku describe it. | `/efficient-browser` |
 | **mods** | A switchboard pane to turn each mod on or off in every chat. | `/mods` |
 | **savings-proof** | A pane with every token the other mods saved, today and in this chat. | `/savings` |
+| **coding-kit** | Ponytail rules always on in code projects (cached system prompt, no per-message skill calls) and a side pane of one-click coding skills and tools. See [its README](plugins/coding-kit/README.md). | `/coding-kit` |
 
 ## Install
 
 ```bash
 claude plugin marketplace add gaesyeah/token-saving-mods
-for m in input-router effort-optimizer model-router cache-clock handoff research-router efficient-browser-use mods savings-proof; do
+for m in input-router effort-optimizer model-router cache-clock handoff research-router efficient-browser-use mods savings-proof coding-kit; do
   claude plugin install "$m@token-saving-mods"
 done
 ```
@@ -76,4 +77,6 @@ Everything the mods write goes to `~/.claude/mods-logs/`. If a mod misbehaves, t
 - **model-router** is based on the Jev Model Router from
   [claude-code-templates](https://github.com/davila7/claude-code-templates) (MIT, see
   [plugins/model-router/LICENSE](plugins/model-router/LICENSE)).
-- Linux port by [gaesyeah](https://github.com/gaesyeah).
+- Coding Kit bundles skills from [mattpocock/skills](https://github.com/mattpocock/skills) and
+  [obra/superpowers](https://github.com/obra/superpowers) (both MIT).
+- Linux port and Coding Kit by [gaesyeah](https://github.com/gaesyeah).

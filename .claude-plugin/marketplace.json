@@ -3,7 +3,7 @@
   "owner": {
     "name": "Ben AI"
   },
-  "description": "Seven Claude Code mods (macOS and Linux) that cut token cost, plus a /mods switchboard and a /savings pane",
+  "description": "Nine Claude Code mods (macOS and Linux) that cut token cost, a /mods switchboard, a /savings pane, and a Coding Kit",
   "plugins": [
     {
       "name": "input-router",
@@ -51,13 +51,19 @@
       "name": "mods",
       "source": "./plugins/mods",
       "description": "A Mods pane that finds every mod on this computer by itself, turns each one on or off in every chat, and opens the side-pane ones",
-      "version": "0.2.1"
+      "version": "0.2.2"
     },
     {
       "name": "savings-proof",
       "source": "./plugins/savings-proof",
       "description": "/savings opens the Savings Proof pane: every token the other mods saved, with today's and this chat's totals",
       "version": "0.2.1"
+    },
+    {
+      "name": "coding-kit",
+      "source": "./plugins/coding-kit",
+      "description": "Ponytail always on in code projects (in the system prompt, cached, no per-message skill calls) and a side pane of coding skills and tools, each one click away: grill-me, TDD, systematic debugging, reviews, Context7, Serena, codebase-memory, Graphify",
+      "version": "0.1.0"
     }
   ]
 }

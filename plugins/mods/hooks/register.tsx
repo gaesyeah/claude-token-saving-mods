@@ -122,6 +122,7 @@ const KNOWN: Record<string, Known> = {
   'chat-relay': { title: 'Chat Relay', what: 'Lets a chat list, message and start other chats', group: 'chat', note: 'The orchestrator chat uses it to start test chats.' },
   'claude-pet-bridge': { title: 'Claude Pet Bridge', what: 'Lets Claude Pet send prompts into this chat', group: 'chat', note: 'Chat Relay needs it to message open chats.' },
   'prompt-editor': { title: 'Prompt Editor', what: 'Edits prompts and replies on screen only, for recordings', group: 'chat' },
+  'coding-kit': { title: 'Coding Kit', what: 'Ponytail in code projects and one-click coding skills and tools', group: 'chat', pane: true, tip: '/coding-kit to open' },
   mods: { title: 'Mods', what: 'This switchboard', group: 'chat', tip: '/mods to open' },
 
   'context-meter': { title: 'Context Meter', what: 'Colour bar of how full the chat is', group: 'show', hide: true, tip: '/meter to show or hide' },
