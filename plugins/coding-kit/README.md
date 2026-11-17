@@ -5,7 +5,7 @@ Better code for fewer tokens, in two parts.
 ## 1. Ponytail, always on in code projects
 
 When a chat opens in a code project (a `.git` folder, `package.json`, `pom.xml`, `go.mod` and
-similar), the mod adds the [Ponytail](rules/ponytail.md) rules to the system prompt: the smallest
+similar), the mod adds the [Ponytail](skills/ponytail/SKILL.md) rules to the system prompt: the smallest
 change that fully solves the task, no speculative abstractions, a short reply.
 
 - **Why the system prompt and not `/ponytail` per message:** a Skill call is one more API request,
@@ -24,6 +24,7 @@ pane). Every entry has **Usar**, which puts its command in the prompt box for yo
 
 | Group | Entry | Kind |
 | --- | --- | --- |
+| — | `/coding-kit:ponytail [lite\|full\|ultra]`, the same rules as a command, for any folder | bundled skill |
 | Planejar | Interrogar o plano (`/coding-kit:grill-me`) | bundled skill |
 | Construir | Testes primeiro (`/coding-kit:test-driven-development`) | bundled skill |
 | Corrigir | Depurar a fundo (`/coding-kit:systematic-debugging`) | bundled skill |
@@ -38,6 +39,18 @@ pane). Every entry has **Usar**, which puts its command in the prompt box for yo
 - Tools install with one click and a confirm (`claude mcp add --scope user ...`, or `uv tool
   install` for Graphify) and apply to new chats. Serena, codebase-memory and Graphify do the same
   job, so the pane installs only one of them at a time.
+
+## Keeping the bundled skills current
+
+The four bundled skills come from GitHub (`skills` in `catalog.json`, the commit of each in
+`skills/upstream.lock.json`). The mod checks for changes **at most once a week**, in the
+background, with one GitHub request per skill and no model call; a failed check also waits a week.
+
+When one changed, the pane shows *Atualização para N skills* (and one toast), with **Ver mudanças**
+for the diff on GitHub. Nothing changes until you press **Atualizar** and **Confirmar**: a skill's
+text becomes instructions for Claude, so a third party's change waits for you. The update fits the
+upstream text to this mod (frontmatter overrides such as `disable-model-invocation: true`, a credit
+line, link rewrites) and applies from the next chat. *↻ Verificar atualizações* checks now.
 
 ## Adding a skill or tool
 
@@ -66,4 +79,5 @@ Everything in the pane comes from [catalog.json](catalog.json):
 - `systematic-debugging` and `test-driven-development` are from
   [obra/superpowers](https://github.com/obra/superpowers) (MIT, Copyright (c) 2025 Jesse Vincent),
   with links to superpowers skills not included here rewritten.
-- Ponytail rules: MIT, from the Ponytail skill.
+- `ponytail` is from [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) (MIT);
+  the system-prompt rules are read from this one copy.

@@ -1,11 +1,26 @@
 {
-  "$comment": "The Coding Kit pane is drawn from this file. To add a skill: put its folder in skills/<name>/ (SKILL.md with disable-model-invocation: true so it costs no context until clicked) and add an item here with kind \"skill\". kind \"builtin\" is a Claude Code command; \"mcp\" an MCP server the pane installs with `claude mcp add`; \"tool\" a CLI the pane installs with the argv steps given. Items sharing an `exclusive` group can not be installed together. `hint` is a case-insensitive regex on your prompt that marks the item as suggested (no model call).",
+  "$comment": "The Coding Kit pane is drawn from this file. To add a skill: put its folder in skills/<name>/ (SKILL.md with disable-model-invocation: true so it costs no context until clicked) and add an item here with kind \"skill\". kind \"builtin\" is a Claude Code command; \"mcp\" an MCP server the pane installs with `claude mcp add`; \"tool\" a CLI the pane installs with the argv steps given. Items sharing an `exclusive` group can not be installed together. `hint` is a case-insensitive regex on your prompt that marks the item as suggested (no model call). `skills` lists where each bundled skill comes from: the pane checks GitHub once a week (no model call) and offers an update; `frontmatter` keys replace the upstream ones, `rewrite` fixes links to skills not bundled.",
   "groups": [
-    { "id": "plan", "title": "Planejar" },
-    { "id": "build", "title": "Construir" },
-    { "id": "fix", "title": "Corrigir" },
-    { "id": "review", "title": "Revisar" },
-    { "id": "tools", "title": "Ferramentas (instalar com um clique)" }
+    {
+      "id": "plan",
+      "title": "Planejar"
+    },
+    {
+      "id": "build",
+      "title": "Construir"
+    },
+    {
+      "id": "fix",
+      "title": "Corrigir"
+    },
+    {
+      "id": "review",
+      "title": "Revisar"
+    },
+    {
+      "id": "tools",
+      "title": "Ferramentas (instalar com um clique)"
+    }
   ],
   "items": [
     {
@@ -68,8 +83,29 @@
       "server": "context7",
       "fill": "use context7 para ",
       "description": "Documentação atualizada de bibliotecas (React, Spring, Prisma...). Servidor remoto, sem instalar nada local; suas ferramentas ficam atrás da busca e só custam contexto quando usadas.",
-      "install": [["claude", "mcp", "add", "--scope", "user", "--transport", "http", "context7", "https://mcp.context7.com/mcp"]],
-      "uninstall": [["claude", "mcp", "remove", "--scope", "user", "context7"]]
+      "install": [
+        [
+          "claude",
+          "mcp",
+          "add",
+          "--scope",
+          "user",
+          "--transport",
+          "http",
+          "context7",
+          "https://mcp.context7.com/mcp"
+        ]
+      ],
+      "uninstall": [
+        [
+          "claude",
+          "mcp",
+          "remove",
+          "--scope",
+          "user",
+          "context7"
+        ]
+      ]
     },
     {
       "id": "serena",
@@ -78,11 +114,40 @@
       "label": "Serena (busca semântica e refatoração)",
       "server": "serena",
       "exclusive": "code-intel",
-      "needs": ["uvx"],
+      "needs": [
+        "uvx"
+      ],
       "fill": "Use o Serena (find_symbol, find_referencing_symbols) para ",
       "description": "Encontra símbolos e quem os usa via LSP e renomeia com segurança. Bom para refatorar em projetos grandes (Java, TS). Teste num projeto grande e compare.",
-      "install": [["claude", "mcp", "add", "--scope", "user", "serena", "--", "uvx", "--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server", "--context", "claude-code", "--project-from-cwd"]],
-      "uninstall": [["claude", "mcp", "remove", "--scope", "user", "serena"]]
+      "install": [
+        [
+          "claude",
+          "mcp",
+          "add",
+          "--scope",
+          "user",
+          "serena",
+          "--",
+          "uvx",
+          "--from",
+          "git+https://github.com/oraios/serena",
+          "serena",
+          "start-mcp-server",
+          "--context",
+          "claude-code",
+          "--project-from-cwd"
+        ]
+      ],
+      "uninstall": [
+        [
+          "claude",
+          "mcp",
+          "remove",
+          "--scope",
+          "user",
+          "serena"
+        ]
+      ]
     },
     {
       "id": "codebase-memory",
@@ -91,11 +156,35 @@
       "label": "codebase-memory (grafo do código)",
       "server": "codebase-memory",
       "exclusive": "code-intel",
-      "needs": ["npx"],
+      "needs": [
+        "npx"
+      ],
       "fill": "Use o grafo do codebase-memory (indexe o repositório se preciso) para ",
       "description": "Grafo pré-indexado: quem chama o quê, inclusive rotas HTTP entre front e back. Instalado sem os hooks automáticos. Confira as respostas sobre rotas com grep.",
-      "install": [["claude", "mcp", "add", "--scope", "user", "codebase-memory", "--", "npx", "-y", "codebase-memory-mcp"]],
-      "uninstall": [["claude", "mcp", "remove", "--scope", "user", "codebase-memory"]]
+      "install": [
+        [
+          "claude",
+          "mcp",
+          "add",
+          "--scope",
+          "user",
+          "codebase-memory",
+          "--",
+          "npx",
+          "-y",
+          "codebase-memory-mcp"
+        ]
+      ],
+      "uninstall": [
+        [
+          "claude",
+          "mcp",
+          "remove",
+          "--scope",
+          "user",
+          "codebase-memory"
+        ]
+      ]
     },
     {
       "id": "graphify",
@@ -103,12 +192,129 @@
       "group": "tools",
       "label": "Graphify (grafo de código e docs)",
       "exclusive": "code-intel",
-      "needs": ["uv"],
+      "needs": [
+        "uv"
+      ],
       "fill": "/graphify .",
       "description": "Grafo do código, docs e configs, com um relatório do projeto. Instala a skill /graphify e hooks que sugerem consultar o grafo antes de buscar.",
-      "check": { "argv": ["uv", "tool", "list"], "match": "graphifyy" },
-      "install": [["uv", "tool", "install", "graphifyy"], ["graphify", "install"]],
-      "uninstall": [["graphify", "uninstall"], ["uv", "tool", "uninstall", "graphifyy"]]
+      "check": {
+        "argv": [
+          "uv",
+          "tool",
+          "list"
+        ],
+        "match": "graphifyy"
+      },
+      "install": [
+        [
+          "uv",
+          "tool",
+          "install",
+          "graphifyy"
+        ],
+        [
+          "graphify",
+          "install"
+        ]
+      ],
+      "uninstall": [
+        [
+          "graphify",
+          "uninstall"
+        ],
+        [
+          "uv",
+          "tool",
+          "uninstall",
+          "graphifyy"
+        ]
+      ]
+    }
+  ],
+  "skills": [
+    {
+      "dir": "ponytail",
+      "repo": "DietrichGebert/ponytail",
+      "path": "skills/ponytail",
+      "credit": "MIT License",
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      }
+    },
+    {
+      "dir": "grill-me",
+      "repo": "mattpocock/skills",
+      "path": "skills/productivity/grilling",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "frontmatter": {
+        "name": "grill-me",
+        "description": "A relentless interview to sharpen a plan or design before building it. Use only when the user types /coding-kit:grill-me.",
+        "disable-model-invocation": "true"
+      }
+    },
+    {
+      "dir": "systematic-debugging",
+      "repo": "obra/superpowers",
+      "path": "skills/systematic-debugging",
+      "credit": "MIT License, Copyright (c) 2025 Jesse Vincent",
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "`superpowers:test-driven-development`",
+          "replace": "`coding-kit:test-driven-development`"
+        },
+        {
+          "find": "Use the `superpowers:verification-before-completion`[^\\n]*",
+          "replace": "Verify before claiming success: run the test or reproduce the original steps and show the passing result.",
+          "regex": true
+        },
+        {
+          "find": "superpowers:writing-skills",
+          "replace": "a skill-writing guide"
+        },
+        {
+          "find": "your human partner",
+          "replace": "the user"
+        },
+        {
+          "find": "Phase 4.5",
+          "replace": "Phase 4, step 5"
+        }
+      ]
+    },
+    {
+      "dir": "test-driven-development",
+      "repo": "obra/superpowers",
+      "path": "skills/test-driven-development",
+      "credit": "MIT License, Copyright (c) 2025 Jesse Vincent",
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "`superpowers:test-driven-development`",
+          "replace": "`coding-kit:test-driven-development`"
+        },
+        {
+          "find": "Use the `superpowers:verification-before-completion`[^\\n]*",
+          "replace": "Verify before claiming success: run the test or reproduce the original steps and show the passing result.",
+          "regex": true
+        },
+        {
+          "find": "superpowers:writing-skills",
+          "replace": "a skill-writing guide"
+        },
+        {
+          "find": "your human partner",
+          "replace": "the user"
+        },
+        {
+          "find": "Phase 4.5",
+          "replace": "Phase 4, step 5"
+        }
+      ]
     }
   ]
 }

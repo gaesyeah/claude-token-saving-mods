@@ -1,10 +1,10 @@
 ---
-name: grill-me
-description: A relentless interview to sharpen a plan or design before building it. Use only when the user types /coding-kit:grill-me.
+name: "grill-me"
+description: "A relentless interview to sharpen a plan or design before building it. Use only when the user types /coding-kit:grill-me."
 disable-model-invocation: true
 ---
 
-<!-- From mattpocock/skills (skills/productivity/grilling), MIT License, Copyright (c) 2026 Matt Pocock. -->
+<!-- From mattpocock/skills (skills/productivity/grilling) at 7739eaed7f8f, MIT License, Copyright (c) 2026 Matt Pocock. Updated by Coding Kit. -->
 
 Interview the user relentlessly until you reach a shared understanding. Map this as a **design tree**: every decision branches into the decisions that hang off it.
 

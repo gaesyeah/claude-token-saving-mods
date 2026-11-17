@@ -63,7 +63,7 @@
       "name": "coding-kit",
       "source": "./plugins/coding-kit",
       "description": "Ponytail always on in code projects (in the system prompt, cached, no per-message skill calls) and a side pane of coding skills and tools, each one click away: grill-me, TDD, systematic debugging, reviews, Context7, Serena, codebase-memory, Graphify",
-      "version": "0.1.0"
+      "version": "0.2.0"
     }
   ]
 }

@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 // A slice of catalog.json (a test can not import JSON).
-const catalogJson = {"groups": [{"id": "plan", "title": "Planejar"}, {"id": "build", "title": "Construir"}, {"id": "fix", "title": "Corrigir"}, {"id": "review", "title": "Revisar"}, {"id": "tools", "title": "Ferramentas (instalar com um clique)"}], "items": [{"id": "grill-me", "kind": "skill", "group": "plan", "label": "Interrogar o plano", "command": "/coding-kit:grill-me", "description": "Entrevista em rodadas até o plano ficar claro, com uma resposta recomendada para cada pergunta. Use antes de uma funcionalidade grande ou ainda nebulosa.", "source": "mattpocock/skills (MIT)"}, {"id": "systematic-debugging", "kind": "skill", "group": "fix", "label": "Depurar a fundo", "command": "/coding-kit:systematic-debugging", "description": "Acha a causa raiz antes de mexer no código: reproduz, compara, testa uma hipótese por vez. Para bug difícil ou que já resistiu a uma tentativa.", "source": "obra/superpowers (MIT)", "hint": "stack ?trace|traceback|exception|\\berro\\b|\\berror\\b|n[aã]o funciona|quebrou|falhando|\\bbug\\b|nullpointer|undefined is not|segfault"}, {"id": "context7", "kind": "mcp", "group": "tools", "label": "Context7", "server": "context7", "fill": "use context7 para ", "description": "Documentação atualizada de bibliotecas (React, Spring, Prisma...). Servidor remoto, sem instalar nada local; suas ferramentas ficam atrás da busca e só custam contexto quando usadas.", "install": [["claude", "mcp", "add", "--scope", "user", "--transport", "http", "context7", "https://mcp.context7.com/mcp"]], "uninstall": [["claude", "mcp", "remove", "--scope", "user", "context7"]]}, {"id": "serena", "kind": "mcp", "group": "tools", "label": "Serena (busca semântica e refatoração)", "server": "serena", "exclusive": "code-intel", "needs": ["uvx"], "fill": "Use o Serena (find_symbol, find_referencing_symbols) para ", "description": "Encontra símbolos e quem os usa via LSP e renomeia com segurança. Bom para refatorar em projetos grandes (Java, TS). Teste num projeto grande e compare.", "install": [["claude", "mcp", "add", "--scope", "user", "serena", "--", "uvx", "--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server", "--context", "claude-code", "--project-from-cwd"]], "uninstall": [["claude", "mcp", "remove", "--scope", "user", "serena"]]}, {"id": "codebase-memory", "kind": "mcp", "group": "tools", "label": "codebase-memory (grafo do código)", "server": "codebase-memory", "exclusive": "code-intel", "needs": ["npx"], "fill": "Use o grafo do codebase-memory (indexe o repositório se preciso) para ", "description": "Grafo pré-indexado: quem chama o quê, inclusive rotas HTTP entre front e back. Instalado sem os hooks automáticos. Confira as respostas sobre rotas com grep.", "install": [["claude", "mcp", "add", "--scope", "user", "codebase-memory", "--", "npx", "-y", "codebase-memory-mcp"]], "uninstall": [["claude", "mcp", "remove", "--scope", "user", "codebase-memory"]]}]}
+const catalogJson = {"groups": [{"id": "plan", "title": "Planejar"}, {"id": "build", "title": "Construir"}, {"id": "fix", "title": "Corrigir"}, {"id": "review", "title": "Revisar"}, {"id": "tools", "title": "Ferramentas (instalar com um clique)"}], "items": [{"id": "grill-me", "kind": "skill", "group": "plan", "label": "Interrogar o plano", "command": "/coding-kit:grill-me", "description": "Entrevista em rodadas até o plano ficar claro, com uma resposta recomendada para cada pergunta. Use antes de uma funcionalidade grande ou ainda nebulosa.", "source": "mattpocock/skills (MIT)"}, {"id": "systematic-debugging", "kind": "skill", "group": "fix", "label": "Depurar a fundo", "command": "/coding-kit:systematic-debugging", "description": "Acha a causa raiz antes de mexer no código: reproduz, compara, testa uma hipótese por vez. Para bug difícil ou que já resistiu a uma tentativa.", "source": "obra/superpowers (MIT)", "hint": "stack ?trace|traceback|exception|\\berro\\b|\\berror\\b|n[aã]o funciona|quebrou|falhando|\\bbug\\b|nullpointer|undefined is not|segfault"}, {"id": "context7", "kind": "mcp", "group": "tools", "label": "Context7", "server": "context7", "fill": "use context7 para ", "description": "Documentação atualizada de bibliotecas (React, Spring, Prisma...). Servidor remoto, sem instalar nada local; suas ferramentas ficam atrás da busca e só custam contexto quando usadas.", "install": [["claude", "mcp", "add", "--scope", "user", "--transport", "http", "context7", "https://mcp.context7.com/mcp"]], "uninstall": [["claude", "mcp", "remove", "--scope", "user", "context7"]]}, {"id": "serena", "kind": "mcp", "group": "tools", "label": "Serena (busca semântica e refatoração)", "server": "serena", "exclusive": "code-intel", "needs": ["uvx"], "fill": "Use o Serena (find_symbol, find_referencing_symbols) para ", "description": "Encontra símbolos e quem os usa via LSP e renomeia com segurança. Bom para refatorar em projetos grandes (Java, TS). Teste num projeto grande e compare.", "install": [["claude", "mcp", "add", "--scope", "user", "serena", "--", "uvx", "--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server", "--context", "claude-code", "--project-from-cwd"]], "uninstall": [["claude", "mcp", "remove", "--scope", "user", "serena"]]}, {"id": "codebase-memory", "kind": "mcp", "group": "tools", "label": "codebase-memory (grafo do código)", "server": "codebase-memory", "exclusive": "code-intel", "needs": ["npx"], "fill": "Use o grafo do codebase-memory (indexe o repositório se preciso) para ", "description": "Grafo pré-indexado: quem chama o quê, inclusive rotas HTTP entre front e back. Instalado sem os hooks automáticos. Confira as respostas sobre rotas com grep.", "install": [["claude", "mcp", "add", "--scope", "user", "codebase-memory", "--", "npx", "-y", "codebase-memory-mcp"]], "uninstall": [["claude", "mcp", "remove", "--scope", "user", "codebase-memory"]]}], "skills": [{"dir": "ponytail", "repo": "DietrichGebert/ponytail", "path": "skills/ponytail", "credit": "MIT License", "frontmatter": {"disable-model-invocation": "true"}}]}
 
 const PANE = {
   plugin: 'coding-kit',
@@ -12,15 +12,15 @@ const PANE = {
 const files: Record<string, string> = {}
 
 // Stands for the engine: a project folder, the plugin's own files, and the commands the pane runs.
-function engine(on: any, opts: { code: boolean; ran: string[][]; filled: string[]; toasts: string[] }) {
-  const own = (path: string) => (path.endsWith('/catalog.json') ? JSON.stringify(catalogJson) : path.endsWith('/rules/ponytail.md') ? '# Ponytail\nrules' : undefined)
+function engine(on: any, opts: { code: boolean; ran: string[][]; filled: string[]; toasts: string[]; curl?: (url: string) => string; writes?: Record<string, string> }) {
+  const own = (path: string) => (path.endsWith('/catalog.json') ? JSON.stringify(catalogJson) : path.endsWith('/skills/ponytail/SKILL.md') ? '---\nname: ponytail\n---\n# Ponytail\nActive for the whole session.\nrules here' : undefined)
   on('session.id', () => ({ value: 'sid' }))
   on('session.cwd', () => ({ value: '/work/app' }))
   on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))
   on('env.get', (_: any, e: any) => ({ value: e.name === 'HOME' ? '/home/u' : undefined }))
   on('command.register', () => ({ value: { command: 'coding-kit' } }))
   on('clock.every', () => ({ value: undefined }))
-  on('clock.now', () => ({ value: 0 }))
+  on('clock.now', () => ({ value: 100 * 24 * 3600 * 1000 }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.toast', (_: any, e: any) => {
     opts.toasts.push(String(e.text ?? e))
@@ -32,9 +32,20 @@ function engine(on: any, opts: { code: boolean; ran: string[][]; filled: string[
   })
   on('fs.exists', (_: any, e: any) => ({ value: own(e.path) !== undefined || e.path in files || (opts.code && e.path === '/work/app/.git') }))
   on('fs.read', (_: any, e: any) => ({ value: own(e.path) ?? files[e.path] ?? '' }))
+  const store = new Map<string, unknown>()
+  on('store.get', (_: any, e: any) => ({ value: store.get(e.key) }))
+  on('store.set', (_: any, e: any) => {
+    store.set(e.key, e.value)
+    return { value: undefined }
+  })
   on('fs.list', () => ({ value: [] }))
+  on('fs.write', (_: any, e: any) => {
+    if (opts.writes) opts.writes[e.path] = String(e.text ?? '')
+    return { value: undefined }
+  })
   on('process.run', (_: any, e: any) => {
     const argv: string[] = e.argv
+    if (argv[0] === 'curl') return { value: { exitCode: opts.curl ? 0 : 6, stdout: opts.curl ? opts.curl(argv.at(-1)!) : '', stderr: '' } }
     if (argv[0] !== '/bin/sh') opts.ran.push(argv)
     return { value: { exitCode: 0, stdout: '', stderr: '' } }
   })
@@ -48,7 +59,13 @@ for (const code of [true, false]) {
     const r = await $.prompt.compose({ model: 'claude-opus-5-5', promptModel: 'claude-opus-5-5', surfaces: ['desktop'], tools: [], outputStyle: null, traits: [] } as any)
     const ids = r.sections.map((s: any) => s.id)
     expect(ids.includes('coding-kit:ponytail')).toBe(code)
-    if (code) expect(r.sections.at(-1)!.text).toContain('Level in use: full')
+    if (code) {
+      const t = r.sections.at(-1)!.text
+      expect(t).toContain('Level in use: full')
+      expect(t).toContain('rules here')
+      expect(t).not.toContain('Active for the whole session')
+      expect(t).not.toContain('name: ponytail')
+    }
   })
 }
 
@@ -94,4 +111,38 @@ test('a prompt with a stack trace suggests the debugging skill, once', async ($,
   await $.prompt.submit({ text: 'deu NullPointerException no login' } as any)
   await $.prompt.submit({ text: 'outro erro aqui' } as any)
   expect(toasts.filter(t => t.includes('Depurar a fundo')).length).toBe(1)
+})
+
+test('bundled skills: one GitHub check a week, an update only after a confirm, fitted to the mod', async ($, on) => {
+  const urls: string[] = []
+  const writes: Record<string, string> = {}
+  files['/plugin-lock'] = ''
+  const curl = (url: string) => {
+    urls.push(url)
+    if (url.includes('/commits?')) return JSON.stringify([{ sha: 'b'.repeat(40), commit: { committer: { date: '2026-11-20T00:00:00Z' } } }])
+    if (url.includes('/contents/')) return JSON.stringify([{ name: 'SKILL.md', type: 'file', download_url: 'https://raw.example/SKILL.md' }])
+    return '---\nname: ponytail\ndescription: >\n  folded\n  text\nlicense: MIT\n---\n# Ponytail\nnew rules\n'
+  }
+  engine(on, { code: true, ran: [], filled: [], toasts: [], curl, writes })
+  await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
+  await new Promise(r => setTimeout(r, 80))
+  await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
+  await new Promise(r => setTimeout(r, 80))
+  expect(urls.filter(u => u.includes('/commits?')).length).toBe(1)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  expect(await ui.find({ type: 'Text', text: /Atualização para 1 skill/ })).toBeDefined()
+  await ui.press({ key: 'apply-updates' })
+  expect(Object.keys(writes).length).toBe(0)
+  await ui.press({ key: 'confirm-updates' })
+  await new Promise(r => setTimeout(r, 80))
+  const skill = Object.entries(writes).find(([k]) => k.endsWith('/skills/ponytail/SKILL.md'))?.[1] ?? ''
+  expect(skill).toContain('disable-model-invocation: true')
+  expect(skill).toContain('license: MIT')
+  expect(skill).toContain('description: >\n  folded\n  text\n')
+  expect(skill).toContain('<!-- From DietrichGebert/ponytail (skills/ponytail) at bbbbbbbbbbbb, MIT License.')
+  expect(skill).toContain('new rules')
+  const lock = Object.entries(writes).find(([k]) => k.endsWith('/upstream.lock.json'))?.[1] ?? ''
+  expect(lock).toContain('b'.repeat(40))
+  await ui.unmount()
 })

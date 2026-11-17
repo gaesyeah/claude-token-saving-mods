@@ -39,7 +39,12 @@ type Item = {
   uninstall?: string[][]
 }
 type Group = { id: string; title: string }
-type Catalog = { groups: Group[]; items: Item[] }
+type Rewrite = { find: string; replace: string; regex?: boolean }
+// Where a bundled skill comes from, and how its upstream text is fitted to this mod.
+type Source = { dir: string; repo: string; path: string; ref?: string; credit?: string; frontmatter?: Record<string, string>; rewrite?: Rewrite[] }
+type Catalog = { groups: Group[]; items: Item[]; skills?: Source[] }
+type Lock = Record<string, { sha: string; date: string }>
+type Update = { dir: string; repo: string; from: string; to: string; date: string }
 type Found = { command: string; name: string; description: string; from: string }
 
 // Files in a folder that mark it as a code project. A .git folder up to 3 levels above counts too.
@@ -63,6 +68,15 @@ let busy = ''
 let note = ''
 const hinted = new Set<string>()
 let rulesText = ''
+// Bundled-skill updates: checked against GitHub at most once a week, applied only on a click.
+const WEEK = 7 * 24 * 60 * 60 * 1000
+let updates: Update[] = []
+let checkedAt = 0
+let checking = false
+let confirmUpdates = false
+
+// Opens a link with the desktop's opener: xdg-open (Linux), gio, or open (macOS).
+const OPEN_SH = 'for c in xdg-open gio open; do command -v "$c" >/dev/null 2>&1 || continue; if [ "$c" = gio ]; then gio open "$1"; else "$c" "$1"; fi </dev/null >/dev/null 2>&1; exit $?; done; exit 3'
 
 // ---- small helpers ----
 
@@ -139,6 +153,17 @@ async function detect($: EngineInterface): Promise<boolean> {
 
 // ---- ponytail rules for the system prompt ----
 
+// One copy: the bundled /coding-kit:ponytail skill, without its frontmatter, comments and on-switch line.
+async function ponytailRules($: EngineInterface) {
+  return (await readText($, `${$.plugin.root}/skills/ponytail/SKILL.md`))
+    .replace(/^---[\s\S]*?\n---\s*/, '')
+    .replace(/<!--[\s\S]*?-->\s*/g, '')
+    .split('\n')
+    .filter(l => !l.startsWith('Active for the whole session'))
+    .join('\n')
+    .trim()
+}
+
 function ponytailSection(lv: Level) {
   const head = [
     'The Coding Kit mod turned on Ponytail for this code project.',
@@ -154,7 +179,7 @@ function ponytailSection(lv: Level) {
 async function loadCatalog($: EngineInterface) {
   try {
     const json = JSON.parse(await readText($, `${$.plugin.root}/catalog.json`)) as Catalog
-    catalog = { groups: json.groups ?? [], items: (json.items ?? []).filter(i => i && i.id && i.label) }
+    catalog = { groups: json.groups ?? [], items: (json.items ?? []).filter(i => i && i.id && i.label), skills: (json.skills ?? []).filter(x => x && x.dir && x.repo && x.path) }
   } catch (err) {
     note = 'catalog.json could not be read. See ~/.claude/mods-logs/coding-kit.log'
     await log($, `catalog: ${String(err)}`)
@@ -186,6 +211,126 @@ async function refreshStatus($: EngineInterface) {
     }
   }
   installed = next
+  redraw($)
+}
+
+// ---- bundled-skill updates ----
+
+const lockPath = ($: EngineInterface) => `${$.plugin.root}/skills/upstream.lock.json`
+
+async function readLock($: EngineInterface): Promise<Lock> {
+  try {
+    return JSON.parse(await readText($, lockPath($))) as Lock
+  } catch {
+    return {}
+  }
+}
+
+async function http($: EngineInterface, url: string): Promise<string> {
+  const r = await $.process.run(['curl', '-fsSL', '--max-time', '20', '-H', 'Accept: application/vnd.github+json', '-H', 'User-Agent: coding-kit', url], { timeoutMs: 30_000 })
+  if (r.exitCode !== 0) throw new Error(`curl exit ${r.exitCode}: ${r.stderr.trim().slice(0, 200)}`)
+  return r.stdout
+}
+
+function rewrite(text: string, src: Source) {
+  let t = text
+  for (const r of src.rewrite ?? []) t = r.regex ? t.replace(new RegExp(r.find, 'g'), r.replace) : t.split(r.find).join(r.replace)
+  return t
+}
+
+// The upstream SKILL.md fitted to this mod: its frontmatter keys replaced, a credit line, the rewrites.
+function fitSkill(text: string, src: Source, sha: string) {
+  const m = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*\r?\n?/.exec(text)
+  const blocks: { key: string; lines: string[] }[] = []
+  for (const line of m ? m[1]!.split(/\r?\n/) : []) {
+    const k = /^([A-Za-z][\w-]*):/.exec(line)
+    if (k || !blocks.length) blocks.push({ key: k?.[1] ?? '', lines: [line] })
+    else blocks[blocks.length - 1]!.lines.push(line)
+  }
+  for (const [key, value] of Object.entries(src.frontmatter ?? {})) {
+    const line = `${key}: ${/^(true|false|\d+)$/.test(value) ? value : JSON.stringify(value)}`
+    const b = blocks.find(x => x.key === key)
+    if (b) b.lines = [line]
+    else blocks.push({ key, lines: [line] })
+  }
+  const body = rewrite(m ? text.slice(m[0].length) : text, src).replace(/^\s+/, '')
+  const credit = `<!-- From ${src.repo} (${src.path}) at ${sha.slice(0, 12)}${src.credit ? `, ${src.credit}` : ''}. Updated by Coding Kit. -->`
+  return `---\n${blocks.flatMap(b => b.lines).join('\n')}\n---\n\n${credit}\n\n${body}`
+}
+
+// One GitHub request per bundled skill, at most once a week: the last commit that touched its folder.
+async function checkUpdates($: EngineInterface, force = false) {
+  if (checking || off) return
+  const now = await $.clock.now()
+  if (!force && now - checkedAt < WEEK) return
+  checking = true
+  redraw($)
+  try {
+    const lock = await readLock($)
+    const found: Update[] = []
+    for (const src of catalog.skills ?? []) {
+      const ref = src.ref ? `&sha=${encodeURIComponent(src.ref)}` : ''
+      const list = JSON.parse(await http($, `https://api.github.com/repos/${src.repo}/commits?path=${encodeURIComponent(src.path)}${ref}&per_page=1`)) as { sha: string; commit: { committer: { date: string } } }[]
+      const head = list[0]
+      if (head && head.sha !== lock[src.dir]?.sha) found.push({ dir: src.dir, repo: src.repo, from: lock[src.dir]?.sha ?? '', to: head.sha, date: head.commit.committer.date })
+    }
+    updates = found
+    await log($, `update check: ${found.length ? found.map(u => u.dir).join(', ') : 'all current'}`)
+    const key = found.map(u => u.to).join(',')
+    if (found.length && key !== (await $.store.get('updatesToasted').catch(() => ''))) {
+      await $.store.set('updatesToasted', key)
+      $.ui.toast(`Coding Kit: atualização disponível para ${found.map(u => u.dir).join(', ')}. Veja em /coding-kit.`)
+    }
+  } catch (err) {
+    note = 'Não deu para verificar atualizações agora (sem rede ou limite do GitHub). Tento de novo na semana que vem.'
+    await log($, `update check: ${String(err)}`)
+  }
+  // A failed check waits a week too: no retries on every chat.
+  checkedAt = now
+  await $.store.set('updates', updates).catch(() => undefined)
+  await $.store.set('updatesCheckedAt', now).catch(() => undefined)
+  checking = false
+  redraw($)
+}
+
+async function applyUpdates($: EngineInterface) {
+  if (busy) return
+  busy = 'updates'
+  note = 'Atualizando as skills…'
+  redraw($)
+  const lock = await readLock($)
+  const done: string[] = []
+  try {
+    for (const u of updates) {
+      const src = (catalog.skills ?? []).find(x => x.dir === u.dir)
+      if (!src) continue
+      const items = JSON.parse(await http($, `https://api.github.com/repos/${src.repo}/contents/${src.path}?ref=${u.to}`)) as { name: string; type: string; download_url: string | null }[]
+      const files: [string, string][] = []
+      for (const it of items) {
+        if (it.type !== 'file' || !it.download_url) continue
+        const raw = await http($, it.download_url)
+        files.push([it.name, it.name === 'SKILL.md' ? fitSkill(raw, src, u.to) : rewrite(raw, src)])
+      }
+      if (!files.some(f => f[0] === 'SKILL.md')) throw new Error(`${src.dir}: no SKILL.md upstream`)
+      const dir = `${$.plugin.root}/skills/${src.dir}`
+      for (const [name, text] of files) {
+        await $.fs.write(`${dir}/${name}`, text)
+        if (name.endsWith('.sh')) await $.process.run(['chmod', '+x', `${dir}/${name}`]).catch(() => undefined)
+      }
+      lock[src.dir] = { sha: u.to, date: u.date }
+      await $.fs.write(lockPath($), `${JSON.stringify(lock, null, 2)}\n`)
+      done.push(src.dir)
+      await log($, `updated ${src.dir} to ${u.to.slice(0, 12)}`)
+    }
+    note = `Atualizadas: ${done.join(', ')}. Valem para chats novos.`
+  } catch (err) {
+    note = `A atualização parou${done.length ? ` depois de ${done.join(', ')}` : ''}: ${String(err instanceof Error ? err.message : err)}`
+    await log($, `update: ${note}`)
+  }
+  updates = updates.filter(u => !done.includes(u.dir))
+  await $.store.set('updates', updates).catch(() => undefined)
+  if (done.includes('ponytail')) rulesText = await ponytailRules($)
+  busy = ''
   redraw($)
 }
 
@@ -323,7 +468,9 @@ export const register: Register = on => {
     const stored = await $.store.get('ponytail').catch(() => undefined)
     level = LEVELS.includes(stored as Level) ? (stored as Level) : 'full'
     autoOpen = (await $.store.get('autoOpen').catch(() => undefined)) !== false
-    rulesText = await readText($, `${$.plugin.root}/rules/ponytail.md`)
+    rulesText = await ponytailRules($)
+    updates = ((await $.store.get('updates').catch(() => undefined)) as Update[] | undefined) ?? []
+    checkedAt = Number(await $.store.get('updatesCheckedAt').catch(() => 0)) || 0
     await readSwitch($)
     await loadCatalog($)
     isCode = await detect($)
@@ -334,6 +481,8 @@ export const register: Register = on => {
     void refreshStatus($).catch(err => log($, `status: ${String(err)}`))
     void findSkills($).catch(err => log($, `skills: ${String(err)}`))
     if (!off && isCode && autoOpen) void openPane($)
+    // Once a week at most, in the background: it never holds the chat up.
+    void checkUpdates($).catch(err => log($, `updates: ${String(err)}`))
     return next(e)
   })
 
@@ -404,6 +553,17 @@ export const register: Register = on => {
       const it = catalog.items.find(i => i.id === p.id)
       if (it) void act($, it, p.action)
     } else if (what === 'cancel') pending = null
+    else if (what === 'check-updates') void checkUpdates($, true)
+    else if (what === 'apply-updates') confirmUpdates = true
+    else if (what === 'cancel-updates') confirmUpdates = false
+    else if (what === 'confirm-updates') {
+      confirmUpdates = false
+      void applyUpdates($)
+    } else if (what === 'diff' && id) {
+      const u = updates.find(x => x.dir === id)
+      const url = u ? (u.from ? `https://github.com/${u.repo}/compare/${u.from}...${u.to}` : `https://github.com/${u.repo}/commit/${u.to}`) : ''
+      if (url) await $.process.run(['/bin/sh', '-c', OPEN_SH, 'sh', url], { timeoutMs: 15_000 }).catch(() => undefined)
+    }
     else if (what === 'refresh') {
       await loadCatalog($)
       void refreshStatus($)
@@ -421,6 +581,7 @@ export const register: Register = on => {
     const width = Math.max(32, e.props.bodyColumns)
     const cw = width - 4
     const noop = () => undefined
+    const nowMs = await $.clock.now()
     const tools = catalog.items.filter(i => i.kind === 'mcp' || i.kind === 'tool')
     const tiles = [
       { label: 'Ponytail', value: isCode ? level : 'inativo' },
@@ -496,6 +657,33 @@ export const register: Register = on => {
             <Button key="auto" plain dimColor onPress={noop}>{autoOpen ? '☑ Abrir sozinho em projetos de código' : '☐ Abrir sozinho em projetos de código'}</Button>
             <Button key="refresh" plain dimColor onPress={noop}>↻ Atualizar</Button>
           </Box>
+        </Box>
+        <Box key="updates" flexDirection="column" width={width} marginBottom={1}>
+          {updates.length ? (
+            <Box flexDirection="column" width={width} borderStyle="round" borderColor={ACCENT} paddingX={1}>
+              <Text bold color={ACCENT}>{`Atualização para ${updates.length} skill${updates.length > 1 ? 's' : ''}`}</Text>
+              {updates.map(u => (
+                <Box key={`up-${u.dir}`} flexDirection="row" justifyContent="space-between" width={cw}>
+                  <Text wrap="truncate-end">{`${u.dir} · ${u.date.slice(0, 10)}`}</Text>
+                  <Button key={`diff:${u.dir}`} plain dimColor onPress={noop}>Ver mudanças</Button>
+                </Box>
+              ))}
+              <Text dimColor wrap="wrap">O texto de uma skill vira instrução para o Claude: veja as mudanças antes de aplicar.</Text>
+              {confirmUpdates ? (
+                <Box flexDirection="row" gap={1}>
+                  <Button key="confirm-updates" label="Confirmar" variant="primary" onPress={noop} />
+                  <Button key="cancel-updates" label="Cancelar" onPress={noop} />
+                </Box>
+              ) : busy === 'updates' ? (
+                <Text color={ACCENT}>Atualizando…</Text>
+              ) : (
+                <Button key="apply-updates" label="Atualizar" variant="primary" onPress={noop} />
+              )}
+            </Box>
+          ) : null}
+          <Button key="check-updates" plain dimColor onPress={noop}>
+            {checking ? 'Verificando atualizações…' : `↻ Verificar atualizações das skills · ${checkedAt ? `última há ${Math.max(0, Math.floor((nowMs - checkedAt) / 86_400_000))} dia(s)` : 'nunca'}`}
+          </Button>
         </Box>
         {note ? <Text key="note" color={NOTE} wrap="wrap">{note}</Text> : null}
         {catalog.groups.map(g => {
