@@ -22,7 +22,7 @@ desktop app for Linux and Claude Code 2.1.325.
 ## Install
 
 ```bash
-claude plugin marketplace add gaesyeah/token-saving-mods
+claude plugin marketplace add gaesyeah/claude-token-saving-mods
 for m in input-router effort-optimizer model-router cache-clock handoff research-router efficient-browser-use mods savings-proof coding-kit; do
   claude plugin install "$m@token-saving-mods"
 done
