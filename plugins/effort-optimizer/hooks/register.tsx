@@ -61,6 +61,13 @@ let rowKey = ''
 // The level the mod puts on requests, and the picker level it saw when it took over.
 let hold: { level: Level; base: string } | null = null
 let lastEffort = ''
+// Cache alarm: the level last sent, whether the mod moved it for this turn, and whether a
+// move it made rewrote the prompt cache. Once it has, the mod stops changing levels in this chat.
+let lastSent = ''
+let moved = false
+let frozen = false
+// A rewrite this big, larger than what the cache served, is the whole chat written again.
+const BUST_TOKENS = 20_000
 // The prompt waiting for its pick at the turn's first request.
 let held: { text: string; mine: number } | null = null
 
@@ -155,6 +162,7 @@ async function currentLevel($: EngineInterface): Promise<Level | ''> {
 // until the person moves the picker. No /effort command is run.
 async function applyLevel($: EngineInterface, level: Level) {
   turnLevel = level
+  moved = true
   let note = ''
   try {
     const row = await findRow($)
@@ -226,6 +234,7 @@ Ask these four questions in this order and stop at the first yes:
 
 A task being long does not make it high. Rule-following work stays low or medium.
 A prompt that has Claude change code, files, data or a database, or run a job of many steps, is never low.
+In code work: diagnosing a bug, explaining how code behaves, or reviewing a diff is at least medium; an architecture decision, security work, or a data or database migration is high.
 If the prompt only approves, answers a question, or says to go on with earlier work (yes, go, ok, do it, option 2), judge the work it starts: read Claude's last reply to see what that work is.
 
 The person's own level for this chat: ${now || 'unknown'}
@@ -359,6 +368,9 @@ export const register: Register = on => {
       argumentHint: '[auto|suggest|off|on]',
     })
     enabled = (await $.store.get('enabled')) !== false
+    lastSent = ''
+    moved = false
+    frozen = false
     mode = (await $.store.get('mode')) === 'auto' ? 'auto' : 'suggest'
     await readSwitch($).catch(() => undefined)
     $.clock.every(3000, () => {
@@ -383,7 +395,8 @@ export const register: Register = on => {
   })
 
   on('prompt.submit', async ($, e, next) => {
-    if (off || !enabled) return next(e)
+    // After a cache alarm the level stays as it is now: no pick, and a held level keeps holding.
+    if (off || !enabled || frozen) return next(e)
     if (e.origin.kind !== 'composer' && e.origin.kind !== 'bridge') return next(e)
     const text = e.text.trim()
     if (!text || text.startsWith('/')) return next(e)
@@ -428,9 +441,25 @@ export const register: Register = on => {
       value = enabled && hold ? hold.level : null
     }
     const want = turnLevel ?? (enabled ? (value ?? null) : null)
-    if (!want || want === e.effort) return yield* next(e)
-    void log($, 'request', `${e.effort} -> ${want}`)
-    return yield* next({ ...e, effort: want })
+    const sent = want ?? e.effort
+    // Watch the first request after a level move the mod made, but not the chat's first request.
+    const watch = !frozen && !!lastSent && sent !== lastSent && (moved || !!want)
+    lastSent = sent
+    moved = false
+    if (want && want !== e.effort) void log($, 'request', `${e.effort} -> ${want}`)
+    const x = sent === e.effort ? e : { ...e, effort: sent }
+    if (!watch) return yield* next(x)
+    for await (const c of next(x)) {
+      if (c.kind === 'stop' && c.usage) {
+        const wrote = c.usage.cache_creation_input_tokens ?? 0
+        if (wrote >= BUST_TOKENS && wrote > (c.usage.cache_read_input_tokens ?? 0)) {
+          frozen = true
+          void log($, 'cache alarm', `effort ${sent} rewrote ${wrote} cache tokens; no more level changes in this chat`)
+          void $.ui.toast('Effort Optimizer: trocar o nível reescreveu o cache; não troco mais o nível neste chat.').catch(() => undefined)
+        }
+      }
+      yield c
+    }
   })
 
   on('command.run', { command: 'effort-optimizer' }, async ($, e) => {
