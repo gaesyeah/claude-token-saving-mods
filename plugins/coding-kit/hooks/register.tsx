@@ -33,6 +33,7 @@ type Item = {
   hint?: string
   server?: string
   exclusive?: string
+  repo?: string
   needs?: string[]
   check?: Check
   install?: string[][]
@@ -575,6 +576,7 @@ export const register: Register = on => {
     const item = catalog.items.find(i => i.id === id)
     if (what === 'use' && item) await use($, item.fill ?? `${item.command ?? ''} `)
     else if (what === 'mine' && id) await use($, `${id} `)
+    else if (what === 'repo' && item?.repo) await $.process.run(['/bin/sh', '-c', OPEN_SH, 'sh', item.repo], { timeoutMs: 15_000 }).catch(() => undefined)
     else if (what === 'level' && LEVELS.includes(id as Level)) {
       level = id as Level
       await $.store.set('ponytail', level)
@@ -639,7 +641,10 @@ export const register: Register = on => {
         <Box key={`card-${item.id}`} flexDirection="column" width={width} marginBottom={1} borderStyle="round" borderColor={hot ? ACCENT : undefined} borderDimColor={!hot} paddingX={1}>
           <Box flexDirection="row" justifyContent="space-between" width={cw}>
             <Text bold wrap="truncate-end">{item.label}</Text>
-            {hot ? <Text color={ACCENT}>★ sugerido</Text> : inst ? <Text color={isIn ? GOOD : undefined} dimColor={!isIn}>{busy === item.id ? '…' : isIn ? '✓ instalado' : 'não instalado'}</Text> : null}
+            <Box flexDirection="row" gap={1} flexShrink={0}>
+              {hot ? <Text color={ACCENT}>★ sugerido</Text> : inst ? <Text color={isIn ? GOOD : undefined} dimColor={!isIn}>{busy === item.id ? '…' : isIn ? '✓ instalado' : 'não instalado'}</Text> : null}
+              {item.repo ? <Button key={`repo:${item.id}`} plain dimColor onPress={noop}>⎇</Button> : null}
+            </Box>
           </Box>
           <Text dimColor wrap="wrap">{item.description}</Text>
           {item.command ? <Text dimColor wrap="truncate-end">{`${item.command}${item.source ? ` · ${item.source}` : ''}`}</Text> : null}

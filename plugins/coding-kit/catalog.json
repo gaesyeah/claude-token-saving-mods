@@ -25,6 +25,7 @@
   "items": [
     {
       "id": "grill-me",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/productivity/grilling",
       "kind": "skill",
       "group": "plan",
       "label": "Interrogar o plano",
@@ -34,6 +35,7 @@
     },
     {
       "id": "test-driven-development",
+      "repo": "https://github.com/obra/superpowers/tree/HEAD/skills/test-driven-development",
       "kind": "skill",
       "group": "build",
       "label": "Testes primeiro (TDD)",
@@ -43,6 +45,7 @@
     },
     {
       "id": "systematic-debugging",
+      "repo": "https://github.com/obra/superpowers/tree/HEAD/skills/systematic-debugging",
       "kind": "skill",
       "group": "fix",
       "label": "Depurar a fundo",
@@ -77,6 +80,7 @@
     },
     {
       "id": "context7",
+      "repo": "https://github.com/upstash/context7",
       "kind": "mcp",
       "group": "tools",
       "label": "Context7",
@@ -109,6 +113,7 @@
     },
     {
       "id": "serena",
+      "repo": "https://github.com/oraios/serena",
       "kind": "mcp",
       "group": "tools",
       "label": "Serena (busca semântica e refatoração)",
@@ -152,6 +157,7 @@
     },
     {
       "id": "codebase-memory",
+      "repo": "https://github.com/DeusData/codebase-memory-mcp",
       "kind": "mcp",
       "group": "tools",
       "label": "codebase-memory (grafo do código)",
@@ -189,6 +195,7 @@
     },
     {
       "id": "graphify",
+      "repo": "https://github.com/Graphify-Labs/graphify",
       "kind": "tool",
       "group": "tools",
       "label": "Graphify (grafo de código e docs)",
