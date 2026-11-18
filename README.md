@@ -1,6 +1,6 @@
 # token-saving-mods
 
-Nine Claude Code mods (function-hook plugins) that cut token cost, ported from macOS to
+Eleven Claude Code mods (function-hook plugins) that cut token cost, ported from macOS to
 **Linux**, plus a **Coding Kit** for better code at lower cost. They still run on a Mac. Tested on Pop!_OS 24.04 (COSMIC, Wayland) with the Claude
 desktop app for Linux and Claude Code 2.1.325.
 
@@ -9,7 +9,7 @@ desktop app for Linux and Claude Code 2.1.325.
 | Mod | What it does | Command |
 | --- | --- | --- |
 | **input-router** | Big files, PDFs and connector results are read by Haiku first; Claude gets short notes and a path to the full thing. | `/input-router` |
-| **effort-optimizer** | Reads each prompt and picks the reasoning effort it needs (low for simple questions). | `/effort-optimizer` |
+| **effort-optimizer** | Reads each prompt and picks the reasoning effort it needs (low for simple questions; bug diagnosis and diff review at least medium, architecture, security and migrations high). If a level change ever rewrites the prompt cache, it stops changing levels in that chat. | `/effort-optimizer` |
 | **model-router** | Haiku judges each **subagent** task and moves it to Haiku, Sonnet or Opus. Never changes the main chat's model. | `/model-router` |
 | **cache-clock** | Countdown until the prompt cache goes cold, minimized to one line with an Expand button. Optional *Keep warm* pings. | `/cacheclock`, `/keepwarm` |
 | **handoff** | At 250k tokens, offers *Refresh*: writes a handoff of the chat and starts a fresh chat with it. | `/handoff`, `/fresh` |
@@ -18,12 +18,14 @@ desktop app for Linux and Claude Code 2.1.325.
 | **mods** | A switchboard pane to turn each mod on or off in every chat. | `/mods` |
 | **savings-proof** | A pane with every token the other mods saved, today and in this chat. | `/savings` |
 | **coding-kit** | Ponytail rules always on in code projects (cached system prompt, no per-message skill calls) and a side pane of one-click coding skills and tools. See [its README](plugins/coding-kit/README.md). | `/coding-kit` |
+| **quota-meter** | Status line with the 5-hour and weekly limits used, and the average points each turn spends (the limits move in whole points, so it averages the last 40 turns). Read only. | `/quota` |
+| **tool-diet** | Big tools a project has not used in its last chats move behind ToolSearch, only when that saves 5k tokens or more. Bash, Read, Edit, Write, Grep, Glob, Agent and Skill never move. Decided when a chat starts, so the cache is never broken. | `/tool-diet` |
 
 ## Install
 
 ```bash
 claude plugin marketplace add gaesyeah/claude-token-saving-mods
-for m in input-router effort-optimizer model-router cache-clock handoff research-router efficient-browser-use mods savings-proof coding-kit; do
+for m in input-router effort-optimizer model-router cache-clock handoff research-router efficient-browser-use mods savings-proof coding-kit quota-meter tool-diet; do
   claude plugin install "$m@token-saving-mods"
 done
 ```

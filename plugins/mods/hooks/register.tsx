@@ -116,6 +116,8 @@ const KNOWN: Record<string, Known> = {
   handoff: { title: 'Handoff', what: 'Moves a long chat to a fresh one', group: 'save', hide: true, ask: true, tip: '/fresh to show it' },
   'cache-clock': { title: 'Cache Clock', what: 'Counts down until the cache goes cold', group: 'save', hide: true, tip: '/cacheclock to show or hide' },
   'savings-proof': { title: 'Savings Proof', what: 'Shows what each mod really saved', group: 'save', pane: true, hide: true, ask: true, tip: '/savings to open' },
+  'quota-meter': { title: 'Quota Meter', what: 'Status line with the 5h and weekly limits and the points each turn spends', group: 'save', tip: '/quota for details' },
+  'tool-diet': { title: 'Tool Diet', what: 'Big tools a project does not use move behind ToolSearch', group: 'save', tip: '/tool-diet for the numbers' },
 
   'brain-dump': { title: 'Brain-Dump Shaper', what: 'Turns long rambling prompts into clear briefs', group: 'chat' },
   reflect: { title: 'Reflect', what: 'Saves your corrections as lasting rules', group: 'chat' },

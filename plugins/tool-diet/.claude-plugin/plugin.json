@@ -1,0 +1,8 @@
+{
+  "name": "tool-diet",
+  "version": "0.1.0",
+  "description": "Moves big tools a project has not used in its last chats behind ToolSearch, only when that saves 5k tokens or more; /tool-diet shows the numbers",
+  "author": {
+    "name": "Ben AI"
+  }
+}

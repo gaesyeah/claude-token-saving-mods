@@ -3,7 +3,7 @@
   "owner": {
     "name": "Ben AI"
   },
-  "description": "Nine Claude Code mods (macOS and Linux) that cut token cost, a /mods switchboard, a /savings pane, and a Coding Kit",
+  "description": "Eleven Claude Code mods (macOS and Linux) that cut token cost, a /mods switchboard, a /savings pane, and a Coding Kit",
   "plugins": [
     {
       "name": "input-router",
@@ -15,7 +15,7 @@
       "name": "effort-optimizer",
       "source": "./plugins/effort-optimizer",
       "description": "Reads each prompt, picks the effort level it needs with Ben's four-question framework, and offers Switch to that level, or sets it by itself in auto mode",
-      "version": "0.2.0"
+      "version": "0.3.0"
     },
     {
       "name": "model-router",
@@ -63,7 +63,19 @@
       "name": "coding-kit",
       "source": "./plugins/coding-kit",
       "description": "Ponytail always on in code projects (in the system prompt, cached, no per-message skill calls) and a side pane of coding skills and tools, each one click away: grill-me, TDD, systematic debugging, reviews, Context7, Serena, codebase-memory, Graphify",
-      "version": "0.2.0"
+      "version": "0.2.1"
+    },
+    {
+      "name": "quota-meter",
+      "source": "./plugins/quota-meter",
+      "description": "Shows in the status line how much of the 5-hour and weekly limits each turn spends, averaged over recent turns; /quota gives the details",
+      "version": "0.1.0"
+    },
+    {
+      "name": "tool-diet",
+      "source": "./plugins/tool-diet",
+      "description": "Moves big tools a project has not used in its last 3 to 5 chats behind ToolSearch, only when that saves 5k tokens or more per chat; /tool-diet shows the numbers",
+      "version": "0.1.0"
     }
   ]
 }
