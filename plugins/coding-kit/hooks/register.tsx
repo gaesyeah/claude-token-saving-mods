@@ -528,7 +528,10 @@ export const register: Register = on => {
       void openPane($)
     }
     let x = e
-    if (!off && level !== 'off' && rulesText && !byPrompt && !(await codeNow($)) && CODE_PROMPT.test(e.text)) {
+    // Only what the person typed: the desktop app puts <system-reminder> blocks in the prompt's
+    // text (in a chat with no folder, one about the scratch workspace), which must not count.
+    const typed = e.text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '')
+    if (!off && level !== 'off' && rulesText && !byPrompt && !(await codeNow($)) && CODE_PROMPT.test(typed)) {
       byPrompt = true
       void log($, 'ponytail: joined a prompt (no project marker in the folder yet)')
       x = { ...e, context: [...(e.context ?? []), ponytailSection(level)] }
@@ -543,7 +546,7 @@ export const register: Register = on => {
         if (!item.hint || hinted.has(item.id)) continue
         let hit = false
         try {
-          hit = new RegExp(item.hint, 'i').test(e.text)
+          hit = new RegExp(item.hint, 'i').test(typed)
         } catch {
           continue
         }

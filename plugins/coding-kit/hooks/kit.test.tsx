@@ -100,7 +100,8 @@ test('in a folder with no project marker, ponytail joins the first code prompt o
   await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
   const r = await $.prompt.compose({ model: 'claude-opus-5-5', promptModel: 'claude-opus-5-5', surfaces: ['desktop'], tools: [], outputStyle: null, traits: [] } as any)
   expect(r.sections.map((s: any) => s.id)).not.toContain('coding-kit:ponytail')
-  for (const text of ['bom dia, tudo bem?', 'crie um app de tarefas em React', 'agora adicione login']) await $.prompt.submit({ text, origin: { kind: 'composer' } } as any)
+  const reminder = '<system-reminder>\nThe user started this session without choosing a project folder, so your working directory is a scratch workspace. Write code, fix a bug, run git here if asked.\n</system-reminder>\n'
+  for (const text of [reminder + 'bom dia, tudo bem?', 'crie um app de tarefas em React', 'agora adicione login']) await $.prompt.submit({ text, origin: { kind: 'composer' } } as any)
   expect(contexts[0] ?? []).toEqual([])
   expect(contexts[1]?.at(-1)).toContain('rules here')
   expect(contexts[2] ?? []).toEqual([])
@@ -146,8 +147,8 @@ test('a prompt with a stack trace suggests the debugging skill, once', async ($,
   engine(on, { code: true, ran: [], filled: [], toasts })
   on('prompt.submit', (_: any, e: any) => ({ text: e.text }))
   await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
-  await $.prompt.submit({ text: 'deu NullPointerException no login' } as any)
-  await $.prompt.submit({ text: 'outro erro aqui' } as any)
+  await $.prompt.submit({ text: 'deu NullPointerException no login', origin: { kind: 'composer' } } as any)
+  await $.prompt.submit({ text: 'outro erro aqui', origin: { kind: 'composer' } } as any)
   expect(toasts.filter(t => t.includes('Depurar a fundo')).length).toBe(1)
 })
 
