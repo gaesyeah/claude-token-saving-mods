@@ -697,14 +697,9 @@ export const register: Register = on => {
               <Button key={`level:${l}`} label={l === level ? `● ${l}` : l} variant={l === level ? 'primary' : undefined} onPress={noop} />
             ))}
           </Box>
-          <Box flexDirection="row" gap={1}>
-            <Button key="auto" plain dimColor onPress={noop}>{autoOpen ? '☑ Abrir sozinho em projetos de código' : '☐ Abrir sozinho em projetos de código'}</Button>
-            <Button key="refresh" plain dimColor hover={{ scope: 'reler' }} onPress={noop}>↻ Reler</Button>
-          </Box>
-          {/* No tooltip in the pane API: a hint revealed while the pointer is on Reler. */}
-          <Box display="none" hover={{ display: 'flex', scope: 'reler' }} width={width}>
-            <Text color={NOTE} wrap="wrap">Relê a lista do painel: o catálogo, o que já está instalado (inclusive por fora) e as skills no disco. Não instala nem atualiza nada.</Text>
-          </Box>
+          <Button key="auto" plain dimColor onPress={noop}>{autoOpen ? '☑ Abrir sozinho em projetos de código' : '☐ Abrir sozinho em projetos de código'}</Button>
+          {/* The desktop app shows no tooltip in a pane: the label says what it does, short. */}
+          <Button key="refresh" plain dimColor onPress={noop}>↻ Reler instalados e skills do disco</Button>
         </Box>
         <Box key="updates" flexDirection="column" width={width} marginBottom={1}>
           {updates.length ? (

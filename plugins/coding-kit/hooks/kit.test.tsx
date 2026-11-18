@@ -130,7 +130,7 @@ test('the pane lists the catalog, Usar fills the prompt, installs need a confirm
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
   expect(await ui.find({ type: 'Text', text: /Interrogar o plano/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /Context7/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /Relê a lista do painel/ })).toBeDefined()
+  expect(await ui.find({ type: 'Button', text: /Reler instalados e skills do disco/ })).toBeDefined()
 
   await ui.press({ key: 'use:grill-me' })
   expect(filled.at(-1)).toBe('/coding-kit:grill-me ')
