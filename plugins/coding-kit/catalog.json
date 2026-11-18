@@ -34,6 +34,16 @@
       "source": "mattpocock/skills (MIT)"
     },
     {
+      "id": "writing-plans",
+      "repo": "https://github.com/obra/superpowers/tree/HEAD/skills/writing-plans",
+      "kind": "skill",
+      "group": "plan",
+      "label": "Escrever o plano",
+      "command": "/coding-kit:writing-plans",
+      "description": "Quebra uma tarefa de vários passos num plano com arquivos, nomes e testes de cada etapa, antes de mexer no código. Bom depois de interrogar o plano.",
+      "source": "obra/superpowers (MIT)"
+    },
+    {
       "id": "test-driven-development",
       "repo": "https://github.com/obra/superpowers/tree/HEAD/skills/test-driven-development",
       "kind": "skill",
@@ -42,6 +52,16 @@
       "command": "/coding-kit:test-driven-development",
       "description": "Escreve o teste, vê falhar, implementa o mínimo, vê passar. Para lógica crítica: cálculos, regras de negócio, parsers.",
       "source": "obra/superpowers (MIT)"
+    },
+    {
+      "id": "frontend-design",
+      "repo": "https://github.com/anthropics/skills/tree/HEAD/skills/frontend-design",
+      "kind": "skill",
+      "group": "build",
+      "label": "Design de interface",
+      "command": "/coding-kit:frontend-design",
+      "description": "Direção visual, tipografia e escolhas intencionais ao criar ou refazer uma tela, para ela não parecer um template genérico.",
+      "source": "anthropics/skills (Apache 2.0)"
     },
     {
       "id": "systematic-debugging",
@@ -53,6 +73,26 @@
       "description": "Acha a causa raiz antes de mexer no código: reproduz, compara, testa uma hipótese por vez. Para bug difícil ou que já resistiu a uma tentativa.",
       "source": "obra/superpowers (MIT)",
       "hint": "stack ?trace|traceback|exception|\\berro\\b|\\berror\\b|n[aã]o funciona|quebrou|falhando|\\bbug\\b|nullpointer|undefined is not|segfault"
+    },
+    {
+      "id": "verification-before-completion",
+      "repo": "https://github.com/obra/superpowers/tree/HEAD/skills/verification-before-completion",
+      "kind": "skill",
+      "group": "review",
+      "label": "Verificar antes de dar como pronto",
+      "command": "/coding-kit:verification-before-completion",
+      "description": "Roda os testes e o build e lê a saída antes de dizer \"pronto\", \"corrigido\" ou \"passou\". Evita dar como feito o que não foi conferido.",
+      "source": "obra/superpowers (MIT)"
+    },
+    {
+      "id": "improve-codebase-architecture",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/improve-codebase-architecture",
+      "kind": "skill",
+      "group": "review",
+      "label": "Melhorar a arquitetura",
+      "command": "/coding-kit:improve-codebase-architecture",
+      "description": "Procura no projeto módulos rasos e acoplados, mostra as melhorias num relatório visual e aprofunda a que você escolher. Para refatorar além do diff.",
+      "source": "mattpocock/skills (MIT)"
     },
     {
       "id": "code-review",
@@ -321,6 +361,103 @@
         {
           "find": "Phase 4.5",
           "replace": "Phase 4, step 5"
+        }
+      ]
+    },
+    {
+      "dir": "writing-plans",
+      "repo": "obra/superpowers",
+      "path": "skills/writing-plans",
+      "credit": "MIT License, Copyright (c) 2025 Jesse Vincent",
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "\\*\\*Context:\\*\\* If working in an isolated worktree[^\\n]*\\n\\n",
+          "replace": "",
+          "regex": true
+        },
+        {
+          "find": "docs/superpowers/plans",
+          "replace": "docs/plans"
+        },
+        {
+          "find": "your human partner",
+          "replace": "the user"
+        },
+        {
+          "find": "REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement",
+          "replace": "Implement"
+        },
+        {
+          "find": "- **REQUIRED SUB-SKILL:** Use superpowers:subagent-driven-development",
+          "replace": "- Dispatch a fresh subagent per task and a fresh reviewer subagent after each one, then review the whole branch."
+        },
+        {
+          "find": "- **REQUIRED SUB-SKILL:** Use superpowers:executing-plans",
+          "replace": "- Work through the tasks in order in this session, checking off each step, then dispatch one reviewer subagent for the whole branch."
+        }
+      ]
+    },
+    {
+      "dir": "frontend-design",
+      "repo": "anthropics/skills",
+      "path": "skills/frontend-design",
+      "credit": "Apache License 2.0, Copyright Anthropic, PBC",
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      }
+    },
+    {
+      "dir": "verification-before-completion",
+      "repo": "obra/superpowers",
+      "path": "skills/verification-before-completion",
+      "credit": "MIT License, Copyright (c) 2025 Jesse Vincent",
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      }
+    },
+    {
+      "dir": "improve-codebase-architecture",
+      "repo": "mattpocock/skills",
+      "path": "skills/engineering/improve-codebase-architecture",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "Call the Skill tool with \"codebase-design\" for the architecture vocabulary",
+          "replace": "Use this architecture vocabulary"
+        },
+        {
+          "find": "the `/codebase-design` vocabulary",
+          "replace": "the architecture vocabulary above"
+        },
+        {
+          "find": "(from the `/codebase-design` skill)",
+          "replace": "(module, interface, depth, seam, adapter, leverage, locality)"
+        },
+        {
+          "find": "come straight from the `/codebase-design` skill",
+          "replace": "come straight from the architecture vocabulary in SKILL.md"
+        },
+        {
+          "find": "the `/codebase-design` glossary",
+          "replace": "that vocabulary"
+        },
+        {
+          "find": "call the Skill tool with \"grilling\" to walk the decision tree with them",
+          "replace": "grill them in rounds, as /coding-kit:grill-me does (number each question, give your recommended answer, wait for the answers), to walk the decision tree"
+        },
+        {
+          "find": "; call the Skill tool with \"domain-modeling\" to keep the domain model current as you go",
+          "replace": ": keep the domain model current as you go"
+        },
+        {
+          "find": "Call the Skill tool with \"codebase-design\" and use its design-it-twice parallel sub-agent pattern.",
+          "replace": "Design it twice: dispatch two or three sub-agents in parallel, each with a different interface, and compare them."
         }
       ]
     }

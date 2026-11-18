@@ -32,9 +32,10 @@ pane). Every entry has **Usar**, which puts its command in the prompt box for yo
 | Group | Entry | Kind |
 | --- | --- | --- |
 | — | `/coding-kit:ponytail [lite\|full\|ultra]`, the same rules as a command, for any folder | bundled skill |
-| Planejar | Interrogar o plano (`/coding-kit:grill-me`) | bundled skill |
-| Construir | Testes primeiro (`/coding-kit:test-driven-development`) | bundled skill |
+| Planejar | Interrogar o plano (`/coding-kit:grill-me`), Escrever o plano (`/coding-kit:writing-plans`) | bundled skills |
+| Construir | Testes primeiro (`/coding-kit:test-driven-development`), Design de interface (`/coding-kit:frontend-design`) | bundled skills |
 | Corrigir | Depurar a fundo (`/coding-kit:systematic-debugging`) | bundled skill |
+| Revisar | Verificar antes de dar como pronto (`/coding-kit:verification-before-completion`), Melhorar a arquitetura (`/coding-kit:improve-codebase-architecture`) | bundled skills |
 | Revisar | `/code-review`, `/simplify`, `/security-review` | Claude Code built-ins |
 | Ferramentas | Context7, Serena, codebase-memory, Graphify | installed from the pane |
 | Suas skills | every skill in `~/.claude/skills`, the project's `.claude/skills` and other plugins | found on disk |
@@ -81,9 +82,11 @@ Everything in the pane comes from [catalog.json](catalog.json):
 
 ## Credits
 
-- `grill-me` is the `grilling` skill from [mattpocock/skills](https://github.com/mattpocock/skills)
-  (MIT, Copyright (c) 2026 Matt Pocock).
-- `systematic-debugging` and `test-driven-development` are from
+- `grill-me` (the `grilling` skill) and `improve-codebase-architecture` are from
+  [mattpocock/skills](https://github.com/mattpocock/skills) (MIT, Copyright (c) 2026 Matt Pocock);
+  its links to skills not included here are rewritten.
+- `frontend-design` is from [anthropics/skills](https://github.com/anthropics/skills) (Apache 2.0, see its `LICENSE.txt`).
+- `systematic-debugging`, `test-driven-development`, `writing-plans` and `verification-before-completion` are from
   [obra/superpowers](https://github.com/obra/superpowers) (MIT, Copyright (c) 2025 Jesse Vincent),
   with links to superpowers skills not included here rewritten.
 - `ponytail` is from [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) (MIT);

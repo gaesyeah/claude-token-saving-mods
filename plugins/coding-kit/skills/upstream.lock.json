@@ -14,5 +14,21 @@
   "test-driven-development": {
     "sha": "5bf4e78011075bcfc0dc295f0724994cd123ee71",
     "date": "2026-09-19T00:31:35Z"
+  },
+  "writing-plans": {
+    "sha": "8ca22dba9a94f28898bbce59f2537ff4d87c747d",
+    "date": "2026-09-25T18:06:27Z"
+  },
+  "frontend-design": {
+    "sha": "41bbe19d1a1a7eaab5e7bb9050a417e5c6cffc8f",
+    "date": "2026-09-03T16:37:13Z"
+  },
+  "verification-before-completion": {
+    "sha": "3be5aad3dd2400ef23b15680969f4bcd3b6d7b8b",
+    "date": "2026-07-24T00:27:16Z"
+  },
+  "improve-codebase-architecture": {
+    "sha": "7739eaed7f8f3915437a8def198a6d0d7206dbc7",
+    "date": "2026-10-29T10:24:04Z"
   }
 }
