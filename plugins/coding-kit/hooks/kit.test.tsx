@@ -108,6 +108,20 @@ test('in a folder with no project marker, ponytail joins the first code prompt o
   expect(opened).toEqual(['coding-kit'])
 })
 
+for (const text of ['implemente um cache de sessão', 'refatore esse módulo', 'compilar não passa']) {
+  test(`a verb with any ending counts as code work: ${text}`, async ($, on) => {
+    const contexts: (readonly string[] | undefined)[] = []
+    engine(on, { code: false, ran: [], filled: [], toasts: [] })
+    on('prompt.submit', (_: any, e: any) => {
+      contexts.push(e.context)
+      return { text: e.text }
+    })
+    await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
+    await $.prompt.submit({ text, origin: { kind: 'composer' } } as any)
+    expect(contexts[0]?.at(-1)).toContain('rules here')
+  })
+}
+
 test('the pane lists the catalog, Usar fills the prompt, installs need a confirm', async ($, on) => {
   const ran: string[][] = []
   const filled: string[] = []

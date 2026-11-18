@@ -77,7 +77,7 @@ let autoOpened = false
 // that reads like code work, as hidden context sent once. Never the system prompt mid-chat: that
 // would rewrite the whole prompt cache; a prompt's context is just a slightly longer message.
 let byPrompt = false
-const CODE_PROMPT = /```|\b(c[oó]digo|code|program(a|ar|ação|ming)|implement|refator|refactor|fun[cç][aã]o|function|classe|class|m[eé]todo|method|endpoint|api|script|bug|deploy|compil|frontend|backend|banco de dados|database|sql|schema|react|angular|vue|next\.?js|node|npm|java|python|typescript|javascript|kotlin|rust|golang|spring|django|flask|docker|html|css|git)\b|\bcri(e|ar|a) (um|uma|o|a) (app|aplicativo|site|sistema|api|cli|bot|jogo|extens[aã]o|plugin|biblioteca|projeto)\b/i
+const CODE_PROMPT = /```|\b(c[oó]digo|code|program(a|ar|ação|ming)|fun[cç][aã]o|function|classe|class|m[eé]todo|method|endpoint|api|script|bug|deploy|frontend|backend|banco de dados|database|sql|schema|react|angular|vue|next\.?js|node|npm|java|python|typescript|javascript|kotlin|rust|golang|spring|django|flask|docker|html|css|git)\b|\b(implement|refator|refactor|compil)\w*|\bcri(e|ar|a) (um|uma|o|a) (app|aplicativo|site|sistema|api|cli|bot|jogo|extens[aã]o|plugin|biblioteca|projeto)\b/i
 // Bundled-skill updates: checked against GitHub at most once a week, applied only on a click.
 const WEEK = 7 * 24 * 60 * 60 * 1000
 let updates: Update[] = []
