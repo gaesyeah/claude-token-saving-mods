@@ -77,7 +77,7 @@ Everything in the pane comes from [catalog.json](catalog.json):
    (text put in the prompt instead of `command`), `hint` (regex that marks it suggested),
    `exclusive` (a group of which only one can be installed), `needs` (binaries required first),
    `source`. New groups go in `groups`.
-3. Press **↻ Atualizar** in the pane, or open a new chat.
+3. Press **↻ Reler** in the pane, or open a new chat.
 
 ## Credits
 

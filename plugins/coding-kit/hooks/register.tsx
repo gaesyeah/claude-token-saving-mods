@@ -699,7 +699,11 @@ export const register: Register = on => {
           </Box>
           <Box flexDirection="row" gap={1}>
             <Button key="auto" plain dimColor onPress={noop}>{autoOpen ? '☑ Abrir sozinho em projetos de código' : '☐ Abrir sozinho em projetos de código'}</Button>
-            <Button key="refresh" plain dimColor onPress={noop}>↻ Atualizar</Button>
+            <Button key="refresh" plain dimColor hover={{ scope: 'reler' }} onPress={noop}>↻ Reler</Button>
+          </Box>
+          {/* No tooltip in the pane API: a hint revealed while the pointer is on Reler. */}
+          <Box display="none" hover={{ display: 'flex', scope: 'reler' }} width={width}>
+            <Text color={NOTE} wrap="wrap">Relê a lista do painel: o catálogo, o que já está instalado (inclusive por fora) e as skills no disco. Não instala nem atualiza nada.</Text>
           </Box>
         </Box>
         <Box key="updates" flexDirection="column" width={width} marginBottom={1}>
