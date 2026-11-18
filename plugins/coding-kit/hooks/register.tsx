@@ -68,6 +68,11 @@ let busy = ''
 let note = ''
 const hinted = new Set<string>()
 let rulesText = ''
+// The folder isCode was worked out for. The desktop app starts a chat early in an empty spare
+// folder (~/.claude/spares/...) and moves it into the project afterwards: a check made only at
+// session.start sees the spare folder, so the check is redone whenever the folder changed.
+let detectedFor = ''
+let autoOpened = false
 // Bundled-skill updates: checked against GitHub at most once a week, applied only on a click.
 const WEEK = 7 * 24 * 60 * 60 * 1000
 let updates: Update[] = []
@@ -149,6 +154,18 @@ async function detect($: EngineInterface): Promise<boolean> {
     if (await $.fs.exists(`${up}/.git`).catch(() => false)) return true
   }
   return false
+}
+
+async function codeNow($: EngineInterface): Promise<boolean> {
+  const dir = await $.session.cwd().catch(() => cwd)
+  if (dir && dir !== detectedFor) {
+    cwd = dir
+    detectedFor = dir
+    isCode = await detect($).catch(() => false)
+    void log($, `code project: ${isCode ? 'yes' : 'no'} cwd=${dir}`)
+    redraw($)
+  }
+  return !!isCode
 }
 
 // ---- ponytail rules for the system prompt ----
@@ -473,14 +490,17 @@ export const register: Register = on => {
     checkedAt = Number(await $.store.get('updatesCheckedAt').catch(() => 0)) || 0
     await readSwitch($)
     await loadCatalog($)
-    isCode = await detect($)
+    await codeNow($)
     await $.command.register({ name: 'coding-kit', description: 'Open the Coding Kit pane: one-click coding skills and tools; /coding-kit ponytail off|lite|full|ultra' })
     $.clock.every(3000, () => {
       void readSwitch($).catch(() => undefined)
     })
     void refreshStatus($).catch(err => log($, `status: ${String(err)}`))
     void findSkills($).catch(err => log($, `skills: ${String(err)}`))
-    if (!off && isCode && autoOpen) void openPane($)
+    if (!off && isCode && autoOpen) {
+      autoOpened = true
+      void openPane($)
+    }
     // Once a week at most, in the background: it never holds the chat up.
     void checkUpdates($).catch(err => log($, `updates: ${String(err)}`))
     return next(e)
@@ -490,13 +510,18 @@ export const register: Register = on => {
   on('prompt.compose', async ($, e, next) => {
     const r = await next(e)
     if (off || level === 'off' || !rulesText) return r
-    if (isCode === null) isCode = await detect($).catch(() => false)
-    if (!isCode) return r
+    if (!(await codeNow($))) return r
     return { ...r, sections: [...r.sections, { id: `${NAME}:ponytail`, text: ponytailSection(level), scope: 'session' as const }] }
   })
 
   // A suggestion in the pane when the prompt looks like a known case: a regex, no model call.
   on('prompt.submit', async ($, e, next) => {
+    // Like the Input Router, the pane also opens when the chat is really in use: by the first
+    // prompt a spare chat is already in its project folder.
+    if (!off && autoOpen && !autoOpened && (await codeNow($))) {
+      autoOpened = true
+      void openPane($)
+    }
     if (!off) {
       for (const item of catalog.items) {
         if (!item.hint || hinted.has(item.id)) continue

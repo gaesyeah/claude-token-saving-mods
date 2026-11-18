@@ -12,16 +12,19 @@ const PANE = {
 const files: Record<string, string> = {}
 
 // Stands for the engine: a project folder, the plugin's own files, and the commands the pane runs.
-function engine(on: any, opts: { code: boolean; ran: string[][]; filled: string[]; toasts: string[]; curl?: (url: string) => string; writes?: Record<string, string> }) {
+function engine(on: any, opts: { code: boolean; ran: string[][]; filled: string[]; toasts: string[]; curl?: (url: string) => string; writes?: Record<string, string>; dir?: { v: string }; opened?: string[] }) {
   const own = (path: string) => (path.endsWith('/catalog.json') ? JSON.stringify(catalogJson) : path.endsWith('/skills/ponytail/SKILL.md') ? '---\nname: ponytail\n---\n# Ponytail\nActive for the whole session.\nrules here' : undefined)
   on('session.id', () => ({ value: 'sid' }))
-  on('session.cwd', () => ({ value: '/work/app' }))
+  on('session.cwd', () => ({ value: opts.dir?.v ?? '/work/app' }))
   on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))
   on('env.get', (_: any, e: any) => ({ value: e.name === 'HOME' ? '/home/u' : undefined }))
   on('command.register', () => ({ value: { command: 'coding-kit' } }))
   on('clock.every', () => ({ value: undefined }))
   on('clock.now', () => ({ value: 100 * 24 * 3600 * 1000 }))
-  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.open', (_: any, e: any) => {
+    opts.opened?.push(e.id)
+    return { value: { isPlaced: true } }
+  })
   on('ui.toast', (_: any, e: any) => {
     opts.toasts.push(String(e.text ?? e))
     return { value: undefined }
@@ -68,6 +71,22 @@ for (const code of [true, false]) {
     }
   })
 }
+
+test('a chat started in a spare folder and moved into a project gets ponytail and opens the pane at its first prompt', async ($, on) => {
+  const dir = { v: '/home/u/.claude/spares/spare-x' }
+  const opened: string[] = []
+  engine(on, { code: true, ran: [], filled: [], toasts: [], dir, opened })
+  on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'x', scope: 'shared' }] }))
+  on('prompt.submit', (_: any, e: any) => ({ text: e.text }))
+  await $.session.start({ cwd: dir.v, surface: 'desktop', isInteractive: true })
+  expect(opened.length).toBe(0)
+  dir.v = '/work/app'
+  const r = await $.prompt.compose({ model: 'claude-opus-5-5', promptModel: 'claude-opus-5-5', surfaces: ['desktop'], tools: [], outputStyle: null, traits: [] } as any)
+  expect(r.sections.map((s: any) => s.id)).toContain('coding-kit:ponytail')
+  await $.prompt.submit({ text: 'oi', origin: { kind: 'composer' } } as any)
+  await $.prompt.submit({ text: 'de novo', origin: { kind: 'composer' } } as any)
+  expect(opened).toEqual(['coding-kit'])
+})
 
 test('the pane lists the catalog, Usar fills the prompt, installs need a confirm', async ($, on) => {
   const ran: string[][] = []
