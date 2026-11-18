@@ -73,6 +73,11 @@ let rulesText = ''
 // session.start sees the spare folder, so the check is redone whenever the folder changed.
 let detectedFor = ''
 let autoOpened = false
+// A folder with no project marker yet (a project started from zero): Ponytail joins the first prompt
+// that reads like code work, as hidden context sent once. Never the system prompt mid-chat: that
+// would rewrite the whole prompt cache; a prompt's context is just a slightly longer message.
+let byPrompt = false
+const CODE_PROMPT = /```|\b(c[oó]digo|code|program(a|ar|ação|ming)|implement|refator|refactor|fun[cç][aã]o|function|classe|class|m[eé]todo|method|endpoint|api|script|bug|deploy|compil|frontend|backend|banco de dados|database|sql|schema|react|angular|vue|next\.?js|node|npm|java|python|typescript|javascript|kotlin|rust|golang|spring|django|flask|docker|html|css|git)\b|\bcri(e|ar|a) (um|uma|o|a) (app|aplicativo|site|sistema|api|cli|bot|jogo|extens[aã]o|plugin|biblioteca|projeto)\b/i
 // Bundled-skill updates: checked against GitHub at most once a week, applied only on a click.
 const WEEK = 7 * 24 * 60 * 60 * 1000
 let updates: Update[] = []
@@ -522,6 +527,17 @@ export const register: Register = on => {
       autoOpened = true
       void openPane($)
     }
+    let x = e
+    if (!off && level !== 'off' && rulesText && !byPrompt && !(await codeNow($)) && CODE_PROMPT.test(e.text)) {
+      byPrompt = true
+      void log($, 'ponytail: joined a prompt (no project marker in the folder yet)')
+      x = { ...e, context: [...(e.context ?? []), ponytailSection(level)] }
+      if (autoOpen && !autoOpened) {
+        autoOpened = true
+        void openPane($)
+      }
+      redraw($)
+    }
     if (!off) {
       for (const item of catalog.items) {
         if (!item.hint || hinted.has(item.id)) continue
@@ -537,7 +553,7 @@ export const register: Register = on => {
         $.ui.toast(`Coding Kit: para isso, experimente “${item.label}” (${item.command ?? item.fill ?? ''})`)
       }
     }
-    return next(e)
+    return next(x)
   }).catch(($, e, next) => next(e))
 
   on('command.run', { command: 'coding-kit' }, async ($, e) => {
@@ -609,7 +625,7 @@ export const register: Register = on => {
     const nowMs = await $.clock.now()
     const tools = catalog.items.filter(i => i.kind === 'mcp' || i.kind === 'tool')
     const tiles = [
-      { label: 'Ponytail', value: isCode ? level : 'inativo' },
+      { label: 'Ponytail', value: isCode || byPrompt ? level : 'inativo' },
       { label: 'Skills', value: String(catalog.items.length - tools.length + found.length) },
       { label: 'Ferramentas', value: `${tools.filter(t => installed[t.id]).length}/${tools.length}` },
     ]
@@ -672,7 +688,7 @@ export const register: Register = on => {
           ))}
         </Box>
         <Box key="ponytail" flexDirection="column" width={width} marginBottom={1}>
-          <Text dimColor wrap="wrap">{isCode ? 'Ponytail (vale a partir do próximo chat):' : 'Esta pasta não parece um projeto de código: Ponytail fica inativo aqui.'}</Text>
+          <Text dimColor wrap="wrap">{isCode || byPrompt ? 'Ponytail (vale a partir do próximo chat):' : 'Esta pasta ainda não parece um projeto de código: o Ponytail entra no primeiro prompt que pedir código.'}</Text>
           <Box flexDirection="row" gap={1}>
             {LEVELS.map(l => (
               <Button key={`level:${l}`} label={l === level ? `● ${l}` : l} variant={l === level ? 'primary' : undefined} onPress={noop} />

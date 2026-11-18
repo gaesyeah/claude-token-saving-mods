@@ -13,6 +13,13 @@ change that fully solves the task, no speculative abstractions, a short reply.
   written to the cache once per chat and read cheaply after that.
 - **Who decides when it applies:** the model, for free. The rules say to apply them on coding
   tasks and to answer other questions normally.
+- **A project started from zero:** in a folder with no project marker yet, the first prompt that
+  reads like code work (a regex, no model call: "crie um app", "implemente", a language or
+  framework name, a code block) carries the rules as hidden context, once per chat. The system
+  prompt is not touched mid-chat, so the prompt cache is never rewritten; the cost is the same
+  ~800 tokens.
+- **The desktop app's spare chats:** the app starts a chat early in an empty folder and moves it
+  into the project afterwards, so the check is redone whenever the chat's folder changes.
 - **Levels:** `off`, `lite`, `full` (default), `ultra`, in the pane or with
   `/coding-kit ponytail <level>`. A change applies from the next chat, so the current chat's
   prompt cache is not rewritten.

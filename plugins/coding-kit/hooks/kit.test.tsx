@@ -88,6 +88,25 @@ test('a chat started in a spare folder and moved into a project gets ponytail an
   expect(opened).toEqual(['coding-kit'])
 })
 
+test('in a folder with no project marker, ponytail joins the first code prompt once, as hidden context', async ($, on) => {
+  const contexts: (readonly string[] | undefined)[] = []
+  const opened: string[] = []
+  engine(on, { code: false, ran: [], filled: [], toasts: [], opened })
+  on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'x', scope: 'shared' }] }))
+  on('prompt.submit', (_: any, e: any) => {
+    contexts.push(e.context)
+    return { text: e.text }
+  })
+  await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
+  const r = await $.prompt.compose({ model: 'claude-opus-5-5', promptModel: 'claude-opus-5-5', surfaces: ['desktop'], tools: [], outputStyle: null, traits: [] } as any)
+  expect(r.sections.map((s: any) => s.id)).not.toContain('coding-kit:ponytail')
+  for (const text of ['bom dia, tudo bem?', 'crie um app de tarefas em React', 'agora adicione login']) await $.prompt.submit({ text, origin: { kind: 'composer' } } as any)
+  expect(contexts[0] ?? []).toEqual([])
+  expect(contexts[1]?.at(-1)).toContain('rules here')
+  expect(contexts[2] ?? []).toEqual([])
+  expect(opened).toEqual(['coding-kit'])
+})
+
 test('the pane lists the catalog, Usar fills the prompt, installs need a confirm', async ($, on) => {
   const ran: string[][] = []
   const filled: string[] = []
