@@ -113,12 +113,11 @@
       "group": "tools",
       "label": "Serena (busca semântica e refatoração)",
       "server": "serena",
-      "exclusive": "code-intel",
       "needs": [
         "uvx"
       ],
       "fill": "Use o Serena (find_symbol, find_referencing_symbols) para ",
-      "description": "Encontra símbolos e quem os usa via LSP e renomeia com segurança. Bom para refatorar em projetos grandes (Java, TS). Teste num projeto grande e compare.",
+      "description": "Acha onde cada função ou classe é definida e quem a usa, via LSP, e edita símbolo a símbolo. Rende em refatorar projetos grandes; em projetos pequenos pouco ajuda.",
       "install": [
         [
           "claude",
@@ -135,7 +134,9 @@
           "start-mcp-server",
           "--context",
           "claude-code",
-          "--project-from-cwd"
+          "--project-from-cwd",
+          "--open-web-dashboard",
+          "false"
         ]
       ],
       "uninstall": [
@@ -160,7 +161,7 @@
         "npx"
       ],
       "fill": "Use o grafo do codebase-memory (indexe o repositório se preciso) para ",
-      "description": "Grafo pré-indexado: quem chama o quê, inclusive rotas HTTP entre front e back. Instalado sem os hooks automáticos. Confira as respostas sobre rotas com grep.",
+      "description": "Indexa o código num grafo local que dura entre chats: quem chama cada função, imports e rotas HTTP. Responde perguntas de estrutura sem ler arquivo por arquivo.",
       "install": [
         [
           "claude",
@@ -196,7 +197,7 @@
         "uv"
       ],
       "fill": "/graphify .",
-      "description": "Grafo do código, docs e configs, com um relatório do projeto. Instala a skill /graphify e hooks que sugerem consultar o grafo antes de buscar.",
+      "description": "Gera um grafo do código, docs e configs e um relatório da arquitetura. Bom para entender código desconhecido ou legado. Instala a skill /graphify e hooks.",
       "check": {
         "argv": [
           "uv",

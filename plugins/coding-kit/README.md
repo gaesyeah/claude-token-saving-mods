@@ -26,7 +26,7 @@ change that fully solves the task, no speculative abstractions, a short reply.
 
 ## 2. The Coding Kit pane
 
-`/coding-kit` opens a side pane (it also opens by itself in code projects; turn that off in the
+`/coding-kit` opens a side pane (it also opens by itself at the first prompt about code in a code project; turn that off in the
 pane). Every entry has **Usar**, which puts its command in the prompt box for you to complete.
 
 | Group | Entry | Kind |

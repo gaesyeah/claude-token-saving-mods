@@ -502,10 +502,6 @@ export const register: Register = on => {
     })
     void refreshStatus($).catch(err => log($, `status: ${String(err)}`))
     void findSkills($).catch(err => log($, `skills: ${String(err)}`))
-    if (!off && isCode && autoOpen) {
-      autoOpened = true
-      void openPane($)
-    }
     // Once a week at most, in the background: it never holds the chat up.
     void checkUpdates($).catch(err => log($, `updates: ${String(err)}`))
     return next(e)
@@ -521,16 +517,16 @@ export const register: Register = on => {
 
   // A suggestion in the pane when the prompt looks like a known case: a regex, no model call.
   on('prompt.submit', async ($, e, next) => {
-    // Like the Input Router, the pane also opens when the chat is really in use: by the first
-    // prompt a spare chat is already in its project folder.
-    if (!off && autoOpen && !autoOpened && (await codeNow($))) {
-      autoOpened = true
-      void openPane($)
-    }
     let x = e
     // Only what the person typed: the desktop app puts <system-reminder> blocks in the prompt's
     // text (in a chat with no folder, one about the scratch workspace), which must not count.
     const typed = e.text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '')
+    // The pane opens at the first prompt about code, never at chat start: a chat in a code folder
+    // can be about anything.
+    if (!off && autoOpen && !autoOpened && CODE_PROMPT.test(typed) && (await codeNow($))) {
+      autoOpened = true
+      void openPane($)
+    }
     if (!off && level !== 'off' && rulesText && !byPrompt && !(await codeNow($)) && CODE_PROMPT.test(typed)) {
       byPrompt = true
       void log($, 'ponytail: joined a prompt (no project marker in the folder yet)')
@@ -588,9 +584,8 @@ export const register: Register = on => {
       await $.store.set('autoOpen', autoOpen)
     } else if (what === 'toggle-mine') showMine = !showMine
     else if ((what === 'install' || what === 'remove') && item) {
-      const other = what === 'install' ? clash(item) : undefined
-      if (other) note = `Remova ${other.label} antes: eles fazem o mesmo papel, e dois juntos só gastam contexto.`
-      else pending = { id: item.id, action: what }
+      // a clash is already shown beside the button
+      if (what === 'remove' || !clash(item)) pending = { id: item.id, action: what }
     } else if (what === 'confirm' && pending) {
       const p = pending
       pending = null
@@ -639,6 +634,7 @@ export const register: Register = on => {
       const isIn = installed[item.id]
       const confirm = pending?.id === item.id
       const hot = hinted.has(item.id)
+      const other = inst && !isIn ? clash(item) : undefined
       return (
         <Box key={`card-${item.id}`} flexDirection="column" width={width} marginBottom={1} borderStyle="round" borderColor={hot ? ACCENT : undefined} borderDimColor={!hot} paddingX={1}>
           <Box flexDirection="row" justifyContent="space-between" width={cw}>
@@ -659,6 +655,7 @@ export const register: Register = on => {
             <Box flexDirection="row" gap={1}>
               {!inst || isIn ? <Button key={`use:${item.id}`} label="Usar" variant="primary" onPress={noop} /> : null}
               {inst && busy !== item.id ? <Button key={`${isIn ? 'remove' : 'install'}:${item.id}`} label={isIn ? 'Remover' : 'Instalar'} onPress={noop} /> : null}
+              {other ? <Text dimColor wrap="truncate-end">{`Remova ${other.label.split(' (')[0]} antes`}</Text> : null}
             </Box>
           )}
         </Box>
@@ -697,7 +694,7 @@ export const register: Register = on => {
               <Button key={`level:${l}`} label={l === level ? `● ${l}` : l} variant={l === level ? 'primary' : undefined} onPress={noop} />
             ))}
           </Box>
-          <Button key="auto" plain dimColor onPress={noop}>{autoOpen ? '☑ Abrir sozinho em projetos de código' : '☐ Abrir sozinho em projetos de código'}</Button>
+          <Button key="auto" plain dimColor onPress={noop}>{autoOpen ? '☑ Abrir sozinho no primeiro pedido de código' : '☐ Abrir sozinho no primeiro pedido de código'}</Button>
           {/* The desktop app shows no tooltip in a pane: the label says what it does, short. */}
           <Button key="refresh" plain dimColor onPress={noop}>↻ Reler instalados e skills do disco</Button>
         </Box>
@@ -729,17 +726,7 @@ export const register: Register = on => {
           </Button>
         </Box>
         {note ? <Text key="note" color={NOTE} wrap="wrap">{note}</Text> : null}
-        {catalog.groups.map(g => {
-          const items = catalog.items.filter(i => i.group === g.id)
-          if (!items.length) return null
-          return (
-            <Box key={`group-${g.id}`} flexDirection="column" width={width}>
-              <Text bold>{g.title}</Text>
-              {items.map(card)}
-            </Box>
-          )
-        })}
-        <Box key="mine" flexDirection="column" width={width}>
+        <Box key="mine" flexDirection="column" width={width} marginBottom={1}>
           <Box flexDirection="row" justifyContent="space-between" width={width}>
             <Text bold>{`Suas skills (${found.length})`}</Text>
             <Button key="toggle-mine" plain dimColor onPress={noop}>{showMine ? '▾ Esconder' : '▸ Mostrar'}</Button>
@@ -757,6 +744,16 @@ export const register: Register = on => {
               ))
             : null}
         </Box>
+        {catalog.groups.map(g => {
+          const items = catalog.items.filter(i => i.group === g.id)
+          if (!items.length) return null
+          return (
+            <Box key={`group-${g.id}`} flexDirection="column" width={width}>
+              <Text bold>{g.title}</Text>
+              {items.map(card)}
+            </Box>
+          )
+        })}
       </Box>
     )
   })

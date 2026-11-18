@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 // A slice of catalog.json (a test can not import JSON).
-const catalogJson = {"groups": [{"id": "plan", "title": "Planejar"}, {"id": "build", "title": "Construir"}, {"id": "fix", "title": "Corrigir"}, {"id": "review", "title": "Revisar"}, {"id": "tools", "title": "Ferramentas (instalar com um clique)"}], "items": [{"id": "grill-me", "kind": "skill", "group": "plan", "label": "Interrogar o plano", "command": "/coding-kit:grill-me", "description": "Entrevista em rodadas até o plano ficar claro, com uma resposta recomendada para cada pergunta. Use antes de uma funcionalidade grande ou ainda nebulosa.", "source": "mattpocock/skills (MIT)"}, {"id": "systematic-debugging", "kind": "skill", "group": "fix", "label": "Depurar a fundo", "command": "/coding-kit:systematic-debugging", "description": "Acha a causa raiz antes de mexer no código: reproduz, compara, testa uma hipótese por vez. Para bug difícil ou que já resistiu a uma tentativa.", "source": "obra/superpowers (MIT)", "hint": "stack ?trace|traceback|exception|\\berro\\b|\\berror\\b|n[aã]o funciona|quebrou|falhando|\\bbug\\b|nullpointer|undefined is not|segfault"}, {"id": "context7", "kind": "mcp", "group": "tools", "label": "Context7", "server": "context7", "fill": "use context7 para ", "description": "Documentação atualizada de bibliotecas (React, Spring, Prisma...). Servidor remoto, sem instalar nada local; suas ferramentas ficam atrás da busca e só custam contexto quando usadas.", "install": [["claude", "mcp", "add", "--scope", "user", "--transport", "http", "context7", "https://mcp.context7.com/mcp"]], "uninstall": [["claude", "mcp", "remove", "--scope", "user", "context7"]]}, {"id": "serena", "kind": "mcp", "group": "tools", "label": "Serena (busca semântica e refatoração)", "server": "serena", "exclusive": "code-intel", "needs": ["uvx"], "fill": "Use o Serena (find_symbol, find_referencing_symbols) para ", "description": "Encontra símbolos e quem os usa via LSP e renomeia com segurança. Bom para refatorar em projetos grandes (Java, TS). Teste num projeto grande e compare.", "install": [["claude", "mcp", "add", "--scope", "user", "serena", "--", "uvx", "--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server", "--context", "claude-code", "--project-from-cwd"]], "uninstall": [["claude", "mcp", "remove", "--scope", "user", "serena"]]}, {"id": "codebase-memory", "kind": "mcp", "group": "tools", "label": "codebase-memory (grafo do código)", "server": "codebase-memory", "exclusive": "code-intel", "needs": ["npx"], "fill": "Use o grafo do codebase-memory (indexe o repositório se preciso) para ", "description": "Grafo pré-indexado: quem chama o quê, inclusive rotas HTTP entre front e back. Instalado sem os hooks automáticos. Confira as respostas sobre rotas com grep.", "install": [["claude", "mcp", "add", "--scope", "user", "codebase-memory", "--", "npx", "-y", "codebase-memory-mcp"]], "uninstall": [["claude", "mcp", "remove", "--scope", "user", "codebase-memory"]]}], "skills": [{"dir": "ponytail", "repo": "DietrichGebert/ponytail", "path": "skills/ponytail", "credit": "MIT License", "frontmatter": {"disable-model-invocation": "true"}}]}
+const catalogJson = {"groups": [{"id": "plan", "title": "Planejar"}, {"id": "build", "title": "Construir"}, {"id": "fix", "title": "Corrigir"}, {"id": "review", "title": "Revisar"}, {"id": "tools", "title": "Ferramentas (instalar com um clique)"}], "items": [{"id": "grill-me", "kind": "skill", "group": "plan", "label": "Interrogar o plano", "command": "/coding-kit:grill-me", "description": "Entrevista em rodadas até o plano ficar claro, com uma resposta recomendada para cada pergunta. Use antes de uma funcionalidade grande ou ainda nebulosa.", "source": "mattpocock/skills (MIT)"}, {"id": "systematic-debugging", "kind": "skill", "group": "fix", "label": "Depurar a fundo", "command": "/coding-kit:systematic-debugging", "description": "Acha a causa raiz antes de mexer no código: reproduz, compara, testa uma hipótese por vez. Para bug difícil ou que já resistiu a uma tentativa.", "source": "obra/superpowers (MIT)", "hint": "stack ?trace|traceback|exception|\\berro\\b|\\berror\\b|n[aã]o funciona|quebrou|falhando|\\bbug\\b|nullpointer|undefined is not|segfault"}, {"id": "context7", "kind": "mcp", "group": "tools", "label": "Context7", "server": "context7", "fill": "use context7 para ", "description": "Documentação atualizada de bibliotecas (React, Spring, Prisma...). Servidor remoto, sem instalar nada local; suas ferramentas ficam atrás da busca e só custam contexto quando usadas.", "install": [["claude", "mcp", "add", "--scope", "user", "--transport", "http", "context7", "https://mcp.context7.com/mcp"]], "uninstall": [["claude", "mcp", "remove", "--scope", "user", "context7"]]}, {"id": "serena", "kind": "mcp", "group": "tools", "label": "Serena (busca semântica e refatoração)", "server": "serena", "needs": ["uvx"], "fill": "Use o Serena (find_symbol, find_referencing_symbols) para ", "description": "Acha onde cada função ou classe é definida e quem a usa, via LSP, e edita símbolo a símbolo. Rende em refatorar projetos grandes; em projetos pequenos pouco ajuda.", "install": [["claude", "mcp", "add", "--scope", "user", "serena", "--", "uvx", "--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server", "--context", "claude-code", "--project-from-cwd", "--open-web-dashboard", "false"]], "uninstall": [["claude", "mcp", "remove", "--scope", "user", "serena"]]}, {"id": "codebase-memory", "kind": "mcp", "group": "tools", "label": "codebase-memory (grafo do código)", "server": "codebase-memory", "exclusive": "code-intel", "needs": ["npx"], "fill": "Use o grafo do codebase-memory (indexe o repositório se preciso) para ", "description": "Indexa o código num grafo local que dura entre chats: quem chama cada função, imports e rotas HTTP. Responde perguntas de estrutura sem ler arquivo por arquivo.", "install": [["claude", "mcp", "add", "--scope", "user", "codebase-memory", "--", "npx", "-y", "codebase-memory-mcp"]], "uninstall": [["claude", "mcp", "remove", "--scope", "user", "codebase-memory"]]}, {"id": "graphify", "kind": "mcp", "group": "tools", "label": "Graphify (grafo de código e docs)", "server": "graphify", "exclusive": "code-intel", "install": [["true"]], "uninstall": [["true"]]}], "skills": [{"dir": "ponytail", "repo": "DietrichGebert/ponytail", "path": "skills/ponytail", "credit": "MIT License", "frontmatter": {"disable-model-invocation": "true"}}]}
 
 const PANE = {
   plugin: 'coding-kit',
@@ -72,7 +72,7 @@ for (const code of [true, false]) {
   })
 }
 
-test('a chat started in a spare folder and moved into a project gets ponytail and opens the pane at its first prompt', async ($, on) => {
+test('a chat started in a spare folder and moved into a project gets ponytail and opens the pane at its first code prompt', async ($, on) => {
   const dir = { v: '/home/u/.claude/spares/spare-x' }
   const opened: string[] = []
   engine(on, { code: true, ran: [], filled: [], toasts: [], dir, opened })
@@ -83,8 +83,10 @@ test('a chat started in a spare folder and moved into a project gets ponytail an
   dir.v = '/work/app'
   const r = await $.prompt.compose({ model: 'claude-opus-5-5', promptModel: 'claude-opus-5-5', surfaces: ['desktop'], tools: [], outputStyle: null, traits: [] } as any)
   expect(r.sections.map((s: any) => s.id)).toContain('coding-kit:ponytail')
-  await $.prompt.submit({ text: 'oi', origin: { kind: 'composer' } } as any)
-  await $.prompt.submit({ text: 'de novo', origin: { kind: 'composer' } } as any)
+  await $.prompt.submit({ text: 'delegue para um agente pesquisar o que é aids', origin: { kind: 'composer' } } as any)
+  expect(opened.length).toBe(0)
+  await $.prompt.submit({ text: 'corrija o bug do login', origin: { kind: 'composer' } } as any)
+  await $.prompt.submit({ text: 'refatore a classe de novo', origin: { kind: 'composer' } } as any)
   expect(opened).toEqual(['coding-kit'])
 })
 
@@ -143,15 +145,16 @@ test('the pane lists the catalog, Usar fills the prompt, installs need a confirm
   await ui.unmount()
 })
 
-test('two code-intel tools are never installed together', async ($, on) => {
+test('the two code graphs are never installed together, Serena goes with either', async ($, on) => {
   const ran: string[][] = []
-  files['/home/u/.claude.json'] = JSON.stringify({ mcpServers: { serena: {} } })
+  files['/home/u/.claude.json'] = JSON.stringify({ mcpServers: { serena: {}, graphify: {} } })
   engine(on, { code: true, ran, filled: [], toasts: [] })
   await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
   await new Promise(r => setTimeout(r, 50))
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  expect(await ui.find({ type: 'Text', text: /Remova Graphify antes/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Remova Serena/ })).toBeUndefined()
   await ui.press({ key: 'install:codebase-memory' })
-  expect(await ui.find({ type: 'Text', text: /Remova Serena/ })).toBeDefined()
   expect(await ui.find({ key: 'confirm' })).toBeUndefined()
   delete files['/home/u/.claude.json']
   await ui.unmount()
