@@ -46,5 +46,31 @@ class ModernWebGuidance(unittest.TestCase):
         self.assertEqual(i["repo"], "https://github.com/GoogleChrome/modern-web-guidance")
 
 
+class Rtk(unittest.TestCase):
+    def setUp(self):
+        self.i = ITEMS["rtk"]
+
+    def test_installs_the_apache_edition_checks_it_and_adds_only_the_hook(self):
+        steps = argvs(self.i["install"])
+        self.assertIn("RTK_EDITION=oss sh", steps[0])
+        self.assertIn("https://raw.githubusercontent.com/rtk-ai/rtk/master/install.sh", steps[0])
+        # `rtk gain` fails on the other rtk (Rust Type Kit): the install stops there.
+        self.assertEqual(steps[1], "rtk gain")
+        self.assertEqual(steps[2], "rtk init -g --auto-patch --hook-only")
+        self.assertEqual(self.i["env"]["RTK_TELEMETRY_DISABLED"], "1")
+
+    def test_removes_the_hook_the_binary_and_its_history(self):
+        steps = " ; ".join(argvs(self.i["uninstall"]))
+        self.assertIn("rtk init -g --uninstall", steps)
+        self.assertIn(".local/bin/rtk", steps)
+        self.assertIn(".local/share/rtk", steps)
+
+    def test_is_detected_shrinks_with_the_others_and_shows_its_savings(self):
+        self.assertEqual(self.i["check"], {"argv": ["rtk", "gain"]})
+        self.assertEqual(self.i["exclusive"], "shrink-output")
+        self.assertIn({"id": "gain", "label": "Economia", "run": ["rtk", "gain"]}, self.i["actions"])
+        self.assertTrue(any("settings.json" in c for c in self.i["changes"]))
+
+
 if __name__ == "__main__":
     unittest.main()

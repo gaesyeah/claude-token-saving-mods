@@ -307,6 +307,73 @@
         "Instala o comando graphify com uv tool (em ~/.local/bin).",
         "graphify install registra a skill /graphify e um hook do Claude Code."
       ]
+    },
+    {
+      "id": "rtk",
+      "kind": "tool",
+      "group": "tools",
+      "label": "rtk (encolhe a saída do Bash)",
+      "description": "Um hook reescreve os comandos do Bash (git status vira rtk git status) e devolve ao Claude só o que importa: testes que passam viram uma contagem, falhas ficam inteiras. Sem modelo, sem rede. Não pega Read nem Grep. Combina com o input-router: o que ainda vier grande, o Haiku resume.",
+      "exclusive": "shrink-output",
+      "needs": [
+        "curl"
+      ],
+      "repo": "https://github.com/rtk-ai/rtk",
+      "env": {
+        "RTK_TELEMETRY_DISABLED": "1"
+      },
+      "check": {
+        "argv": [
+          "rtk",
+          "gain"
+        ]
+      },
+      "install": [
+        [
+          "/bin/sh",
+          "-c",
+          "curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/master/install.sh | RTK_EDITION=oss sh"
+        ],
+        [
+          "rtk",
+          "gain"
+        ],
+        [
+          "rtk",
+          "init",
+          "-g",
+          "--auto-patch",
+          "--hook-only"
+        ]
+      ],
+      "uninstall": [
+        [
+          "rtk",
+          "init",
+          "-g",
+          "--uninstall"
+        ],
+        [
+          "/bin/sh",
+          "-c",
+          "rm -f \"$HOME/.local/bin/rtk\"; rm -rf \"$HOME/.local/share/rtk\""
+        ]
+      ],
+      "changes": [
+        "Baixa o rtk (edição Apache, conferida por checksum) para ~/.local/bin.",
+        "Um hook PreToolUse no Bash em ~/.claude/settings.json (backup em settings.json.bak).",
+        "Telemetria desligada (RTK_TELEMETRY_DISABLED=1); o histórico de economia fica em ~/.local/share/rtk."
+      ],
+      "actions": [
+        {
+          "id": "gain",
+          "label": "Economia",
+          "run": [
+            "rtk",
+            "gain"
+          ]
+        }
+      ]
     }
   ],
   "skills": [
@@ -493,6 +560,7 @@
     }
   ],
   "exclusives": {
-    "code-intel": "Os dois montam um grafo do código e fazem o mesmo papel: com os dois, o Claude não sabe qual consultar."
+    "code-intel": "Os dois montam um grafo do código e fazem o mesmo papel: com os dois, o Claude não sabe qual consultar.",
+    "shrink-output": "Os três encolhem o que as ferramentas devolvem ao Claude. rtk e lean-ctx reescreveriam o mesmo comando do Bash duas vezes; lean-ctx e context-mode disputam a leitura dos arquivos; rtk e context-mode fazem o mesmo trabalho em dobro."
   }
 }
