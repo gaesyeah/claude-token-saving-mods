@@ -463,7 +463,8 @@ async function runAction($: EngineInterface, item: Item, a: Action) {
   if (!a.run) return
   outputs[item.id] = '…'
   redraw($)
-  const r = await $.process.run(a.run, { timeoutMs: 60_000, env: await envOf($, item) }).catch(err => ({ exitCode: 1, stdout: '', stderr: String(err) }))
+  // Up to ten minutes: indexing a big repo takes a while.
+  const r = await $.process.run(a.run, { timeoutMs: 600_000, env: await envOf($, item) }).catch(err => ({ exitCode: 1, stdout: '', stderr: String(err) }))
   outputs[item.id] = (r.stdout.trim() || r.stderr.trim() || `saiu com ${r.exitCode}`).slice(-800)
   redraw($)
 }

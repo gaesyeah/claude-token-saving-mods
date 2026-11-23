@@ -145,15 +145,9 @@
       "description": "Documentação atualizada de bibliotecas (React, Spring, Prisma...). Servidor remoto, sem instalar nada local; suas ferramentas ficam atrás da busca e só custam contexto quando usadas.",
       "install": [
         [
-          "claude",
-          "mcp",
-          "add",
-          "--scope",
-          "user",
-          "--transport",
-          "http",
-          "context7",
-          "https://mcp.context7.com/mcp"
+          "/bin/sh",
+          "-c",
+          "if [ -n \"$CONTEXT7_API_KEY\" ]; then claude mcp add --scope user --transport http context7 https://mcp.context7.com/mcp --header \"Authorization: Bearer $CONTEXT7_API_KEY\"; else claude mcp add --scope user --transport http context7 https://mcp.context7.com/mcp; fi"
         ]
       ],
       "uninstall": [
@@ -167,7 +161,16 @@
         ]
       ],
       "changes": [
-        "Registra o servidor MCP context7 (remoto, https://mcp.context7.com/mcp) em ~/.claude.json, para todos os projetos."
+        "Registra o servidor MCP context7 (remoto, https://mcp.context7.com/mcp) em ~/.claude.json, para todos os projetos.",
+        "Se a variável CONTEXT7_API_KEY estiver definida quando o app abriu, a chave vai junto (limite de consultas maior) e fica gravada em ~/.claude.json. Sem ela, funciona com o limite gratuito."
+      ],
+      "actions": [
+        {
+          "id": "always",
+          "label": "Usar sempre",
+          "offLabel": "Parar de usar sempre",
+          "rule": "Use Context7 (resolve-library-id, then query-docs) whenever a task needs a library's or API's documentation, code examples, setup or configuration steps, without waiting to be asked."
+        }
       ]
     },
     {
@@ -178,28 +181,23 @@
       "label": "Serena (busca semântica e refatoração)",
       "server": "serena",
       "needs": [
-        "uvx"
+        "uv"
       ],
       "fill": "Use o Serena (ative este projeto primeiro, se ainda não estiver ativo) para ",
       "description": "Acha onde cada função ou classe é definida e quem a usa, via LSP, e edita símbolo a símbolo. Rende em refatorar projetos grandes; em projetos pequenos pouco ajuda.",
       "install": [
         [
-          "claude",
-          "mcp",
-          "add",
-          "--scope",
-          "user",
-          "serena",
-          "--",
-          "uvx",
-          "--from",
-          "git+https://github.com/oraios/serena",
-          "serena",
-          "start-mcp-server",
-          "--context",
-          "claude-code",
-          "--open-web-dashboard",
-          "false"
+          "uv",
+          "tool",
+          "install",
+          "-p",
+          "3.13",
+          "serena-agent"
+        ],
+        [
+          "/bin/sh",
+          "-c",
+          "claude mcp add --scope user serena -- \"$(uv tool dir --bin)/serena\" start-mcp-server --context claude-code --open-web-dashboard false"
         ]
       ],
       "uninstall": [
@@ -210,11 +208,29 @@
           "--scope",
           "user",
           "serena"
+        ],
+        [
+          "/bin/sh",
+          "-c",
+          "uv tool uninstall serena-agent || true"
         ]
       ],
       "changes": [
-        "Registra o servidor MCP serena em ~/.claude.json, para todos os projetos.",
-        "Ao ativar um projeto, o Serena cria a pasta .serena/ nele; config e logs ficam em ~/.serena/."
+        "Instala o Serena com uv tool (Python 3.13, em ~/.local/bin), como o README dele manda.",
+        "Registra o servidor MCP serena em ~/.claude.json, para todos os projetos, sem projeto fixo e sem abrir o dashboard.",
+        "Preparar este projeto cria .serena/ nele (project.yml, memórias, cache) e indexa os símbolos; config e servidores de linguagem ficam em ~/.serena/."
+      ],
+      "prepared": ".serena/project.yml",
+      "actions": [
+        {
+          "id": "index",
+          "label": "Preparar este projeto",
+          "run": [
+            "serena",
+            "project",
+            "index"
+          ]
+        }
       ]
     },
     {
@@ -252,11 +268,23 @@
           "--scope",
           "user",
           "codebase-memory"
+        ],
+        [
+          "/bin/sh",
+          "-c",
+          "rm -rf \"${CBM_CACHE_DIR:-$HOME/.cache/codebase-memory-mcp}\""
         ]
       ],
       "changes": [
         "Registra o servidor MCP codebase-memory em ~/.claude.json, para todos os projetos.",
-        "Os índices ficam em ~/.cache/codebase-memory-mcp/."
+        "Ele não indexa sozinho: use Indexar este projeto em cada repositório. Os índices ficam em ~/.cache/codebase-memory-mcp/ e o Remover apaga."
+      ],
+      "actions": [
+        {
+          "id": "index",
+          "label": "Indexar este projeto",
+          "fill": "Use o codebase-memory para indexar este repositório e me diga quando terminar."
+        }
       ]
     },
     {
@@ -305,7 +333,20 @@
       ],
       "changes": [
         "Instala o comando graphify com uv tool (em ~/.local/bin).",
-        "graphify install registra a skill /graphify e um hook do Claude Code."
+        "graphify install põe a skill /graphify em ~/.claude/skills/graphify e uma seção no ~/.claude/CLAUDE.md; o Remover tira as duas.",
+        "/graphify . cria graphify-out/ no projeto. Código é lido offline; docs, PDFs e imagens precisam da chave de um modelo. As consultas ficam em ~/.cache/graphify-queries.log."
+      ],
+      "prepared": "graphify-out/graph.json",
+      "actions": [
+        {
+          "id": "gitignore",
+          "label": "Pôr graphify-out/ no .gitignore",
+          "run": [
+            "/bin/sh",
+            "-c",
+            "grep -qxF 'graphify-out/' .gitignore 2>/dev/null || printf 'graphify-out/\\n' >> .gitignore; echo 'graphify-out/ está no .gitignore deste projeto.'"
+          ]
+        }
       ]
     },
     {

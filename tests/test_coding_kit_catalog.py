@@ -120,5 +120,65 @@ class ContextMode(unittest.TestCase):
         self.assertIn("ELv2", self.i["source"])
 
 
+class Context7(unittest.TestCase):
+    def setUp(self):
+        self.i = ITEMS["context7"]
+
+    def test_sends_an_api_key_when_one_is_set(self):
+        step = argvs(self.i["install"])[0]
+        self.assertIn('CONTEXT7_API_KEY', step)
+        self.assertIn('--header "Authorization: Bearer $CONTEXT7_API_KEY"', step)
+        self.assertIn("https://mcp.context7.com/mcp", step)
+
+    def test_has_a_use_always_rule(self):
+        a = next(a for a in self.i["actions"] if a["id"] == "always")
+        self.assertIn("Context7", a["rule"])
+        self.assertEqual(a["label"], "Usar sempre")
+
+
+class Serena(unittest.TestCase):
+    def setUp(self):
+        self.i = ITEMS["serena"]
+
+    def test_installs_the_way_its_readme_says(self):
+        steps = argvs(self.i["install"])
+        self.assertEqual(steps[0], "uv tool install -p 3.13 serena-agent")
+        self.assertIn('"$(uv tool dir --bin)/serena" start-mcp-server --context claude-code --open-web-dashboard false', steps[1])
+        self.assertNotIn("--project-from-cwd", steps[1])
+        self.assertEqual(self.i["needs"], ["uv"])
+
+    def test_removes_both_and_prepares_a_project(self):
+        steps = " ; ".join(argvs(self.i["uninstall"]))
+        self.assertIn("claude mcp remove --scope user serena", steps)
+        self.assertIn("uv tool uninstall serena-agent", steps)
+        self.assertEqual(self.i["prepared"], ".serena/project.yml")
+        a = next(a for a in self.i["actions"] if a["id"] == "index")
+        self.assertEqual(a["run"], ["serena", "project", "index"])
+
+
+class CodebaseMemory(unittest.TestCase):
+    def test_can_index_the_project_and_remove_deletes_its_indexes(self):
+        i = ITEMS["codebase-memory"]
+        a = next(a for a in i["actions"] if a["id"] == "index")
+        self.assertIn("codebase-memory", a["fill"])
+        self.assertIn(".cache/codebase-memory-mcp", " ; ".join(argvs(i["uninstall"])))
+
+
+class Graphify(unittest.TestCase):
+    def setUp(self):
+        self.i = ITEMS["graphify"]
+
+    def test_says_it_writes_a_skill_and_claude_md_not_a_hook(self):
+        changes = " ".join(self.i["changes"])
+        self.assertIn("skills/graphify", changes)
+        self.assertIn("CLAUDE.md", changes)
+        self.assertNotIn("hook", changes)
+
+    def test_maps_the_project_and_keeps_its_output_out_of_git(self):
+        self.assertEqual(self.i["prepared"], "graphify-out/graph.json")
+        a = next(a for a in self.i["actions"] if a["id"] == "gitignore")
+        self.assertIn("graphify-out/", " ".join(a["run"]))
+
+
 if __name__ == "__main__":
     unittest.main()
