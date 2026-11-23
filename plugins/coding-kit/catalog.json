@@ -161,7 +161,7 @@
       "needs": [
         "uvx"
       ],
-      "fill": "Use o Serena (find_symbol, find_referencing_symbols) para ",
+      "fill": "Use o Serena (ative este projeto primeiro, se ainda não estiver ativo) para ",
       "description": "Acha onde cada função ou classe é definida e quem a usa, via LSP, e edita símbolo a símbolo. Rende em refatorar projetos grandes; em projetos pequenos pouco ajuda.",
       "install": [
         [
@@ -179,7 +179,6 @@
           "start-mcp-server",
           "--context",
           "claude-code",
-          "--project-from-cwd",
           "--open-web-dashboard",
           "false"
         ]

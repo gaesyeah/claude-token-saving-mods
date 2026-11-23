@@ -86,6 +86,12 @@ let checkedAt = 0
 let checking = false
 let confirmUpdates = false
 
+// The dashboard of this chat's Serena: each chat runs its own, on the first free port from 24282, and only
+// its log holds this chat's Serena session id.
+const SERENA_SH = 'for p in $(seq 24282 24301); do curl -s -m 2 -X POST -H "Content-Type: application/json" -d \'{"start_idx":0}\' "http://127.0.0.1:$p/get_log_messages" | grep -qF "$1" && { echo "http://127.0.0.1:$p/dashboard/index.html"; exit 0; }; done; exit 1'
+// Serena's dashboard never opens by itself; the first time Serena activates a project in this chat, a band offers it.
+let serenaSession = ''
+let serenaBand = false
 // Opens a link with the desktop's opener: xdg-open (Linux), gio, or open (macOS).
 const OPEN_SH = 'for c in xdg-open gio open; do command -v "$c" >/dev/null 2>&1 || continue; if [ "$c" = gio ]; then gio open "$1"; else "$c" "$1"; fi </dev/null >/dev/null 2>&1; exit $?; done; exit 3'
 
@@ -576,6 +582,13 @@ export const register: Register = on => {
     const item = catalog.items.find(i => i.id === id)
     if (what === 'use' && item) await use($, item.fill ?? `${item.command ?? ''} `)
     else if (what === 'mine' && id) await use($, `${id} `)
+    else if (what === 'serena-open') {
+      serenaBand = false
+      const r = await $.process.run(['/bin/sh', '-c', SERENA_SH, 'sh', serenaSession], { timeoutMs: 60_000 }).catch(() => null)
+      const url = r?.exitCode === 0 ? r.stdout.trim() : ''
+      if (url) await $.process.run(['/bin/sh', '-c', OPEN_SH, 'sh', url], { timeoutMs: 15_000 }).catch(() => undefined)
+      else $.ui.toast('Coding Kit: não achei o painel do Serena deste chat.')
+    } else if (what === 'serena-dismiss') serenaBand = false
     else if (what === 'repo' && item?.repo) await $.process.run(['/bin/sh', '-c', OPEN_SH, 'sh', item.repo], { timeoutMs: 15_000 }).catch(() => undefined)
     else if (what === 'level' && LEVELS.includes(id as Level)) {
       level = id as Level
@@ -612,6 +625,41 @@ export const register: Register = on => {
     } else return next(e)
     redraw($)
     return { element: el }
+  })
+
+  // One unfiltered hook: a typed tool matcher makes tsc recurse through the connector types.
+  on('tool.call', async ($, e, next) => {
+    if ((e.tool as string) !== 'mcp__serena__activate_project') return next(e)
+    const ran = await next(e)
+    const session = String((e as unknown as { session?: unknown }).session ?? '')
+    if (!off && !serenaSession && session && !ran.isError && ran.deny === undefined) {
+      serenaSession = session
+      serenaBand = true
+      redraw($)
+    }
+    return ran
+  }).catch(($, e, next) => next(e))
+
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (off || !serenaBand || e.props.hasSurvey) return next(e)
+    const rest = await next(e)
+    const { Box, Text, Button } = $.ui.resolve(e)
+    const noop = () => undefined
+    return (
+      <Box flexDirection="column">
+        {rest}
+        <Box flexDirection="row" alignItems="center" justifyContent="space-between" gap={1}>
+          <Text>
+            <Text color={ACCENT}>Serena ativo neste projeto.</Text>
+            <Text dimColor> Abrir o painel dele (logs e uso das ferramentas)?</Text>
+          </Text>
+          <Box flexDirection="row" gap={1}>
+            <Button key="serena-open" label="Abrir painel" variant="primary" onPress={noop} />
+            <Button key="serena-dismiss" label="Agora não" role="dismiss" onPress={noop} />
+          </Box>
+        </Box>
+      </Box>
+    )
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {

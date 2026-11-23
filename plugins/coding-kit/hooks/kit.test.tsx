@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 // A slice of catalog.json (a test can not import JSON).
-const catalogJson = {"groups": [{"id": "plan", "title": "Planejar"}, {"id": "build", "title": "Construir"}, {"id": "fix", "title": "Corrigir"}, {"id": "review", "title": "Revisar"}, {"id": "tools", "title": "Ferramentas (instalar com um clique)"}], "items": [{"id": "grill-me", "kind": "skill", "group": "plan", "label": "Interrogar o plano", "command": "/coding-kit:grill-me", "description": "Entrevista em rodadas até o plano ficar claro, com uma resposta recomendada para cada pergunta. Use antes de uma funcionalidade grande ou ainda nebulosa.", "source": "mattpocock/skills (MIT)"}, {"id": "systematic-debugging", "kind": "skill", "group": "fix", "label": "Depurar a fundo", "command": "/coding-kit:systematic-debugging", "description": "Acha a causa raiz antes de mexer no código: reproduz, compara, testa uma hipótese por vez. Para bug difícil ou que já resistiu a uma tentativa.", "source": "obra/superpowers (MIT)", "hint": "stack ?trace|traceback|exception|\\berro\\b|\\berror\\b|n[aã]o funciona|quebrou|falhando|\\bbug\\b|nullpointer|undefined is not|segfault"}, {"id": "context7", "kind": "mcp", "group": "tools", "label": "Context7", "server": "context7", "fill": "use context7 para ", "description": "Documentação atualizada de bibliotecas (React, Spring, Prisma...). Servidor remoto, sem instalar nada local; suas ferramentas ficam atrás da busca e só custam contexto quando usadas.", "install": [["claude", "mcp", "add", "--scope", "user", "--transport", "http", "context7", "https://mcp.context7.com/mcp"]], "uninstall": [["claude", "mcp", "remove", "--scope", "user", "context7"]]}, {"id": "serena", "repo": "https://github.com/oraios/serena", "kind": "mcp", "group": "tools", "label": "Serena (busca semântica e refatoração)", "server": "serena", "needs": ["uvx"], "fill": "Use o Serena (find_symbol, find_referencing_symbols) para ", "description": "Acha onde cada função ou classe é definida e quem a usa, via LSP, e edita símbolo a símbolo. Rende em refatorar projetos grandes; em projetos pequenos pouco ajuda.", "install": [["claude", "mcp", "add", "--scope", "user", "serena", "--", "uvx", "--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server", "--context", "claude-code", "--project-from-cwd", "--open-web-dashboard", "false"]], "uninstall": [["claude", "mcp", "remove", "--scope", "user", "serena"]]}, {"id": "codebase-memory", "kind": "mcp", "group": "tools", "label": "codebase-memory (grafo do código)", "server": "codebase-memory", "exclusive": "code-intel", "needs": ["npx"], "fill": "Use o grafo do codebase-memory (indexe o repositório se preciso) para ", "description": "Indexa o código num grafo local que dura entre chats: quem chama cada função, imports e rotas HTTP. Responde perguntas de estrutura sem ler arquivo por arquivo.", "install": [["claude", "mcp", "add", "--scope", "user", "codebase-memory", "--", "npx", "-y", "codebase-memory-mcp"]], "uninstall": [["claude", "mcp", "remove", "--scope", "user", "codebase-memory"]]}, {"id": "graphify", "kind": "mcp", "group": "tools", "label": "Graphify (grafo de código e docs)", "server": "graphify", "exclusive": "code-intel", "install": [["true"]], "uninstall": [["true"]]}], "skills": [{"dir": "ponytail", "repo": "DietrichGebert/ponytail", "path": "skills/ponytail", "credit": "MIT License", "frontmatter": {"disable-model-invocation": "true"}}]}
+const catalogJson = {"groups": [{"id": "plan", "title": "Planejar"}, {"id": "build", "title": "Construir"}, {"id": "fix", "title": "Corrigir"}, {"id": "review", "title": "Revisar"}, {"id": "tools", "title": "Ferramentas (instalar com um clique)"}], "items": [{"id": "grill-me", "kind": "skill", "group": "plan", "label": "Interrogar o plano", "command": "/coding-kit:grill-me", "description": "Entrevista em rodadas até o plano ficar claro, com uma resposta recomendada para cada pergunta. Use antes de uma funcionalidade grande ou ainda nebulosa.", "source": "mattpocock/skills (MIT)"}, {"id": "systematic-debugging", "kind": "skill", "group": "fix", "label": "Depurar a fundo", "command": "/coding-kit:systematic-debugging", "description": "Acha a causa raiz antes de mexer no código: reproduz, compara, testa uma hipótese por vez. Para bug difícil ou que já resistiu a uma tentativa.", "source": "obra/superpowers (MIT)", "hint": "stack ?trace|traceback|exception|\\berro\\b|\\berror\\b|n[aã]o funciona|quebrou|falhando|\\bbug\\b|nullpointer|undefined is not|segfault"}, {"id": "context7", "kind": "mcp", "group": "tools", "label": "Context7", "server": "context7", "fill": "use context7 para ", "description": "Documentação atualizada de bibliotecas (React, Spring, Prisma...). Servidor remoto, sem instalar nada local; suas ferramentas ficam atrás da busca e só custam contexto quando usadas.", "install": [["claude", "mcp", "add", "--scope", "user", "--transport", "http", "context7", "https://mcp.context7.com/mcp"]], "uninstall": [["claude", "mcp", "remove", "--scope", "user", "context7"]]}, {"id": "serena", "repo": "https://github.com/oraios/serena", "kind": "mcp", "group": "tools", "label": "Serena (busca semântica e refatoração)", "server": "serena", "needs": ["uvx"], "fill": "Use o Serena (ative este projeto primeiro, se ainda não estiver ativo) para ", "description": "Acha onde cada função ou classe é definida e quem a usa, via LSP, e edita símbolo a símbolo. Rende em refatorar projetos grandes; em projetos pequenos pouco ajuda.", "install": [["claude", "mcp", "add", "--scope", "user", "serena", "--", "uvx", "--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server", "--context", "claude-code", "--open-web-dashboard", "false"]], "uninstall": [["claude", "mcp", "remove", "--scope", "user", "serena"]]}, {"id": "codebase-memory", "kind": "mcp", "group": "tools", "label": "codebase-memory (grafo do código)", "server": "codebase-memory", "exclusive": "code-intel", "needs": ["npx"], "fill": "Use o grafo do codebase-memory (indexe o repositório se preciso) para ", "description": "Indexa o código num grafo local que dura entre chats: quem chama cada função, imports e rotas HTTP. Responde perguntas de estrutura sem ler arquivo por arquivo.", "install": [["claude", "mcp", "add", "--scope", "user", "codebase-memory", "--", "npx", "-y", "codebase-memory-mcp"]], "uninstall": [["claude", "mcp", "remove", "--scope", "user", "codebase-memory"]]}, {"id": "graphify", "kind": "mcp", "group": "tools", "label": "Graphify (grafo de código e docs)", "server": "graphify", "exclusive": "code-intel", "install": [["true"]], "uninstall": [["true"]]}], "skills": [{"dir": "ponytail", "repo": "DietrichGebert/ponytail", "path": "skills/ponytail", "credit": "MIT License", "frontmatter": {"disable-model-invocation": "true"}}]}
 
 const PANE = {
   plugin: 'coding-kit',
@@ -12,7 +12,7 @@ const PANE = {
 const files: Record<string, string> = {}
 
 // Stands for the engine: a project folder, the plugin's own files, and the commands the pane runs.
-function engine(on: any, opts: { code: boolean; ran: string[][]; filled: string[]; toasts: string[]; curl?: (url: string) => string; writes?: Record<string, string>; dir?: { v: string }; opened?: string[] }) {
+function engine(on: any, opts: { code: boolean; ran: string[][]; filled: string[]; toasts: string[]; curl?: (url: string) => string; writes?: Record<string, string>; dir?: { v: string }; opened?: string[]; sh?: string[][]; shOut?: string }) {
   const own = (path: string) => (path.endsWith('/catalog.json') ? JSON.stringify(catalogJson) : path.endsWith('/skills/ponytail/SKILL.md') ? '---\nname: ponytail\n---\n# Ponytail\nActive for the whole session.\nrules here' : undefined)
   on('session.id', () => ({ value: 'sid' }))
   on('session.cwd', () => ({ value: opts.dir?.v ?? '/work/app' }))
@@ -50,7 +50,8 @@ function engine(on: any, opts: { code: boolean; ran: string[][]; filled: string[
     const argv: string[] = e.argv
     if (argv[0] === 'curl') return { value: { exitCode: opts.curl ? 0 : 6, stdout: opts.curl ? opts.curl(argv.at(-1)!) : '', stderr: '' } }
     if (argv[0] !== '/bin/sh') opts.ran.push(argv)
-    return { value: { exitCode: 0, stdout: '', stderr: '' } }
+    else opts.sh?.push(argv)
+    return { value: { exitCode: 0, stdout: argv[0] === '/bin/sh' ? (opts.shOut ?? '') : '', stderr: '' } }
   })
 }
 
@@ -204,4 +205,25 @@ test('bundled skills: one GitHub check a week, an update only after a confirm, f
   const lock = Object.entries(writes).find(([k]) => k.endsWith('/upstream.lock.json'))?.[1] ?? ''
   expect(lock).toContain('b'.repeat(40))
   await ui.unmount()
+})
+
+test('Serena activating a project shows a band once, and Abrir painel looks up this chat\'s dashboard', async ($, on) => {
+  const ran: string[][] = []
+  const sh: string[][] = []
+  engine(on, { code: true, ran, filled: [], toasts: [], sh, shOut: 'http://127.0.0.1:24283/dashboard/index.html\n' })
+  on('tool.call', () => ({ result: 'activated' }))
+  await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
+  const props = { hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 20, bodyColumns: 100, scroll: { offset: 0, bodyRows: 20 } }
+  const band = await $.ui.mount({ plugin: 'coding-kit', component: 'AbovePrompt', props, surface: 'desktop' } as any)
+  expect(await band.find({ key: 'serena-open' })).toBeUndefined()
+  await $.tool.call({ tool: 'mcp__serena__activate_project', project: '/work/app', session: 'ab12cd34', tool_use_id: 'u1' } as any)
+  expect(await band.find({ key: 'serena-open' })).toBeDefined()
+  await band.press({ key: 'serena-open' })
+  await new Promise(r => setTimeout(r, 50))
+  expect(sh.some(a => a.at(-1) === 'ab12cd34')).toBe(true)
+  expect(sh.some(a => a.at(-1) === 'http://127.0.0.1:24283/dashboard/index.html')).toBe(true)
+  expect(await band.find({ key: 'serena-open' })).toBeUndefined()
+  await $.tool.call({ tool: 'mcp__serena__activate_project', project: '/work/app', session: 'other', tool_use_id: 'u2' } as any)
+  expect(await band.find({ key: 'serena-open' })).toBeUndefined()
+  await band.unmount()
 })
