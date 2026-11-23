@@ -72,5 +72,53 @@ class Rtk(unittest.TestCase):
         self.assertTrue(any("settings.json" in c for c in self.i["changes"]))
 
 
+class LeanCtx(unittest.TestCase):
+    def setUp(self):
+        self.i = ITEMS["lean-ctx"]
+
+    def test_installs_without_onboarding_every_tool_and_with_telemetry_off_before_init(self):
+        steps = argvs(self.i["install"])
+        self.assertIn("https://leanctx.com/install.sh", steps[0])
+        self.assertEqual(self.i["env"]["LEAN_CTX_NO_ONBOARD"], "1")
+        self.assertEqual(self.i["env"]["LEAN_CTX_NO_UPDATE_CHECK"], "1")
+        self.assertLess(steps.index("lean-ctx telemetry disable"), steps.index("lean-ctx init --agent claude"))
+        verify = self.i["install"][1]
+        self.assertEqual(verify, {"argv": ["lean-ctx", "--version"], "match": "official"})
+
+    def test_remove_also_takes_its_block_out_of_claude_md(self):
+        steps = " ; ".join(argvs(self.i["uninstall"]))
+        self.assertIn("lean-ctx uninstall", steps)
+        self.assertIn("<!-- lean-ctx -->", steps)
+        self.assertIn(".claude/CLAUDE.md", steps)
+
+    def test_warns_about_auto_approved_tools_and_overlaps(self):
+        changes = " ".join(self.i["changes"])
+        self.assertIn("ctx_shell", changes)
+        self.assertIn("sem pedir", changes)
+        self.assertEqual(self.i["exclusive"], "shrink-output")
+        self.assertEqual(self.i["overlapsMod"]["mod"], "input-router")
+        self.assertIn({"id": "gain", "label": "Economia", "run": ["lean-ctx", "gain", "--terminal"]}, self.i["actions"])
+
+
+class ContextMode(unittest.TestCase):
+    def setUp(self):
+        self.i = ITEMS["context-mode"]
+
+    def test_is_a_plugin_that_checks_node_first_and_removes_its_data(self):
+        self.assertEqual(self.i["kind"], "plugin")
+        self.assertEqual(self.i["plugin"], "context-mode@context-mode")
+        install = argvs(self.i["install"])
+        self.assertIn("24", install[0])
+        self.assertEqual(install[1:], ["claude plugin marketplace add mksglu/context-mode", "claude plugin install context-mode@context-mode"])
+        remove = argvs(self.i["uninstall"])
+        self.assertEqual(remove[:2], ["claude plugin uninstall context-mode@context-mode", "claude plugin marketplace remove context-mode"])
+        self.assertIn(".context-mode", remove[2])
+
+    def test_says_it_replaces_the_input_router(self):
+        self.assertEqual(self.i["exclusive"], "shrink-output")
+        self.assertEqual(self.i["overlapsMod"]["mod"], "input-router")
+        self.assertIn("ELv2", self.i["source"])
+
+
 if __name__ == "__main__":
     unittest.main()

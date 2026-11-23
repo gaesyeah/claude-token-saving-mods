@@ -374,6 +374,159 @@
           ]
         }
       ]
+    },
+    {
+      "id": "lean-ctx",
+      "kind": "tool",
+      "group": "tools",
+      "label": "lean-ctx (contexto enxuto)",
+      "description": "Um binário que encolhe a saída do Bash e governa as leituras de arquivo com hooks, mais um servidor MCP com ferramentas ctx_* (leituras em modos, busca, memória), que ficam atrás da busca de ferramentas. Faz mais que o rtk, mas mexe em muito mais coisa.",
+      "exclusive": "shrink-output",
+      "needs": [
+        "curl"
+      ],
+      "repo": "https://github.com/yvgude/lean-ctx",
+      "source": "yvgude/lean-ctx (Apache 2.0, partes comerciais à parte)",
+      "env": {
+        "LEAN_CTX_NO_ONBOARD": "1",
+        "LEAN_CTX_NO_UPDATE_CHECK": "1"
+      },
+      "check": {
+        "argv": [
+          "lean-ctx",
+          "--version"
+        ],
+        "match": "official"
+      },
+      "install": [
+        [
+          "/bin/sh",
+          "-c",
+          "curl -fsSL https://leanctx.com/install.sh | sh"
+        ],
+        {
+          "argv": [
+            "lean-ctx",
+            "--version"
+          ],
+          "match": "official"
+        },
+        [
+          "lean-ctx",
+          "telemetry",
+          "disable"
+        ],
+        [
+          "lean-ctx",
+          "init",
+          "--agent",
+          "claude"
+        ]
+      ],
+      "uninstall": [
+        [
+          "lean-ctx",
+          "uninstall"
+        ],
+        [
+          "/bin/sh",
+          "-c",
+          "f=\"$HOME/.claude/CLAUDE.md\"; [ -f \"$f\" ] && sed -i '/^<!-- lean-ctx -->$/,/^<!-- \\/lean-ctx -->$/d' \"$f\"; true"
+        ]
+      ],
+      "changes": [
+        "Baixa o lean-ctx para ~/.local/bin, sem o onboard que liga todas as ferramentas de IA que achar.",
+        "Telemetria desligada antes de configurar (ela vem ligada por padrão).",
+        "Hooks em 5 eventos de ~/.claude/settings.json (Bash, Read, Edit, Write, compactação), com backup .bak.",
+        "Registra o MCP lean-ctx em ~/.claude.json com aprovação automática de ctx_shell, shell, ctx_edit e ctx_patch: o Claude roda comandos e edita arquivos por ele sem pedir permissão.",
+        "Um bloco <!-- lean-ctx --> em ~/.claude/CLAUDE.md; o Remover tira, já que o uninstall do lean-ctx esquece."
+      ],
+      "overlapsMod": {
+        "mod": "input-router",
+        "why": "O lean-ctx governa as leituras de arquivo e do Bash, o mesmo papel do input-router: com os dois, a mesma saída é tratada duas vezes."
+      },
+      "actions": [
+        {
+          "id": "gain",
+          "label": "Economia",
+          "run": [
+            "lean-ctx",
+            "gain",
+            "--terminal"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "context-mode",
+      "kind": "plugin",
+      "group": "tools",
+      "label": "context-mode (sandbox de saídas)",
+      "description": "Um plugin que guarda a saída das ferramentas num índice local (SQLite) e devolve ao Claude só os trechos que importam. Bloqueia o Read de arquivo inteiro acima de 16 KB e o cat de um arquivo, mandando para a sandbox dele. Sem telemetria.",
+      "exclusive": "shrink-output",
+      "needs": [
+        "node"
+      ],
+      "repo": "https://github.com/mksglu/context-mode",
+      "source": "mksglu/context-mode (ELv2: pode instalar, não redistribuir)",
+      "plugin": "context-mode@context-mode",
+      "marketplace": "mksglu/context-mode",
+      "install": [
+        [
+          "node",
+          "-e",
+          "const [a,b]=process.versions.node.split('.').map(Number);if(!(a>24||(a===24&&b>=15))){console.error('o context-mode precisa de Node 24.15 ou mais novo; este é '+process.versions.node);process.exit(1)}"
+        ],
+        [
+          "claude",
+          "plugin",
+          "marketplace",
+          "add",
+          "mksglu/context-mode"
+        ],
+        [
+          "claude",
+          "plugin",
+          "install",
+          "context-mode@context-mode"
+        ]
+      ],
+      "uninstall": [
+        [
+          "claude",
+          "plugin",
+          "uninstall",
+          "context-mode@context-mode"
+        ],
+        [
+          "claude",
+          "plugin",
+          "marketplace",
+          "remove",
+          "context-mode"
+        ],
+        [
+          "/bin/sh",
+          "-c",
+          "rm -rf \"$HOME/.context-mode\""
+        ]
+      ],
+      "changes": [
+        "Adiciona o marketplace context-mode e instala o plugin, para todos os projetos (precisa de Node 24.15+).",
+        "Hooks do plugin em Bash, Read, Grep, WebFetch, Write, Edit e em todo MCP, mais SessionStart e UserPromptSubmit.",
+        "Os índices ficam em ~/.context-mode; o Remover apaga."
+      ],
+      "overlapsMod": {
+        "mod": "input-router",
+        "why": "O context-mode bloqueia o Read grande antes que o input-router o veja: os dois fazem o mesmo papel. Desligue o input-router enquanto usar o context-mode."
+      },
+      "actions": [
+        {
+          "id": "stats",
+          "label": "Economia",
+          "fill": "/context-mode:ctx-stats"
+        }
+      ]
     }
   ],
   "skills": [
