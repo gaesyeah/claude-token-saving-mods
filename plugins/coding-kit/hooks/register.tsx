@@ -64,6 +64,8 @@ let catalog: Catalog = { groups: [], items: [] }
 let installed: Record<string, boolean | undefined> = {}
 let found: Found[] = []
 let showMine = false
+// Catalog groups hidden with their ▾ Esconder, like Suas skills; every group starts shown.
+const hiddenGroups = new Set<string>()
 let pending: { id: string; action: 'install' | 'remove' } | null = null
 let busy = ''
 let note = ''
@@ -97,6 +99,9 @@ let serenaBand = false
 type Typed = { start: number; end: number; item?: Item; mine?: Found }
 let typed: Typed | null = null
 let skillOpen = false
+// The draft as this mod last saw it. A change that raises no event (a Tab completion in the desktop app)
+// is caught by reading the box while the draft starts with a slash.
+let draft = ''
 // Opens a link with the desktop's opener: xdg-open (Linux), gio, or open (macOS).
 const OPEN_SH = 'for c in xdg-open gio open; do command -v "$c" >/dev/null 2>&1 || continue; if [ "$c" = gio ]; then gio open "$1"; else "$c" "$1"; fi </dev/null >/dev/null 2>&1; exit $?; done; exit 3'
 
@@ -169,7 +174,7 @@ function itemCard(els: Els, item: Item, width: number, inBand = false) {
         </Box>
       ) : (
         <Box flexDirection="row" gap={1}>
-          {!inBand && (!inst || isIn) ? <Button key={`use:${item.id}`} label="Usar" variant="primary" onPress={noop} /> : null}
+          {!inBand && (!inst || isIn) ? (typed?.item?.id === item.id ? <Text dimColor>Usar · já no prompt</Text> : <Button key={`use:${item.id}`} label="Usar" variant="primary" onPress={noop} />) : null}
           {inst && busy !== item.id ? <Button key={`${isIn ? 'remove' : 'install'}:${item.id}`} label={isIn ? 'Remover' : 'Instalar'} onPress={noop} /> : null}
           {other ? <Text dimColor wrap="truncate-end">{`Remova ${other.label.split(' (')[0]} antes`}</Text> : null}
         </Box>
@@ -195,6 +200,15 @@ const paintOf = (t: Typed | null) => (t ? [{ start: t.start, end: t.end, color: 
 // Paints the command over a draft no prompt.edit carried (an accepted Tab completion, a fill). The box
 // may still be settling, and the app styles an accepted completion itself: so a stale draft is read
 // again, a miss is tried again, and a hit is painted once more a moment later to stand over that style.
+async function watchDraft($: EngineInterface) {
+  if (off || !draft.trimStart().startsWith('/')) return
+  const box = await $.prompt.read()
+  if (box.text === draft) return
+  draft = box.text
+  const t = typedSkill(draft)
+  setTyped($, t)
+  if (t) await paintTyped($, draft)
+}
 async function paintTyped($: EngineInterface, first: string) {
   let text = first
   let hits = 0
@@ -536,7 +550,16 @@ async function openPane($: EngineInterface) {
 }
 
 async function use($: EngineInterface, text: string) {
-  await $.prompt.fill({ text, mode: 'replace' }).catch(err => log($, `fill: ${String(err)}`))
+  // The fill carries its own paint and sets the band here: the desktop app raises no prompt.change for it.
+  const t = typedSkill(text)
+  const r = await $.prompt.fill({ text, mode: 'replace', decorations: paintOf(t) }).catch(err => {
+    void log($, `fill: ${String(err)}`)
+    return null
+  })
+  // A replace leaves exactly `text`; the box handed back may not have caught up yet.
+  if (r && !r.isFilled) return
+  draft = text
+  setTyped($, t)
 }
 
 async function runSteps($: EngineInterface, item: Item, steps: string[][]) {
@@ -594,6 +617,9 @@ export const register: Register = on => {
     await $.command.register({ name: 'coding-kit', description: 'Open the Coding Kit pane: one-click coding skills and tools; /coding-kit ponytail off|lite|full|ultra' })
     $.clock.every(3000, () => {
       void readSwitch($).catch(() => undefined)
+    })
+    $.clock.every(400, () => {
+      void watchDraft($).catch(() => undefined)
     })
     void refreshStatus($).catch(err => log($, `status: ${String(err)}`))
     void findSkills($).catch(err => log($, `skills: ${String(err)}`))
@@ -668,8 +694,11 @@ export const register: Register = on => {
     const el = e.element
     const [what, id = ''] = el.split(/:(.*)/s)
     const item = catalog.items.find(i => i.id === id)
-    if (what === 'use' && item) await use($, item.fill ?? `${item.command ?? ''} `)
-    else if (what === 'mine' && id) await use($, `${id} `)
+    if (what === 'use' && item) {
+      if (typed?.item?.id !== item.id) await use($, item.fill ?? `${item.command ?? ''} `)
+    } else if (what === 'mine' && id) {
+      if (typed?.mine?.command !== id) await use($, `${id} `)
+    }
     else if (what === 'serena-open') {
       serenaBand = false
       const r = await $.process.run(['/bin/sh', '-c', SERENA_SH, 'sh', serenaSession], { timeoutMs: 60_000 }).catch(() => null)
@@ -698,6 +727,9 @@ export const register: Register = on => {
       autoOpen = !autoOpen
       await $.store.set('autoOpen', autoOpen)
     } else if (what === 'toggle-mine') showMine = !showMine
+    else if (what === 'toggle-group' && id) {
+      if (!hiddenGroups.delete(id)) hiddenGroups.add(id)
+    }
     else if ((what === 'install' || what === 'remove') && item) {
       // a clash is already shown beside the button
       if (what === 'remove' || !clash(item)) pending = { id: item.id, action: what }
@@ -731,6 +763,7 @@ export const register: Register = on => {
   on('prompt.edit', async ($, e, next) => {
     const r = await next(e)
     if (off) return r
+    draft = r.text
     const t = typedSkill(r.text)
     setTyped($, t)
     return t ? { ...r, decorations: [...(r.decorations ?? []), ...paintOf(t)] } : r
@@ -740,6 +773,8 @@ export const register: Register = on => {
   on('prompt.change', async ($, e, next) => {
     const r = await next(e)
     if (off) return r
+    draft = e.text
+    if (e.text.trimStart().startsWith('/')) void log($, `prompt.change ${e.origin.kind}: ${JSON.stringify(e.text.slice(0, 40))}`)
     const t = typedSkill(e.text)
     setTyped($, t)
     if (t) void paintTyped($, e.text).catch(err => log($, `paint: ${String(err)}`))
@@ -835,6 +870,13 @@ export const register: Register = on => {
     const tileW = Math.floor((width - (tiles.length - 1)) / tiles.length)
 
     const card = (item: Item) => itemCard(els, item, width)
+    // One header for every section: its title and count, and ▾ Esconder / ▸ Mostrar.
+    const header = (title: string, count: number, open: boolean, key: string) => (
+      <Box flexDirection="row" justifyContent="space-between" width={width}>
+        <Text bold wrap="truncate-end">{title.includes('(') ? `${title} · ${count}` : `${title} (${count})`}</Text>
+        <Button key={key} plain dimColor onPress={noop}>{open ? '▾ Esconder' : '▸ Mostrar'}</Button>
+      </Box>
+    )
 
     return (
       <Box flexDirection="column" width={width}>
@@ -901,10 +943,7 @@ export const register: Register = on => {
         </Box>
         {note ? <Text key="note" color={NOTE} wrap="wrap">{note}</Text> : null}
         <Box key="mine" flexDirection="column" width={width} marginBottom={1}>
-          <Box flexDirection="row" justifyContent="space-between" width={width}>
-            <Text bold>{`Suas skills (${found.length})`}</Text>
-            <Button key="toggle-mine" plain dimColor onPress={noop}>{showMine ? '▾ Esconder' : '▸ Mostrar'}</Button>
-          </Box>
+          {header('Suas skills', found.length, showMine, 'toggle-mine')}
           {showMine
             ? found.map(f => (
                 <Box key={`mine-${f.command}`} flexDirection="column" width={width} marginBottom={1} borderStyle="round" borderDimColor paddingX={1}>
@@ -913,7 +952,7 @@ export const register: Register = on => {
                     <Text dimColor>{f.from}</Text>
                   </Box>
                   {f.description ? <Text dimColor wrap="wrap">{f.description}</Text> : null}
-                  <Button key={`mine:${f.command}`} label="Usar" onPress={noop} />
+                  {typed?.mine?.command === f.command ? <Text dimColor>Usar · já no prompt</Text> : <Button key={`mine:${f.command}`} label="Usar" onPress={noop} />}
                 </Box>
               ))
             : null}
@@ -922,9 +961,9 @@ export const register: Register = on => {
           const items = catalog.items.filter(i => i.group === g.id)
           if (!items.length) return null
           return (
-            <Box key={`group-${g.id}`} flexDirection="column" width={width}>
-              <Text bold>{g.title}</Text>
-              {items.map(card)}
+            <Box key={`group-${g.id}`} flexDirection="column" width={width} marginBottom={hiddenGroups.has(g.id) ? 1 : 0}>
+              {header(g.title, items.length, !hiddenGroups.has(g.id), `toggle-group:${g.id}`)}
+              {hiddenGroups.has(g.id) ? null : items.map(card)}
             </Box>
           )
         })}

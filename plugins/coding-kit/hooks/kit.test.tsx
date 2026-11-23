@@ -1,4 +1,4 @@
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
 // A slice of catalog.json (a test can not import JSON).
 const catalogJson = {"groups": [{"id": "plan", "title": "Planejar"}, {"id": "build", "title": "Construir"}, {"id": "fix", "title": "Corrigir"}, {"id": "review", "title": "Revisar"}, {"id": "tools", "title": "Ferramentas (instalar com um clique)"}], "items": [{"id": "grill-me", "kind": "skill", "group": "plan", "label": "Interrogar o plano", "command": "/coding-kit:grill-me", "description": "Entrevista em rodadas até o plano ficar claro, com uma resposta recomendada para cada pergunta. Use antes de uma funcionalidade grande ou ainda nebulosa.", "source": "mattpocock/skills (MIT)"}, {"id": "systematic-debugging", "kind": "skill", "group": "fix", "label": "Depurar a fundo", "command": "/coding-kit:systematic-debugging", "description": "Acha a causa raiz antes de mexer no código: reproduz, compara, testa uma hipótese por vez. Para bug difícil ou que já resistiu a uma tentativa.", "source": "obra/superpowers (MIT)", "hint": "stack ?trace|traceback|exception|\\berro\\b|\\berror\\b|n[aã]o funciona|quebrou|falhando|\\bbug\\b|nullpointer|undefined is not|segfault"}, {"id": "context7", "kind": "mcp", "group": "tools", "label": "Context7", "server": "context7", "fill": "use context7 para ", "description": "Documentação atualizada de bibliotecas (React, Spring, Prisma...). Servidor remoto, sem instalar nada local; suas ferramentas ficam atrás da busca e só custam contexto quando usadas.", "install": [["claude", "mcp", "add", "--scope", "user", "--transport", "http", "context7", "https://mcp.context7.com/mcp"]], "uninstall": [["claude", "mcp", "remove", "--scope", "user", "context7"]]}, {"id": "serena", "repo": "https://github.com/oraios/serena", "kind": "mcp", "group": "tools", "label": "Serena (busca semântica e refatoração)", "server": "serena", "needs": ["uvx"], "fill": "Use o Serena (ative este projeto primeiro, se ainda não estiver ativo) para ", "description": "Acha onde cada função ou classe é definida e quem a usa, via LSP, e edita símbolo a símbolo. Rende em refatorar projetos grandes; em projetos pequenos pouco ajuda.", "install": [["claude", "mcp", "add", "--scope", "user", "serena", "--", "uvx", "--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server", "--context", "claude-code", "--open-web-dashboard", "false"]], "uninstall": [["claude", "mcp", "remove", "--scope", "user", "serena"]]}, {"id": "codebase-memory", "kind": "mcp", "group": "tools", "label": "codebase-memory (grafo do código)", "server": "codebase-memory", "exclusive": "code-intel", "needs": ["npx"], "fill": "Use o grafo do codebase-memory (indexe o repositório se preciso) para ", "description": "Indexa o código num grafo local que dura entre chats: quem chama cada função, imports e rotas HTTP. Responde perguntas de estrutura sem ler arquivo por arquivo.", "install": [["claude", "mcp", "add", "--scope", "user", "codebase-memory", "--", "npx", "-y", "codebase-memory-mcp"]], "uninstall": [["claude", "mcp", "remove", "--scope", "user", "codebase-memory"]]}, {"id": "graphify", "kind": "mcp", "group": "tools", "label": "Graphify (grafo de código e docs)", "server": "graphify", "exclusive": "code-intel", "install": [["true"]], "uninstall": [["true"]]}], "skills": [{"dir": "ponytail", "repo": "DietrichGebert/ponytail", "path": "skills/ponytail", "credit": "MIT License", "frontmatter": {"disable-model-invocation": "true"}}]}
 
@@ -12,15 +12,17 @@ const PANE = {
 const files: Record<string, string> = {}
 
 // Stands for the engine: a project folder, the plugin's own files, and the commands the pane runs.
-function engine(on: any, opts: { code: boolean; ran: string[][]; filled: string[]; toasts: string[]; curl?: (url: string) => string; writes?: Record<string, string>; dir?: { v: string }; opened?: string[]; sh?: string[][]; shOut?: string }) {
+function engine(on: any, opts: { code: boolean; ran: string[][]; filled: string[]; toasts: string[]; curl?: (url: string) => string; writes?: Record<string, string>; dir?: { v: string }; opened?: string[]; sh?: string[][]; shOut?: string; mockClock?: boolean; fillArgs?: any[] }) {
   const own = (path: string) => (path.endsWith('/catalog.json') ? JSON.stringify(catalogJson) : path.endsWith('/skills/ponytail/SKILL.md') ? '---\nname: ponytail\n---\n# Ponytail\nActive for the whole session.\nrules here' : undefined)
   on('session.id', () => ({ value: 'sid' }))
   on('session.cwd', () => ({ value: opts.dir?.v ?? '/work/app' }))
   on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))
   on('env.get', (_: any, e: any) => ({ value: e.name === 'HOME' ? '/home/u' : undefined }))
   on('command.register', () => ({ value: { command: 'coding-kit' } }))
-  on('clock.every', () => ({ value: undefined }))
-  on('clock.now', () => ({ value: 100 * 24 * 3600 * 1000 }))
+  if (!opts.mockClock) {
+    on('clock.every', () => ({ value: undefined }))
+    on('clock.now', () => ({ value: 100 * 24 * 3600 * 1000 }))
+  }
   on('ui.open', (_: any, e: any) => {
     opts.opened?.push(e.id)
     return { value: { isPlaced: true } }
@@ -31,6 +33,7 @@ function engine(on: any, opts: { code: boolean; ran: string[][]; filled: string[
   })
   on('prompt.fill', (_: any, e: any) => {
     opts.filled.push(e.text)
+    opts.fillArgs?.push(e)
     return { isFilled: true, text: e.text, cursor: e.text.length }
   })
   on('fs.exists', (_: any, e: any) => ({ value: own(e.path) !== undefined || e.path in files || (opts.code && e.path === '/work/app/.git') }))
@@ -285,4 +288,61 @@ test('a Tab completion (no prompt.edit) is painted too, and once more after the 
   await new Promise(r => setTimeout(r, 50))
   expect(painted.length).toBe(2)
   expect(painted[0]).toEqual([{ start: 0, end: 20, color: '#d97757' }])
+})
+
+test('Usar in the pane paints its own fill and shows the band; a Tab completion with no event is read from the box', async ($, on) => {
+  const clock = mock.clock(on, { now: 100 * 24 * 3600 * 1000 })
+  const fills: any[] = []
+  const box = { text: '', cursor: 0 }
+  on('prompt.read', () => ({ value: { ...box } }))
+  on('prompt.paint', (_: any, e: any) => ({ value: { isPainted: true, text: e.text, cursor: e.text.length } }))
+  on('prompt.edit', (_: any, e: any) => {
+    box.text = e.text.slice(0, e.start) + e.inputText + e.text.slice(e.end)
+    box.cursor = box.text.length
+    return { ...box }
+  })
+  engine(on, { code: true, ran: [], filled: [], toasts: [], mockClock: true, fillArgs: fills })
+  await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
+  const props = { hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 20, bodyColumns: 100, scroll: { offset: 0, bodyRows: 20 } }
+  const band = await $.ui.mount({ plugin: 'coding-kit', component: 'AbovePrompt', props, surface: 'desktop' } as any)
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  await pane.press({ key: 'use:grill-me' })
+  await pane.unmount()
+  expect(fills.at(-1).decorations).toEqual([{ start: 0, end: 20, color: '#d97757' }])
+  expect(await band.find({ key: 'skill-close' })).toBeDefined()
+
+  // Clear, type "/gri", then the box turns into the completed command without any event.
+  await band.press({ key: 'skill-close' })
+  box.text = ''
+  await $.prompt.edit({ origin: { kind: 'composer' }, text: '', cursor: 0, start: 0, end: 0, inputText: '/gri' } as any)
+  expect(await band.find({ key: 'skill-close' })).toBeUndefined()
+  box.text = '/grill-me '
+  await clock.advance(1000)
+  expect(await band.find({ key: 'skill-close' })).toBeDefined()
+  await band.unmount()
+})
+
+test('every pane section hides and shows, and Usar is off for the skill already in the prompt', async ($, on) => {
+  engine(on, { code: true, ran: [], filled: [], toasts: [] })
+  const box = { text: '', cursor: 0 }
+  on('prompt.edit', (_: any, e: any) => {
+    box.text = e.text.slice(0, e.start) + e.inputText + e.text.slice(e.end)
+    box.cursor = box.text.length
+    return { ...box }
+  })
+  await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  expect(await ui.find({ key: 'use:grill-me' })).toBeDefined()
+  await ui.press({ key: 'toggle-group:plan' })
+  expect(await ui.find({ key: 'use:grill-me' })).toBeUndefined()
+  expect(await ui.find({ key: 'use:systematic-debugging' })).toBeDefined()
+  await ui.press({ key: 'toggle-group:plan' })
+  expect(await ui.find({ key: 'use:grill-me' })).toBeDefined()
+
+  await $.prompt.edit({ origin: { kind: 'composer' }, text: '', cursor: 0, start: 0, end: 0, inputText: '/grill-me ' } as any)
+  expect(await ui.find({ key: 'use:grill-me' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: 'Usar · já no prompt' })).toBeDefined()
+  expect(await ui.find({ key: 'use:systematic-debugging' })).toBeDefined()
+  await ui.unmount()
 })
