@@ -17,8 +17,8 @@ async function openGroups(ui: any) {
 }
 
 // Stands for the engine: a project folder, the plugin's own files, and the commands the pane runs.
-function engine(on: any, opts: { code: boolean; ran: string[][]; filled: string[]; toasts: string[]; curl?: (url: string) => string; writes?: Record<string, string>; dir?: { v: string }; opened?: string[]; sh?: string[][]; shOut?: string; mockClock?: boolean; fillArgs?: any[] }) {
-  const own = (path: string) => (path.endsWith('/catalog.json') ? JSON.stringify(catalogJson) : path.endsWith('/skills/ponytail/SKILL.md') ? '---\nname: ponytail\n---\n# Ponytail\nActive for the whole session.\nrules here' : undefined)
+function engine(on: any, opts: { code: boolean; ran: string[][]; filled: string[]; toasts: string[]; curl?: (url: string) => string; writes?: Record<string, string>; dir?: { v: string }; opened?: string[]; sh?: string[][]; shOut?: string; mockClock?: boolean; fillArgs?: any[]; catalog?: unknown; run?: (argv: string[], init: any) => { exitCode?: number; stdout?: string; stderr?: string } | undefined; writeThrough?: boolean }) {
+  const own = (path: string) => (path.endsWith('/catalog.json') ? JSON.stringify(opts.catalog ?? catalogJson) : path.endsWith('/skills/ponytail/SKILL.md') ? '---\nname: ponytail\n---\n# Ponytail\nActive for the whole session.\nrules here' : undefined)
   on('session.id', () => ({ value: 'sid' }))
   on('session.cwd', () => ({ value: opts.dir?.v ?? '/work/app' }))
   on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))
@@ -52,10 +52,16 @@ function engine(on: any, opts: { code: boolean; ran: string[][]; filled: string[
   on('fs.list', () => ({ value: [] }))
   on('fs.write', (_: any, e: any) => {
     if (opts.writes) opts.writes[e.path] = String(e.text ?? '')
+    if (opts.writeThrough) files[e.path] = String(e.text ?? '')
     return { value: undefined }
   })
   on('process.run', (_: any, e: any) => {
     const argv: string[] = e.argv
+    const mine = argv[0] === '/bin/sh' && String(argv[2] ?? '').startsWith('mkdir -p') ? undefined : opts.run?.(argv, e.init ?? {})
+    if (mine) {
+      opts.ran.push(argv)
+      return { value: { exitCode: mine.exitCode ?? 0, stdout: mine.stdout ?? '', stderr: mine.stderr ?? '' } }
+    }
     if (argv[0] === 'curl') return { value: { exitCode: opts.curl ? 0 : 6, stdout: opts.curl ? opts.curl(argv.at(-1)!) : '', stderr: '' } }
     if (argv[0] !== '/bin/sh') opts.ran.push(argv)
     else opts.sh?.push(argv)
@@ -355,5 +361,148 @@ test('every pane section hides and shows, and Usar is off for the skill already 
   expect(await ui.find({ key: 'use:grill-me' })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: 'Usar · já no prompt' })).toBeDefined()
   expect(await ui.find({ key: 'use:systematic-debugging' })).toBeDefined()
+  await ui.unmount()
+})
+
+
+// ---- the pane's install engine: plugins, what changes, steps, actions, conflicts, mods, projects ----
+
+const lab = {
+  groups: [{ id: 'tools', title: 'Ferramentas' }, { id: 'matt', title: 'Matt', setup: { label: 'Configurar este repositório', command: '/coding-kit:setup-x', done: 'docs/agents/issue-tracker.md' } }],
+  exclusives: { shrink: 'Os dois reescrevem o mesmo comando do Bash.' },
+  items: [
+    { id: 'webguide', kind: 'plugin', group: 'tools', label: 'Web Guide', description: 'Guias.', plugin: 'web-guide@acme', marketplace: 'acme/web-guide', changes: ['Adiciona o plugin web-guide (global).'] },
+    { id: 'shrink', kind: 'tool', group: 'tools', label: 'Shrink', description: 'Encolhe.', exclusive: 'shrink', check: { argv: ['shrink', '--version'], match: 'shrink 1' }, env: { SHRINK_TELEMETRY_DISABLED: '1' },
+      install: [['/bin/sh', '-c', 'curl -fsSL https://x/install.sh | sh'], { argv: ['shrink', 'gain'], match: 'Savings' }, ['shrink', 'init', '-g']],
+      uninstall: [['shrink', 'init', '-g', '--uninstall']],
+      changes: ['Um hook em ~/.claude/settings.json.'],
+      actions: [{ id: 'gain', label: 'Economia', run: ['shrink', 'gain'] }],
+      overlapsMod: { mod: 'input-router', why: 'Faz o mesmo papel do input-router.' } },
+    { id: 'squeeze', kind: 'tool', group: 'tools', label: 'Squeeze', description: 'Também encolhe.', exclusive: 'shrink', check: { argv: ['squeeze', '--version'] }, install: [['squeeze', 'init']], uninstall: [['squeeze', 'off']] },
+    { id: 'docs', kind: 'mcp', group: 'tools', label: 'Docs', description: 'Docs.', server: 'docs', prepared: '.docs-index',
+      install: [['claude', 'mcp', 'add', 'docs']], uninstall: [['claude', 'mcp', 'remove', 'docs']],
+      actions: [{ id: 'always', label: 'Usar sempre', offLabel: 'Parar de usar sempre', rule: 'Always use Docs for library docs.' }, { id: 'index', label: 'Indexar este projeto', fill: 'Indexe este projeto com o Docs' }] },
+    { id: 'ask', kind: 'skill', group: 'matt', sub: 'Engenharia', label: 'Ask', description: 'Roteia.', command: '/coding-kit:ask' },
+    { id: 'spec', kind: 'skill', group: 'matt', sub: 'Engenharia', label: 'Spec', description: 'Spec.', command: '/coding-kit:spec', needsSetup: true },
+  ],
+}
+
+function labEngine(on: any, extra: { ran: string[][]; filled?: string[]; run?: (argv: string[], init: any) => any }) {
+  engine(on, { code: true, ran: extra.ran, filled: extra.filled ?? [], toasts: [], catalog: lab, run: extra.run, writeThrough: true })
+}
+async function labPane($: any) {
+  await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
+  await new Promise(r => setTimeout(r, 30))
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  for (const g of ['tools', 'matt']) await ui.press({ key: `toggle-group:${g}` })
+  return ui
+}
+const settle = () => new Promise(r => setTimeout(r, 60))
+
+test('a plugin item installs through the marketplace, shows what changes first, and reads its state from installed_plugins.json', async ($, on) => {
+  const ran: string[][] = []
+  labEngine(on, { ran, run: argv => (argv[0] === 'claude' ? {} : undefined) })
+  const ui = await labPane($)
+  await ui.press({ key: 'install:webguide' })
+  expect(await ui.find({ type: 'Text', text: /Adiciona o plugin web-guide/ })).toBeDefined()
+  expect(ran.some(a => a[0] === 'claude')).toBe(false)
+  await ui.press({ key: 'confirm' })
+  await settle()
+  const claude = ran.filter(a => a[0] === 'claude').map(a => a.join(' '))
+  expect(claude).toContain('claude plugin marketplace add acme/web-guide')
+  expect(claude).toContain('claude plugin install web-guide@acme')
+  files['/home/u/.claude/plugins/installed_plugins.json'] = JSON.stringify({ plugins: { 'web-guide@acme': [{ scope: 'user' }] } })
+  await ui.press({ key: 'refresh' })
+  await settle()
+  expect(await ui.find({ key: 'remove:webguide' })).toBeDefined()
+  await ui.press({ key: 'remove:webguide' })
+  await ui.press({ key: 'confirm' })
+  await settle()
+  expect(ran.map(a => a.join(' '))).toContain('claude plugin uninstall web-guide@acme')
+  delete files['/home/u/.claude/plugins/installed_plugins.json']
+  await ui.unmount()
+})
+
+test('install steps get the item env and ~/.local/bin on PATH; a failed check stops the install and undoes it', async ($, on) => {
+  const ran: string[][] = []
+  const envs: any[] = []
+  labEngine(on, { ran, run: (argv, init) => {
+    if (argv[0] === '/bin/sh' || argv[0] === 'shrink') envs.push(init.env ?? {})
+    if (argv[0] === 'shrink' && argv[1] === 'gain') return { stdout: 'rtk: Rust Type Kit' }
+    if (argv[0] === 'shrink' || argv[0] === '/bin/sh') return {}
+    if (argv[0] === 'squeeze') return { exitCode: 1 }
+    return undefined
+  } })
+  const ui = await labPane($)
+  await ui.press({ key: 'install:shrink' })
+  await ui.press({ key: 'confirm' })
+  await settle()
+  expect(envs[0].SHRINK_TELEMETRY_DISABLED).toBe('1')
+  expect(String(envs[0].PATH)).toContain('/home/u/.local/bin')
+  expect(ran.some(a => a.join(' ') === 'shrink init -g')).toBe(false)
+  expect(ran.some(a => a.join(' ') === 'shrink init -g --uninstall')).toBe(true)
+  expect(await ui.find({ type: 'Text', text: /desfeito/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('a conflicting tool says why; an overlapping mod can be turned off and back on from the card', async ($, on) => {
+  const ran: string[][] = []
+  labEngine(on, { ran, run: argv => (argv[0] === 'shrink' && argv[1] === '--version' ? { stdout: 'shrink 1.2' } : argv[0] === 'squeeze' ? { exitCode: 1 } : undefined) })
+  const ui = await labPane($)
+  expect(await ui.find({ type: 'Text', text: /Remova Shrink antes: Os dois reescrevem o mesmo comando do Bash\./ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Faz o mesmo papel do input-router\./ })).toBeDefined()
+  await ui.press({ key: 'mod-off:shrink' })
+  expect(JSON.parse(files['/home/u/.claude/mods/switches.json'] ?? '{}')['input-router']).toBe(false)
+  expect(await ui.find({ key: 'mod-on:shrink' })).toBeDefined()
+  await ui.press({ key: 'mod-on:shrink' })
+  expect(JSON.parse(files['/home/u/.claude/mods/switches.json'] ?? '{}')['input-router']).toBeUndefined()
+  delete files['/home/u/.claude/mods/switches.json']
+  await ui.unmount()
+})
+
+test('card actions: a command shows its output, a rule goes in and out of CLAUDE.md, a fill writes the prompt; a prepared project shows', async ($, on) => {
+  const ran: string[][] = []
+  const filled: string[] = []
+  files['/home/u/.claude.json'] = JSON.stringify({ mcpServers: { docs: {} } })
+  files['/home/u/.claude/CLAUDE.md'] = '# Mine\nkeep this\n'
+  files['/work/app/.docs-index'] = '1'
+  labEngine(on, { ran, filled, run: argv => (argv[0] === 'shrink' && argv[1] === '--version' ? { stdout: 'shrink 1.2' } : argv[0] === 'shrink' && argv[1] === 'gain' ? { stdout: 'Savings: 42%' } : argv[0] === 'squeeze' ? { exitCode: 1 } : undefined) })
+  const ui = await labPane($)
+  await ui.press({ key: 'action:shrink/gain' })
+  await settle()
+  expect(await ui.find({ type: 'Text', text: /Savings: 42%/ })).toBeDefined()
+
+  await ui.press({ key: 'action:docs/always' })
+  await settle()
+  expect(files['/home/u/.claude/CLAUDE.md']).toContain('keep this')
+  expect(files['/home/u/.claude/CLAUDE.md']).toContain('Always use Docs for library docs.')
+  expect((await ui.find({ key: 'action:docs/always' }))?.props.label).toBe('Parar de usar sempre')
+  await ui.press({ key: 'action:docs/always' })
+  await settle()
+  expect(files['/home/u/.claude/CLAUDE.md']).toBe('# Mine\nkeep this\n')
+
+  await ui.press({ key: 'action:docs/index' })
+  expect(filled.at(-1)).toBe('Indexe este projeto com o Docs')
+  expect(await ui.find({ type: 'Text', text: /pronto neste projeto/ })).toBeDefined()
+  for (const f of ['/home/u/.claude.json', '/home/u/.claude/CLAUDE.md', '/work/app/.docs-index']) delete files[f]
+  await ui.unmount()
+})
+
+test('a group with a setup: its skills wait for it, the setup button fills its command, and Usar comes back once it ran', async ($, on) => {
+  const ran: string[][] = []
+  const filled: string[] = []
+  labEngine(on, { ran, filled })
+  const ui = await labPane($)
+  expect(await ui.find({ type: 'Text', text: 'Engenharia' })).toBeDefined()
+  expect(await ui.find({ key: 'use:ask' })).toBeDefined()
+  expect(await ui.find({ key: 'use:spec' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /precisa configurar antes/ })).toBeDefined()
+  await ui.press({ key: 'setup:matt' })
+  expect(filled.at(-1)).toBe('/coding-kit:setup-x ')
+  files['/work/app/docs/agents/issue-tracker.md'] = 'github'
+  await ui.press({ key: 'refresh' })
+  await settle()
+  expect(await ui.find({ key: 'use:spec' })).toBeDefined()
+  delete files['/work/app/docs/agents/issue-tracker.md']
   await ui.unmount()
 })

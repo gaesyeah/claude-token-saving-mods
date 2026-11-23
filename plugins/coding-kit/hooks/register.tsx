@@ -21,9 +21,14 @@ const NOTE = '#2563eb'
 type Level = (typeof LEVELS)[number]
 
 type Check = { argv: string[]; match?: string }
+// One install step: a command, or a command whose output must hold `match` (a check that stops the install).
+type Step = string[] | { argv: string[]; match?: string }
+// A button of an installed tool's card: run a command and show its output, put a rule in ~/.claude/CLAUDE.md
+// (and take it out), or write a prompt.
+type Action = { id: string; label: string; offLabel?: string; run?: string[]; rule?: string; fill?: string }
 type Item = {
   id: string
-  kind: 'skill' | 'builtin' | 'mcp' | 'tool'
+  kind: 'skill' | 'builtin' | 'mcp' | 'tool' | 'plugin'
   group: string
   label: string
   description: string
@@ -36,14 +41,30 @@ type Item = {
   repo?: string
   needs?: string[]
   check?: Check
-  install?: string[][]
-  uninstall?: string[][]
+  install?: Step[]
+  uninstall?: Step[]
+  // kind plugin: "<name>@<marketplace>" and the marketplace's source (owner/repo)
+  plugin?: string
+  marketplace?: string
+  // what an install touches, shown before Confirmar
+  changes?: string[]
+  // set for every step and for the check (telemetry off and the like)
+  env?: Record<string, string>
+  actions?: Action[]
+  // a mod of this pack that does the same job
+  overlapsMod?: { mod: string; why: string }
+  // a path in the project that shows it was prepared for this tool
+  prepared?: string
+  // a heading inside its group, and whether it waits for the group's setup
+  sub?: string
+  needsSetup?: boolean
 }
-type Group = { id: string; title: string }
+// A group's setup: a command run once per repo before the skills marked needsSetup, done once `done` exists.
+type Group = { id: string; title: string; setup?: { label: string; command: string; done: string } }
 type Rewrite = { find: string; replace: string; regex?: boolean }
 // Where a bundled skill comes from, and how its upstream text is fitted to this mod.
 type Source = { dir: string; repo: string; path: string; ref?: string; credit?: string; frontmatter?: Record<string, string>; rewrite?: Rewrite[] }
-type Catalog = { groups: Group[]; items: Item[]; skills?: Source[] }
+type Catalog = { groups: Group[]; items: Item[]; skills?: Source[]; exclusives?: Record<string, string> }
 type Lock = Record<string, { sha: string; date: string }>
 type Update = { dir: string; repo: string; from: string; to: string; date: string }
 type Found = { command: string; name: string; description: string; from: string }
@@ -67,6 +88,12 @@ let showMine = false
 // Catalog groups opened with their ▸ Mostrar; like Suas skills, every group starts hidden.
 const openGroups = new Set<string>()
 let pending: { id: string; action: 'install' | 'remove' } | null = null
+// What the cards show beyond installed: a command's output, the rules in CLAUDE.md, the project and the mods.
+const outputs: Record<string, string> = {}
+let rules: Record<string, boolean> = {}
+let preparedHere: Record<string, boolean> = {}
+let setupDone: Record<string, boolean> = {}
+let modsOff: Record<string, boolean> = {}
 let busy = ''
 let note = ''
 const hinted = new Set<string>()
@@ -148,8 +175,13 @@ function itemCard(els: Els, item: Item, width: number, inBand = false) {
   const { Box, Text, Button } = els
   const cw = width - 4
   const noop = () => undefined
-  const inst = item.kind === 'mcp' || item.kind === 'tool'
+  const inst = isTool(item)
   const isIn = installed[item.id]
+  const group = catalog.groups.find(g => g.id === item.group)
+  const waits = !!(item.needsSetup && group?.setup && !setupDone[group.id])
+  const why = item.exclusive ? catalog.exclusives?.[item.exclusive] : undefined
+  const mod = item.overlapsMod
+  const shown = inst ? !!isIn : true
   const confirm = pending?.id === item.id
   const hot = hinted.has(item.id)
   const other = inst && !isIn ? clash(item) : undefined
@@ -164,9 +196,13 @@ function itemCard(els: Els, item: Item, width: number, inBand = false) {
       </Box>
       <Text dimColor wrap="wrap">{item.description}</Text>
       {item.command ? <Text dimColor wrap="truncate-end">{`${item.command}${item.source ? ` · ${item.source}` : ''}`}</Text> : null}
+      {mod ? <Text color={WARN} wrap="wrap">{`⚠ ${mod.why}${modsOff[mod.mod] ? ` O ${mod.mod} está desligado.` : ''}`}</Text> : null}
+      {inst && isIn && item.prepared ? <Text color={preparedHere[item.id] ? GOOD : undefined} dimColor={!preparedHere[item.id]}>{preparedHere[item.id] ? '✓ pronto neste projeto' : 'ainda não preparado neste projeto'}</Text> : null}
+      {outputs[item.id] ? <Text dimColor wrap="wrap">{outputs[item.id]}</Text> : null}
       {confirm ? (
         <Box flexDirection="column" width={cw}>
           <Text color={WARN} wrap="wrap">{pending!.action === 'install' ? 'Instalar? Muda a config do Claude Code (vale para chats novos).' : 'Remover?'}</Text>
+          {pending!.action === 'install' ? (item.changes ?? []).map((c, i) => <Text key={`chg-${i}`} dimColor wrap="wrap">{`• ${c}`}</Text>) : null}
           <Box flexDirection="row" gap={1}>
             <Button key="confirm" label="Confirmar" variant="primary" onPress={noop} />
             <Button key="cancel" label="Cancelar" onPress={noop} />
@@ -174,9 +210,12 @@ function itemCard(els: Els, item: Item, width: number, inBand = false) {
         </Box>
       ) : (
         <Box flexDirection="row" gap={1}>
-          {!inBand && (!inst || isIn) ? (typed?.item?.id === item.id ? <Text dimColor>Usar · já no prompt</Text> : <Button key={`use:${item.id}`} label="Usar" variant="primary" onPress={noop} />) : null}
+          {!inBand && waits ? <Text dimColor>{`Usar · precisa configurar antes (${group!.setup!.label})`}</Text> : null}
+          {!inBand && !waits && (!inst || isIn) && (item.command || item.fill) ? (typed?.item?.id === item.id ? <Text dimColor>Usar · já no prompt</Text> : <Button key={`use:${item.id}`} label="Usar" variant="primary" onPress={noop} />) : null}
+          {shown ? (item.actions ?? []).map(a => <Button key={`action:${item.id}/${a.id}`} label={a.rule && rules[ruleKey(item, a)] ? (a.offLabel ?? a.label) : a.label} onPress={noop} />) : null}
+          {mod && inst && isIn ? <Button key={`${modsOff[mod.mod] ? 'mod-on' : 'mod-off'}:${item.id}`} label={modsOff[mod.mod] ? `Religar o ${mod.mod}` : `Desligar o ${mod.mod}`} onPress={noop} /> : null}
           {inst && busy !== item.id ? <Button key={`${isIn ? 'remove' : 'install'}:${item.id}`} label={isIn ? 'Remover' : 'Instalar'} onPress={noop} /> : null}
-          {other ? <Text dimColor wrap="truncate-end">{`Remova ${other.label.split(' (')[0]} antes`}</Text> : null}
+          {other ? <Text dimColor wrap="wrap">{`Remova ${other.label.split(' (')[0]} antes${why ? `: ${why}` : ''}`}</Text> : null}
         </Box>
       )}
     </Box>
@@ -310,7 +349,7 @@ function ponytailSection(lv: Level) {
 async function loadCatalog($: EngineInterface) {
   try {
     const json = JSON.parse(await readText($, `${$.plugin.root}/catalog.json`)) as Catalog
-    catalog = { groups: json.groups ?? [], items: (json.items ?? []).filter(i => i && i.id && i.label), skills: (json.skills ?? []).filter(x => x && x.dir && x.repo && x.path) }
+    catalog = { groups: json.groups ?? [], items: (json.items ?? []).filter(i => i && i.id && i.label), skills: (json.skills ?? []).filter(x => x && x.dir && x.repo && x.path), exclusives: json.exclusives ?? {} }
   } catch (err) {
     note = 'catalog.json could not be read. See ~/.claude/mods-logs/coding-kit.log'
     await log($, `catalog: ${String(err)}`)
@@ -331,17 +370,101 @@ async function has($: EngineInterface, bin: string) {
   return !!r && r.exitCode === 0
 }
 
+const isTool = (item: Item) => item.kind === 'mcp' || item.kind === 'tool' || item.kind === 'plugin'
+
+// A plugin item installs through its marketplace unless it lists its own steps.
+function stepsOf(item: Item, action: 'install' | 'remove'): Step[] {
+  const own = action === 'install' ? item.install : item.uninstall
+  if (own || item.kind !== 'plugin' || !item.plugin) return own ?? []
+  const market = item.plugin.split('@')[1] ?? ''
+  return action === 'install'
+    ? [...(item.marketplace ? [['claude', 'plugin', 'marketplace', 'add', item.marketplace]] : []), ['claude', 'plugin', 'install', item.plugin]]
+    : [['claude', 'plugin', 'uninstall', item.plugin], ...(market ? [['claude', 'plugin', 'marketplace', 'remove', market]] : [])]
+}
+
+// Every step and check sees the item's env and ~/.local/bin, where the install scripts put their binaries.
+async function envOf($: EngineInterface, item: Item): Promise<Record<string, string>> {
+  const path = trim(await $.env.get('PATH').catch(() => undefined))
+  return { ...(item.env ?? {}), PATH: `${home}/.local/bin${path ? `:${path}` : ''}` }
+}
+
+const ruleKey = (item: Item, a: Action) => `${item.id}/${a.id}`
+const ruleOpen = (key: string) => `<!-- coding-kit:${key} -->`
+const ruleClose = (key: string) => `<!-- /coding-kit:${key} -->`
+const escapeRe = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+async function readJson($: EngineInterface, path: string): Promise<Record<string, unknown>> {
+  try {
+    const raw = await readText($, path)
+    const j = raw ? (JSON.parse(raw) as unknown) : {}
+    return j && typeof j === 'object' && !Array.isArray(j) ? (j as Record<string, unknown>) : {}
+  } catch {
+    return {}
+  }
+}
+
 async function refreshStatus($: EngineInterface) {
   const servers = await mcpServers($)
+  const plugins = ((await readJson($, `${claudeDir}/plugins/installed_plugins.json`)).plugins ?? {}) as Record<string, unknown>
   const next: Record<string, boolean | undefined> = {}
   for (const item of catalog.items) {
     if (item.kind === 'mcp' && item.server) next[item.id] = item.server in servers
+    else if (item.kind === 'plugin' && item.plugin) next[item.id] = item.plugin in plugins
     else if (item.kind === 'tool' && item.check) {
-      const r = await $.process.run(item.check.argv, { timeoutMs: 20_000 }).catch(() => null)
+      const r = await $.process.run(item.check.argv, { timeoutMs: 20_000, env: await envOf($, item) }).catch(() => null)
       next[item.id] = !!r && r.exitCode === 0 && (!item.check.match || r.stdout.includes(item.check.match))
     }
   }
   installed = next
+  const md = await readText($, `${claudeDir}/CLAUDE.md`)
+  const nextRules: Record<string, boolean> = {}
+  const nextPrepared: Record<string, boolean> = {}
+  for (const item of catalog.items) {
+    for (const a of item.actions ?? []) if (a.rule) nextRules[ruleKey(item, a)] = md.includes(ruleOpen(ruleKey(item, a)))
+    if (item.prepared && cwd) nextPrepared[item.id] = await $.fs.exists(`${cwd}/${item.prepared}`).catch(() => false)
+  }
+  rules = nextRules
+  preparedHere = nextPrepared
+  const nextSetup: Record<string, boolean> = {}
+  for (const g of catalog.groups) if (g.setup && cwd) nextSetup[g.id] = await $.fs.exists(`${cwd}/${g.setup.done}`).catch(() => false)
+  setupDone = nextSetup
+  const sw = await readJson($, `${claudeDir}/mods/switches.json`)
+  modsOff = Object.fromEntries(Object.entries(sw).filter(([, v]) => v === false).map(([k]) => [k, true]))
+  redraw($)
+}
+
+// Puts a rule block in ~/.claude/CLAUDE.md, or takes it out; the rest of the file stays as it was.
+async function toggleRule($: EngineInterface, item: Item, a: Action) {
+  const path = `${claudeDir}/CLAUDE.md`
+  const key = ruleKey(item, a)
+  const text = await readText($, path)
+  const block = new RegExp(`\\n?${escapeRe(ruleOpen(key))}[\\s\\S]*?${escapeRe(ruleClose(key))}\\n?`)
+  const next = block.test(text) ? text.replace(block, '') : `${text}${text && !text.endsWith('\n') ? '\n' : ''}${text ? '\n' : ''}${ruleOpen(key)}\n${a.rule}\n${ruleClose(key)}\n`
+  await $.fs.write(path, next)
+  rules[key] = next.includes(ruleOpen(key))
+  await log($, `${key}: rule ${rules[key] ? 'added' : 'removed'}`)
+}
+
+// Turns a mod of this pack off or back on in switches.json, as the /mods pane does.
+async function setMod($: EngineInterface, mod: string, on: boolean) {
+  const path = `${claudeDir}/mods/switches.json`
+  const json = await readJson($, path)
+  if (on) delete json[mod]
+  else json[mod] = false
+  await $.fs.write(path, `${JSON.stringify(json, null, 2)}\n`)
+  if (on) delete modsOff[mod]
+  else modsOff[mod] = true
+  await log($, `${mod}: turned ${on ? 'on' : 'off'} from the Coding Kit pane`)
+}
+
+async function runAction($: EngineInterface, item: Item, a: Action) {
+  if (a.fill) return use($, a.fill)
+  if (a.rule) return toggleRule($, item, a)
+  if (!a.run) return
+  outputs[item.id] = '…'
+  redraw($)
+  const r = await $.process.run(a.run, { timeoutMs: 60_000, env: await envOf($, item) }).catch(err => ({ exitCode: 1, stdout: '', stderr: String(err) }))
+  outputs[item.id] = (r.stdout.trim() || r.stderr.trim() || `saiu com ${r.exitCode}`).slice(-800)
   redraw($)
 }
 
@@ -562,11 +685,15 @@ async function use($: EngineInterface, text: string) {
   setTyped($, t)
 }
 
-async function runSteps($: EngineInterface, item: Item, steps: string[][]) {
-  for (const argv of steps) {
+async function runSteps($: EngineInterface, item: Item, steps: Step[]) {
+  const env = await envOf($, item)
+  for (const step of steps) {
+    const argv = Array.isArray(step) ? step : step.argv
+    const match = Array.isArray(step) ? undefined : step.match
     await log($, `run: ${argv.join(' ')}`)
-    const r = await $.process.run(argv, { timeoutMs: 600_000 })
+    const r = await $.process.run(argv, { timeoutMs: 600_000, env })
     if (r.exitCode !== 0) throw new Error(`${argv.slice(0, 3).join(' ')} exited ${r.exitCode}: ${(r.stderr || r.stdout).trim().slice(-300)}`)
+    if (match && !r.stdout.includes(match)) throw new Error(`a conferência \`${argv.join(' ')}\` não mostrou "${match}" (${r.stdout.trim().slice(0, 120) || 'nada'})`)
   }
   await log($, `${item.id}: done`)
 }
@@ -579,10 +706,16 @@ async function act($: EngineInterface, item: Item, action: 'install' | 'remove')
   try {
     if (action === 'install') {
       for (const bin of item.needs ?? []) if (!(await has($, bin))) throw new Error(`precisa de \`${bin}\` instalado primeiro`)
-      await runSteps($, item, item.install ?? [])
+      try {
+        await runSteps($, item, stepsOf(item, 'install'))
+      } catch (err) {
+        // A half-done install is undone: its remove steps run, each allowed to fail.
+        for (const step of stepsOf(item, 'remove')) await runSteps($, item, [step]).catch(() => undefined)
+        throw new Error(`${String(err instanceof Error ? err.message : err)}. O que já tinha sido feito foi desfeito`)
+      }
       note = `${item.label} instalado. Vale para chats novos.`
     } else {
-      await runSteps($, item, item.uninstall ?? [])
+      await runSteps($, item, stepsOf(item, 'remove'))
       note = `${item.label} removido. Vale para chats novos.`
     }
   } catch (err) {
@@ -726,6 +859,15 @@ export const register: Register = on => {
     } else if (what === 'auto') {
       autoOpen = !autoOpen
       await $.store.set('autoOpen', autoOpen)
+    } else if (what === 'action' && id) {
+      const [itemId = '', actionId = ''] = id.split('/')
+      const it = catalog.items.find(i => i.id === itemId)
+      const a = it?.actions?.find(x => x.id === actionId)
+      if (it && a) await runAction($, it, a)
+    } else if ((what === 'mod-off' || what === 'mod-on') && item?.overlapsMod) await setMod($, item.overlapsMod.mod, what === 'mod-on')
+    else if (what === 'setup' && id) {
+      const g = catalog.groups.find(x => x.id === id)
+      if (g?.setup) await use($, `${g.setup.command} `)
     } else if (what === 'toggle-mine') showMine = !showMine
     else if (what === 'toggle-group' && id) {
       if (!openGroups.delete(id)) openGroups.add(id)
@@ -861,7 +1003,7 @@ export const register: Register = on => {
     const cw = width - 4
     const noop = () => undefined
     const nowMs = await $.clock.now()
-    const tools = catalog.items.filter(i => i.kind === 'mcp' || i.kind === 'tool')
+    const tools = catalog.items.filter(isTool)
     const tiles = [
       { label: 'Ponytail', value: isCode || byPrompt ? level : 'inativo' },
       { label: 'Skills', value: String(catalog.items.length - tools.length + found.length) },
@@ -963,7 +1105,14 @@ export const register: Register = on => {
           return (
             <Box key={`group-${g.id}`} flexDirection="column" width={width} marginBottom={openGroups.has(g.id) ? 0 : 1}>
               {header(g.title, items.length, openGroups.has(g.id), `toggle-group:${g.id}`)}
-              {openGroups.has(g.id) ? items.map(card) : null}
+              {openGroups.has(g.id) && g.setup ? (
+                <Box key={`setup-${g.id}`} flexDirection="row" gap={1} width={width} marginBottom={1}>
+                  {setupDone[g.id] ? <Text color={GOOD}>✓ configurado neste repositório</Text> : <Button key={`setup:${g.id}`} label={g.setup.label} variant="primary" onPress={noop} />}
+                </Box>
+              ) : null}
+              {openGroups.has(g.id)
+                ? items.flatMap((it, i) => (it.sub && it.sub !== items[i - 1]?.sub ? [<Text key={`sub-${g.id}-${it.sub}`} bold dimColor>{it.sub}</Text>, card(it)] : [card(it)]))
+                : null}
             </Box>
           )
         })}
