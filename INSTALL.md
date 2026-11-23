@@ -76,6 +76,19 @@ git config core.hooksPath .githooks
 - **post-commit** runs `claude plugin update` for the changed mods that are installed, in the
   background (log in `~/.claude/mods-logs/post-commit.log`). Skip it with `SKIP_MOD_UPDATE=1`.
 
+Tests:
+
+```bash
+claude plugin test plugins/coding-kit
+```
+
+```bash
+python3 -m unittest discover -s tests
+```
+
+The first runs a mod's own tests (the other mods with tests work the same way); the second checks the
+Coding Kit's catalog entries.
+
 ## If something goes wrong
 
 - If `marketplace add` cannot find the folder, the folder you give must hold `.claude-plugin`.
