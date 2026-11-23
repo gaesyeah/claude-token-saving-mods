@@ -192,6 +192,26 @@ function typedSkill(text: string): Typed | null {
   return mine ? { start, end, mine } : null
 }
 const paintOf = (t: Typed | null) => (t ? [{ start: t.start, end: t.end, color: ACCENT }] : [])
+// Paints the command over a draft no prompt.edit carried (an accepted Tab completion, a fill). The box
+// may still be settling, and the app styles an accepted completion itself: so a stale draft is read
+// again, a miss is tried again, and a hit is painted once more a moment later to stand over that style.
+async function paintTyped($: EngineInterface, first: string) {
+  let text = first
+  let hits = 0
+  for (let i = 0; i < 5 && hits < 2; i++) {
+    const t = typedSkill(text)
+    const res = await $.prompt.paint({ text, decorations: paintOf(t) })
+    if (res.text !== text) {
+      text = res.text
+      setTyped($, typedSkill(text))
+      continue
+    }
+    if (!t) return
+    if (res.isPainted) hits++
+    else if (i === 4) await log($, `paint missed: ${JSON.stringify(text.slice(0, 40))}`)
+    await $.clock.sleep(res.isPainted ? 150 : 40)
+  }
+}
 function setTyped($: EngineInterface, t: Typed | null) {
   const key = (x: Typed | null) => (x ? `${x.item?.id ?? x.mine?.command}@${x.start}-${x.end}` : '')
   if (key(t) === key(typed)) return
@@ -722,7 +742,7 @@ export const register: Register = on => {
     if (off) return r
     const t = typedSkill(e.text)
     setTyped($, t)
-    if (t) void $.prompt.paint({ text: e.text, decorations: paintOf(t) }).catch(() => undefined)
+    if (t) void paintTyped($, e.text).catch(err => log($, `paint: ${String(err)}`))
     return r
   }).catch(($, e, next) => next(e))
 

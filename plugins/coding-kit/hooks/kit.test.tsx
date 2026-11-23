@@ -270,3 +270,19 @@ test('a typed skill command is painted orange and gets a band; ✕ takes only th
   expect(r.decorations).toEqual([{ start: 0, end: 9, color: '#d97757' }])
   await band.unmount()
 })
+
+test('a Tab completion (no prompt.edit) is painted too, and once more after the app styles it', async ($, on) => {
+  engine(on, { code: true, ran: [], filled: [], toasts: [] })
+  const painted: any[] = []
+  on('prompt.paint', (_: any, e: any) => {
+    painted.push(e.decorations)
+    return { value: { isPainted: true, text: e.text, cursor: e.text.length } }
+  })
+  on('clock.sleep', () => ({ value: undefined }))
+  on('prompt.change', (_: any, e: any) => ({ text: e.text }))
+  await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
+  await $.prompt.change({ text: '/coding-kit:grill-me ', cursor: 21, origin: { kind: 'engine' } } as any)
+  await new Promise(r => setTimeout(r, 50))
+  expect(painted.length).toBe(2)
+  expect(painted[0]).toEqual([{ start: 0, end: 20, color: '#d97757' }])
+})
