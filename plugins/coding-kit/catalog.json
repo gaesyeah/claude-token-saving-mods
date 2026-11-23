@@ -64,6 +64,22 @@
       "source": "anthropics/skills (Apache 2.0)"
     },
     {
+      "id": "modern-web-guidance",
+      "kind": "plugin",
+      "group": "build",
+      "label": "Modern Web Guidance (guias do Chrome)",
+      "description": "Mais de 200 guias do time do Chrome sobre CSS moderno, acessibilidade, formulários, desempenho e segurança, com dados de compatibilidade entre navegadores. O Claude busca o guia certo quando a tarefa pede; a lista custa uns 200 tokens.",
+      "plugin": "modern-web-guidance@googlechrome",
+      "marketplace": "GoogleChrome/modern-web-guidance",
+      "fill": "Use o modern-web-guidance para ",
+      "repo": "https://github.com/GoogleChrome/modern-web-guidance",
+      "source": "GoogleChrome (Apache 2.0, guias CC-BY 4.0)",
+      "changes": [
+        "Adiciona o marketplace googlechrome e instala o plugin modern-web-guidance, para todos os projetos.",
+        "A busca de guias roda com npx: precisa de Node 22 ou mais novo."
+      ]
+    },
+    {
       "id": "systematic-debugging",
       "repo": "https://github.com/obra/superpowers/tree/HEAD/skills/systematic-debugging",
       "kind": "skill",
@@ -149,6 +165,9 @@
           "user",
           "context7"
         ]
+      ],
+      "changes": [
+        "Registra o servidor MCP context7 (remoto, https://mcp.context7.com/mcp) em ~/.claude.json, para todos os projetos."
       ]
     },
     {
@@ -192,6 +211,10 @@
           "user",
           "serena"
         ]
+      ],
+      "changes": [
+        "Registra o servidor MCP serena em ~/.claude.json, para todos os projetos.",
+        "Ao ativar um projeto, o Serena cria a pasta .serena/ nele; config e logs ficam em ~/.serena/."
       ]
     },
     {
@@ -230,6 +253,10 @@
           "user",
           "codebase-memory"
         ]
+      ],
+      "changes": [
+        "Registra o servidor MCP codebase-memory em ~/.claude.json, para todos os projetos.",
+        "Os índices ficam em ~/.cache/codebase-memory-mcp/."
       ]
     },
     {
@@ -275,6 +302,10 @@
           "uninstall",
           "graphifyy"
         ]
+      ],
+      "changes": [
+        "Instala o comando graphify com uv tool (em ~/.local/bin).",
+        "graphify install registra a skill /graphify e um hook do Claude Code."
       ]
     }
   ],
@@ -460,5 +491,8 @@
         }
       ]
     }
-  ]
+  ],
+  "exclusives": {
+    "code-intel": "Os dois montam um grafo do código e fazem o mesmo papel: com os dois, o Claude não sabe qual consultar."
+  }
 }
