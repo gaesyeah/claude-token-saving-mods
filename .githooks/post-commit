@@ -1,0 +1,18 @@
+#!/bin/sh
+# Installs the mods this commit changed, in the background, so the commit is not slowed.
+# Skip with SKIP_MOD_UPDATE=1. Output goes to ~/.claude/mods-logs/post-commit.log.
+[ -n "$SKIP_MOD_UPDATE" ] && exit 0
+command -v claude >/dev/null 2>&1 || exit 0
+mods=$(git diff-tree --no-commit-id --name-only -r HEAD -- plugins | cut -d/ -f2 | sort -u)
+[ -z "$mods" ] && exit 0
+log="$HOME/.claude/mods-logs/post-commit.log"
+mkdir -p "$(dirname "$log")"
+(
+  echo "$(date -Is) $(git rev-parse --short HEAD): $mods" | tr '\n' ' '; echo
+  claude plugin marketplace update token-saving-mods 2>&1 | tail -1
+  for m in $mods; do
+    claude plugin list 2>/dev/null | grep -q "$m@token-saving-mods" || continue
+    claude plugin update "$m@token-saving-mods" 2>&1 | tail -1
+  done
+) >>"$log" 2>&1 </dev/null &
+exit 0

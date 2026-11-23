@@ -60,6 +60,22 @@ claude plugin marketplace update token-saving-mods
 
 Then start a new chat, or type `/reload-plugins`.
 
+## If you change the mods
+
+`claude plugin update` installs a mod only when its version number changed. Turn on the repo's git
+hooks once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+- **pre-commit** bumps the patch version (0.3.2 → 0.3.3) of every mod the commit changes and copies
+  it into `.claude-plugin/marketplace.json`. Changes to `*.test.tsx` alone bump nothing. A version
+  you set yourself is kept. It refuses a commit where a marketplace version differs from its
+  `plugin.json`.
+- **post-commit** runs `claude plugin update` for the changed mods that are installed, in the
+  background (log in `~/.claude/mods-logs/post-commit.log`). Skip it with `SKIP_MOD_UPDATE=1`.
+
 ## If something goes wrong
 
 - If `marketplace add` cannot find the folder, the folder you give must hold `.claude-plugin`.

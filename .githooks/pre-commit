@@ -1,0 +1,3 @@
+#!/bin/sh
+# A changed mod gets a new version, so `claude plugin update` installs it. See bump_versions.py.
+exec python3 "$(git rev-parse --show-toplevel)/.githooks/bump_versions.py"
