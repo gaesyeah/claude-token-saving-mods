@@ -498,7 +498,8 @@
           "offLabel": "Parar de usar sempre",
           "rule": "Use Context7 (resolve-library-id, then query-docs) whenever a task needs a library's or API's documentation, code examples, setup or configuration steps, without waiting to be asked."
         }
-      ]
+      ],
+      "recommended": true
     },
     {
       "id": "serena",
@@ -741,7 +742,8 @@
             "gain"
           ]
         }
-      ]
+      ],
+      "recommended": true
     },
     {
       "id": "lean-ctx",
@@ -1022,7 +1024,7 @@
       "path": "skills/verification-before-completion",
       "credit": "MIT License, Copyright (c) 2025 Jesse Vincent",
       "frontmatter": {
-        "disable-model-invocation": "true"
+        "disable-model-invocation": "false"
       }
     },
     {

@@ -567,3 +567,30 @@ test('a repo of many skills costs one GitHub request a week when none of them ch
   expect(commits.length).toBe(1)
   expect(commits[0]).toContain('path=skills%2Feng&')
 })
+
+test('recommended tools carry a mark, and one button installs the ones still missing after a single confirm listing what changes', async ($, on) => {
+  const ran: string[][] = []
+  const rec = {
+    groups: [{ id: 'tools', title: 'Ferramentas' }],
+    items: [
+      { id: 'a', kind: 'tool', group: 'tools', label: 'Alpha', description: 'a', recommended: true, check: { argv: ['alpha', '--v'] }, install: [['alpha', 'setup']], changes: ['Alpha muda isto.'] },
+      { id: 'b', kind: 'tool', group: 'tools', label: 'Beta', description: 'b', recommended: true, check: { argv: ['beta', '--v'] }, install: [['beta', 'setup']], changes: ['Beta muda aquilo.'] },
+      { id: 'c', kind: 'tool', group: 'tools', label: 'Gamma', description: 'c', check: { argv: ['gamma', '--v'] }, install: [['gamma', 'setup']], changes: ['Gamma.'] },
+    ],
+  }
+  engine(on, { code: true, ran, filled: [], toasts: [], catalog: rec, run: argv => (argv[1] === '--v' ? { exitCode: argv[0] === 'beta' ? 0 : 1 } : argv[1] === 'setup' ? {} : undefined) })
+  await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
+  await new Promise(r => setTimeout(r, 40))
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  expect((await ui.find({ key: 'install-recommended' }))?.props.label).toBe('Instalar os recomendados (1)')
+  await ui.press({ key: 'toggle-group:tools' })
+  expect(await ui.find({ type: 'Text', text: /★ recomendado/ })).toBeDefined()
+  await ui.press({ key: 'install-recommended' })
+  expect(await ui.find({ type: 'Text', text: /Alpha muda isto\./ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Beta muda aquilo\./ })).toBeUndefined()
+  expect(ran.some(a => a[1] === 'setup')).toBe(false)
+  await ui.press({ key: 'confirm-recommended' })
+  await new Promise(r => setTimeout(r, 60))
+  expect(ran.filter(a => a[1] === 'setup').map(a => a[0])).toEqual(['alpha'])
+  await ui.unmount()
+})

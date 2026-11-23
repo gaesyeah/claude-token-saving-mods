@@ -1,7 +1,7 @@
 ---
 name: verification-before-completion
 description: Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 <!-- From obra/superpowers (skills/verification-before-completion) at 3be5aad3dd24, MIT License, Copyright (c) 2025 Jesse Vincent. Updated by Coding Kit. -->

@@ -241,5 +241,19 @@ class MattPocock(unittest.TestCase):
         self.assertEqual(ITEMS["improve-codebase-architecture"]["group"], "matt")
 
 
+class Defaults(unittest.TestCase):
+    def test_only_the_cheap_and_saving_tools_are_recommended(self):
+        rec = {i["id"] for i in CATALOG["items"] if i.get("recommended")}
+        self.assertEqual(rec, {"context7", "rtk"})
+
+    def test_verification_is_the_one_bundled_skill_claude_may_load_by_itself(self):
+        src = SOURCES["verification-before-completion"]
+        self.assertEqual(src["frontmatter"]["disable-model-invocation"], "false")
+        text = (ROOT / "skills" / "verification-before-completion" / "SKILL.md").read_text()
+        self.assertIn("disable-model-invocation: false", text.split("---")[1])
+        for d in ["systematic-debugging", "test-driven-development", "writing-plans", "frontend-design", "ponytail"]:
+            self.assertEqual(SOURCES[d]["frontmatter"]["disable-model-invocation"], "true", d)
+
+
 if __name__ == "__main__":
     unittest.main()

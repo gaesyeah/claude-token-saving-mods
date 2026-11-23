@@ -58,6 +58,8 @@ type Item = {
   // a heading inside its group, and whether it waits for the group's setup
   sub?: string
   needsSetup?: boolean
+  // cheap or token-saving enough to suggest to everyone: a mark and one button for all of them
+  recommended?: boolean
 }
 // A group's setup: a command run once per repo before the skills marked needsSetup, done once `done` exists.
 type Group = { id: string; title: string; setup?: { label: string; command: string; done: string } }
@@ -95,6 +97,7 @@ let rules: Record<string, boolean> = {}
 let preparedHere: Record<string, boolean> = {}
 let setupDone: Record<string, boolean> = {}
 let modsOff: Record<string, boolean> = {}
+let confirmRecommended = false
 let busy = ''
 let note = ''
 const hinted = new Set<string>()
@@ -191,6 +194,7 @@ function itemCard(els: Els, item: Item, width: number, inBand = false) {
       <Box flexDirection="row" justifyContent="space-between" width={cw}>
         <Text bold wrap="truncate-end">{item.label}</Text>
         <Box flexDirection="row" gap={1} flexShrink={0}>
+          {item.recommended && !hot ? <Text color={ACCENT}>★ recomendado</Text> : null}
           {hot ? <Text color={ACCENT}>★ sugerido</Text> : inst ? <Text color={isIn ? GOOD : undefined} dimColor={!isIn}>{busy === item.id ? '…' : isIn ? '✓ instalado' : 'não instalado'}</Text> : null}
           {item.repo ? <Button key={`repo:${item.id}`} plain dimColor onPress={noop}>⎇</Button> : null}
         </Box>
@@ -766,6 +770,9 @@ async function act($: EngineInterface, item: Item, action: 'install' | 'remove')
   await refreshStatus($)
 }
 
+// The recommended tools not installed yet, but for one a conflicting tool already holds the place of.
+const missingRecommended = () => catalog.items.filter(i => i.recommended && isTool(i) && !installed[i.id] && !clash(i))
+
 function clash(item: Item): Item | undefined {
   if (!item.exclusive) return undefined
   return catalog.items.find(o => o.id !== item.id && o.exclusive === item.exclusive && installed[o.id])
@@ -908,6 +915,14 @@ export const register: Register = on => {
     else if (what === 'setup' && id) {
       const g = catalog.groups.find(x => x.id === id)
       if (g?.setup) await use($, `${g.setup.command} `)
+    } else if (what === 'install-recommended') confirmRecommended = true
+    else if (what === 'cancel-recommended') confirmRecommended = false
+    else if (what === 'confirm-recommended') {
+      confirmRecommended = false
+      const todo = missingRecommended()
+      void (async () => {
+        for (const it of todo) await act($, it, 'install')
+      })()
     } else if (what === 'toggle-mine') showMine = !showMine
     else if (what === 'toggle-group' && id) {
       if (!openGroups.delete(id)) openGroups.add(id)
@@ -1124,6 +1139,25 @@ export const register: Register = on => {
           </Button>
         </Box>
         {note ? <Text key="note" color={NOTE} wrap="wrap">{note}</Text> : null}
+        {missingRecommended().length ? (
+          <Box key="recommended" flexDirection="column" width={width} marginBottom={1} borderStyle="round" borderColor={ACCENT} paddingX={1}>
+            {confirmRecommended ? (
+              <Box flexDirection="column" width={cw}>
+                <Text color={WARN} wrap="wrap">{`Instalar ${missingRecommended().map(i => i.label.split(' (')[0]).join(' e ')}? Muda a config do Claude Code (vale para chats novos).`}</Text>
+                {missingRecommended().flatMap(i => (i.changes ?? []).map((c, k) => <Text key={`rc-${i.id}-${k}`} dimColor wrap="wrap">{`• ${c}`}</Text>))}
+                <Box flexDirection="row" gap={1}>
+                  <Button key="confirm-recommended" label="Confirmar" variant="primary" onPress={noop} />
+                  <Button key="cancel-recommended" label="Cancelar" onPress={noop} />
+                </Box>
+              </Box>
+            ) : (
+              <Box flexDirection="column" width={cw}>
+                <Text dimColor wrap="wrap">{`Recomendados: ${missingRecommended().map(i => i.label.split(' (')[0]).join(', ')}. Quase não custam contexto ou reduzem tokens.`}</Text>
+                <Button key="install-recommended" label={`Instalar os recomendados (${missingRecommended().length})`} variant="primary" onPress={noop} />
+              </Box>
+            )}
+          </Box>
+        ) : null}
         <Box key="mine" flexDirection="column" width={width} marginBottom={1}>
           {header('Suas skills', found.length, showMine, 'toggle-mine')}
           {showMine
