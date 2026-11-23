@@ -63,7 +63,8 @@ type Item = {
 type Group = { id: string; title: string; setup?: { label: string; command: string; done: string } }
 type Rewrite = { find: string; replace: string; regex?: boolean }
 // Where a bundled skill comes from, and how its upstream text is fitted to this mod.
-type Source = { dir: string; repo: string; path: string; ref?: string; credit?: string; frontmatter?: Record<string, string>; rewrite?: Rewrite[] }
+// `exclude` names subfolders left out (another agent's metadata).
+type Source = { dir: string; repo: string; path: string; ref?: string; credit?: string; frontmatter?: Record<string, string>; rewrite?: Rewrite[]; exclude?: string[] }
 type Catalog = { groups: Group[]; items: Item[]; skills?: Source[]; exclusives?: Record<string, string> }
 type Lock = Record<string, { sha: string; date: string }>
 type Update = { dir: string; repo: string; from: string; to: string; date: string }
@@ -513,7 +514,22 @@ function fitSkill(text: string, src: Source, sha: string) {
   return `---\n${blocks.flatMap(b => b.lines).join('\n')}\n---\n\n${credit}\n\n${body}`
 }
 
-// One GitHub request per bundled skill, at most once a week: the last commit that touched its folder.
+type Head = { sha: string; date: string }
+async function lastCommit($: EngineInterface, repo: string, path: string, ref?: string): Promise<Head | undefined> {
+  const r = ref ? `&sha=${encodeURIComponent(ref)}` : ''
+  const list = JSON.parse(await http($, `https://api.github.com/repos/${repo}/commits?path=${encodeURIComponent(path)}${r}&per_page=1`)) as { sha: string; commit: { committer: { date: string } } }[]
+  return list[0] ? { sha: list[0].sha, date: list[0].commit.committer.date } : undefined
+}
+// The folder every source of a repo sits in: one request on it says whether any of them changed.
+function commonPath(paths: string[]) {
+  const parts = paths.map(p => p.split('/'))
+  const out: string[] = []
+  for (let i = 0; parts.every(x => x.length > i + 1) && parts.every(x => x[i] === parts[0]![i]); i++) out.push(parts[0]![i]!)
+  return out.join('/')
+}
+
+// At most once a week: one GitHub request per repo (on the folder its skills share), and one per skill only
+// in a repo where something changed: the last commit that touched each folder.
 async function checkUpdates($: EngineInterface, force = false) {
   if (checking || off) return
   const now = await $.clock.now()
@@ -523,12 +539,25 @@ async function checkUpdates($: EngineInterface, force = false) {
   try {
     const lock = await readLock($)
     const found: Update[] = []
-    for (const src of catalog.skills ?? []) {
-      const ref = src.ref ? `&sha=${encodeURIComponent(src.ref)}` : ''
-      const list = JSON.parse(await http($, `https://api.github.com/repos/${src.repo}/commits?path=${encodeURIComponent(src.path)}${ref}&per_page=1`)) as { sha: string; commit: { committer: { date: string } } }[]
-      const head = list[0]
-      if (head && head.sha !== lock[src.dir]?.sha) found.push({ dir: src.dir, repo: src.repo, from: lock[src.dir]?.sha ?? '', to: head.sha, date: head.commit.committer.date })
+    let gated = false
+    const repos = [...new Set((catalog.skills ?? []).map(x => x.repo))]
+    for (const repo of repos) {
+      const srcs = (catalog.skills ?? []).filter(x => x.repo === repo)
+      const root = srcs.length > 1 ? commonPath(srcs.map(x => x.path)) : ''
+      const gate = root ? await lastCommit($, repo, root, srcs[0]!.ref) : undefined
+      if (gate && lock[`@${repo}`]?.sha === gate.sha) continue
+      const before = found.length
+      for (const src of srcs) {
+        const head = await lastCommit($, src.repo, src.path, src.ref)
+        if (head && head.sha !== lock[src.dir]?.sha) found.push({ dir: src.dir, repo: src.repo, from: lock[src.dir]?.sha ?? '', to: head.sha, date: head.date })
+      }
+      // Nothing to update in this repo: its gate moves on, so next week costs one request again.
+      if (gate && found.length === before) {
+        lock[`@${repo}`] = gate
+        gated = true
+      }
     }
+    if (gated) await $.fs.write(lockPath($), `${JSON.stringify(lock, null, 2)}\n`)
     updates = found
     await log($, `update check: ${found.length ? found.map(u => u.dir).join(', ') : 'all current'}`)
     const key = found.map(u => u.to).join(',')
@@ -559,16 +588,26 @@ async function applyUpdates($: EngineInterface) {
     for (const u of updates) {
       const src = (catalog.skills ?? []).find(x => x.dir === u.dir)
       if (!src) continue
-      const items = JSON.parse(await http($, `https://api.github.com/repos/${src.repo}/contents/${src.path}?ref=${u.to}`)) as { name: string; type: string; download_url: string | null }[]
       const files: [string, string][] = []
-      for (const it of items) {
-        if (it.type !== 'file' || !it.download_url) continue
-        const raw = await http($, it.download_url)
-        files.push([it.name, it.name === 'SKILL.md' ? fitSkill(raw, src, u.to) : rewrite(raw, src)])
+      // The whole folder, subfolders too (scripts, references), but for the ones the source leaves out.
+      const walk = async (sub: string) => {
+        const items = JSON.parse(await http($, `https://api.github.com/repos/${src.repo}/contents/${src.path}${sub ? `/${sub}` : ''}?ref=${u.to}`)) as { name: string; type: string; download_url: string | null }[]
+        for (const it of items) {
+          const rel = sub ? `${sub}/${it.name}` : it.name
+          if (it.type === 'dir') {
+            if (!(src.exclude ?? []).includes(it.name)) await walk(rel)
+            continue
+          }
+          if (it.type !== 'file' || !it.download_url) continue
+          const raw = await http($, it.download_url)
+          files.push([rel, rel === 'SKILL.md' ? fitSkill(raw, src, u.to) : rewrite(raw, src)])
+        }
       }
+      await walk('')
       if (!files.some(f => f[0] === 'SKILL.md')) throw new Error(`${src.dir}: no SKILL.md upstream`)
       const dir = `${$.plugin.root}/skills/${src.dir}`
       for (const [name, text] of files) {
+        if (name.includes('/')) await $.process.run(['mkdir', '-p', `${dir}/${name.slice(0, name.lastIndexOf('/'))}`]).catch(() => undefined)
         await $.fs.write(`${dir}/${name}`, text)
         if (name.endsWith('.sh')) await $.process.run(['chmod', '+x', `${dir}/${name}`]).catch(() => undefined)
       }

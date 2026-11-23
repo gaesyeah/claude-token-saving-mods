@@ -7,6 +7,7 @@ can not read files, so the catalog's own entries are checked here.
 """
 import json
 import pathlib
+import re
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1] / "plugins" / "coding-kit"
@@ -178,6 +179,66 @@ class Graphify(unittest.TestCase):
         self.assertEqual(self.i["prepared"], "graphify-out/graph.json")
         a = next(a for a in self.i["actions"] if a["id"] == "gitignore")
         self.assertIn("graphify-out/", " ".join(a["run"]))
+
+
+MATT = {
+    "Engenharia": ["ask-matt", "codebase-design", "code-review", "diagnosing-bugs", "domain-modeling", "grill-with-docs", "implement", "implement-spec",
+                   "improve-codebase-architecture", "pr", "prototype", "research", "retro", "setup-matt-pocock-skills", "tdd", "to-spec", "to-tickets",
+                   "triage", "wayfinder", "wizard"],
+    "Produtividade": ["grilling", "grill-me", "handoff", "teach", "to-questionnaire", "wait-what", "writing-for-agents"],
+    "Outras": ["git-guardrails-claude-code", "migrate-to-shoehorn", "scaffold-exercises", "setup-pre-commit"],
+}
+BUCKET = {"Engenharia": "engineering", "Produtividade": "productivity", "Outras": "misc"}
+# Called by other skills through the Skill tool: the model must be able to load them.
+CHAIN = {"codebase-design", "research", "grilling", "tdd", "prototype", "domain-modeling", "code-review"}
+NEEDS_SETUP = {"to-spec", "to-tickets", "triage", "wayfinder", "implement-spec"}
+SOURCES = {x["dir"]: x for x in CATALOG["skills"]}
+LOCK = json.loads((ROOT / "skills" / "upstream.lock.json").read_text())
+
+
+class MattPocock(unittest.TestCase):
+    def test_has_its_own_section_with_a_repo_setup(self):
+        g = GROUPS["matt"]
+        self.assertEqual(g["setup"]["command"], "/coding-kit:setup-matt-pocock-skills")
+        self.assertEqual(g["setup"]["done"], "docs/agents/issue-tracker.md")
+        first = next(i for i in CATALOG["items"] if i["group"] == "matt")
+        self.assertEqual(first["id"], "ask-matt")
+
+    def test_every_skill_is_a_card_in_its_sub_section(self):
+        for sub, names in MATT.items():
+            for n in names:
+                i = ITEMS[n]
+                self.assertEqual((i["kind"], i["group"], i["sub"], i["command"]), ("skill", "matt", sub, f"/coding-kit:{n}"), n)
+                self.assertTrue(i["label"] and i["description"], n)
+                self.assertEqual(bool(i.get("needsSetup")), n in NEEDS_SETUP, n)
+
+    def test_every_skill_is_bundled_from_its_upstream_folder(self):
+        for sub, names in MATT.items():
+            for n in names:
+                src = SOURCES[n]
+                self.assertEqual((src["repo"], src["path"]), ("mattpocock/skills", f"skills/{BUCKET[sub]}/{n}"), n)
+                self.assertEqual(src["exclude"], ["agents"], n)
+                self.assertEqual(src["frontmatter"]["disable-model-invocation"], "false" if n in CHAIN else "true", n)
+                self.assertEqual(len(LOCK[n]["sha"]), 40, n)
+                d = ROOT / "skills" / n
+                text = (d / "SKILL.md").read_text()
+                self.assertIn(f"disable-model-invocation: {'false' if n in CHAIN else 'true'}", text.split("---")[1], n)
+                self.assertIn("<!-- From mattpocock/skills", text, n)
+                for f in d.rglob("*.md"):
+                    self.assertIsNone(re.search(r'Skill tool with "(?!coding-kit:)', f.read_text()), str(f))
+                self.assertFalse((d / "agents").exists(), n)
+
+    def test_cross_references_point_at_this_plugin(self):
+        text = (ROOT / "skills" / "grill-me" / "SKILL.md").read_text()
+        self.assertIn('Call the Skill tool with "coding-kit:grilling"', text)
+        ask = (ROOT / "skills" / "ask-matt" / "SKILL.md").read_text()
+        self.assertIn("/coding-kit:grill-me", ask)
+        self.assertNotIn(" /grill-me", ask)
+        self.assertTrue((ROOT / "skills" / "diagnosing-bugs" / "scripts" / "hitl-loop.template.sh").exists())
+
+    def test_the_old_places_are_gone(self):
+        self.assertEqual(ITEMS["grill-me"]["group"], "matt")
+        self.assertEqual(ITEMS["improve-codebase-architecture"]["group"], "matt")
 
 
 if __name__ == "__main__":

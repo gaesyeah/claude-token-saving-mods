@@ -17,8 +17,8 @@ async function openGroups(ui: any) {
 }
 
 // Stands for the engine: a project folder, the plugin's own files, and the commands the pane runs.
-function engine(on: any, opts: { code: boolean; ran: string[][]; filled: string[]; toasts: string[]; curl?: (url: string) => string; writes?: Record<string, string>; dir?: { v: string }; opened?: string[]; sh?: string[][]; shOut?: string; mockClock?: boolean; fillArgs?: any[]; catalog?: unknown; run?: (argv: string[], init: any) => { exitCode?: number; stdout?: string; stderr?: string } | undefined; writeThrough?: boolean }) {
-  const own = (path: string) => (path.endsWith('/catalog.json') ? JSON.stringify(opts.catalog ?? catalogJson) : path.endsWith('/skills/ponytail/SKILL.md') ? '---\nname: ponytail\n---\n# Ponytail\nActive for the whole session.\nrules here' : undefined)
+function engine(on: any, opts: { code: boolean; ran: string[][]; filled: string[]; toasts: string[]; curl?: (url: string) => string; writes?: Record<string, string>; dir?: { v: string }; opened?: string[]; sh?: string[][]; shOut?: string; mockClock?: boolean; fillArgs?: any[]; catalog?: unknown; run?: (argv: string[], init: any) => { exitCode?: number; stdout?: string; stderr?: string } | undefined; writeThrough?: boolean; lock?: string }) {
+  const own = (path: string) => (path.endsWith('/catalog.json') ? JSON.stringify(opts.catalog ?? catalogJson) : opts.lock !== undefined && path.endsWith('/skills/upstream.lock.json') ? opts.lock : path.endsWith('/skills/ponytail/SKILL.md') ? '---\nname: ponytail\n---\n# Ponytail\nActive for the whole session.\nrules here' : undefined)
   on('session.id', () => ({ value: 'sid' }))
   on('session.cwd', () => ({ value: opts.dir?.v ?? '/work/app' }))
   on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))
@@ -505,4 +505,65 @@ test('a group with a setup: its skills wait for it, the setup button fills its c
   expect(await ui.find({ key: 'use:spec' })).toBeDefined()
   delete files['/work/app/docs/agents/issue-tracker.md']
   await ui.unmount()
+})
+
+
+// ---- bundled-skill updates for a repo of many skills ----
+
+const many = {
+  groups: [{ id: 'matt', title: 'Matt' }],
+  items: [],
+  skills: [
+    { dir: 'diag', repo: 'm/s', path: 'skills/eng/diag', exclude: ['agents'], credit: 'MIT', frontmatter: { 'disable-model-invocation': 'true' },
+      rewrite: [{ find: 'Call the Skill tool with "(?!coding-kit:)([a-z-]+)"', replace: 'Call the Skill tool with "coding-kit:$1"', regex: true }] },
+    { dir: 'tdd', repo: 'm/s', path: 'skills/eng/tdd', credit: 'MIT' },
+  ],
+}
+
+test('a bundled skill comes with its subfolders but not an excluded one, and a regex rewrite keeps what it captured', async ($, on) => {
+  const urls: string[] = []
+  const writes: Record<string, string> = {}
+  const curl = (url: string) => {
+    urls.push(url)
+    if (url.includes('/commits?')) return JSON.stringify([{ sha: url.includes('diag') ? 'c'.repeat(40) : 'd'.repeat(40), commit: { committer: { date: '2026-11-20T00:00:00Z' } } }])
+    if (url.includes('/contents/skills/eng/diag/scripts')) return JSON.stringify([{ name: 'loop.sh', type: 'file', download_url: 'https://raw.example/loop.sh' }])
+    if (url.includes('/contents/skills/eng/diag')) return JSON.stringify([
+      { name: 'SKILL.md', type: 'file', download_url: 'https://raw.example/diag.md' },
+      { name: 'scripts', type: 'dir', download_url: null },
+      { name: 'agents', type: 'dir', download_url: null },
+    ])
+    if (url.includes('/contents/skills/eng/tdd')) return JSON.stringify([{ name: 'SKILL.md', type: 'file', download_url: 'https://raw.example/tdd.md' }])
+    if (url.endsWith('/loop.sh')) return 'echo loop\n'
+    if (url.endsWith('/diag.md')) return '---\nname: diag\ndescription: d\n---\nThen Call the Skill tool with "tdd" here.\n'
+    return '---\nname: tdd\ndescription: t\n---\nRed green.\n'
+  }
+  engine(on, { code: true, ran: [], filled: [], toasts: [], curl, writes, catalog: many, lock: '{}' })
+  await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
+  await new Promise(r => setTimeout(r, 100))
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  await ui.press({ key: 'apply-updates' })
+  await ui.press({ key: 'confirm-updates' })
+  await new Promise(r => setTimeout(r, 100))
+  const skill = Object.entries(writes).find(([k]) => k.endsWith('/skills/diag/SKILL.md'))?.[1] ?? ''
+  expect(skill).toContain('Call the Skill tool with "coding-kit:tdd"')
+  expect(Object.entries(writes).find(([k]) => k.endsWith('/skills/diag/scripts/loop.sh'))?.[1]).toBe('echo loop\n')
+  expect(urls.some(u => u.includes('/contents/skills/eng/diag/agents'))).toBe(false)
+  expect(Object.keys(writes).some(k => k.includes('/skills/diag/agents'))).toBe(false)
+  await ui.unmount()
+})
+
+test('a repo of many skills costs one GitHub request a week when none of them changed', async ($, on) => {
+  const urls: string[] = []
+  const gate = 'e'.repeat(40)
+  const curl = (url: string) => {
+    urls.push(url)
+    return JSON.stringify([{ sha: gate, commit: { committer: { date: '2026-11-20T00:00:00Z' } } }])
+  }
+  const lock = JSON.stringify({ '@m/s': { sha: gate, date: '2026-11-20T00:00:00Z' }, diag: { sha: 'c'.repeat(40), date: 'x' }, tdd: { sha: 'd'.repeat(40), date: 'x' } })
+  engine(on, { code: true, ran: [], filled: [], toasts: [], curl, catalog: many, lock })
+  await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
+  await new Promise(r => setTimeout(r, 100))
+  const commits = urls.filter(u => u.includes('/commits?'))
+  expect(commits.length).toBe(1)
+  expect(commits[0]).toContain('path=skills%2Feng&')
 })

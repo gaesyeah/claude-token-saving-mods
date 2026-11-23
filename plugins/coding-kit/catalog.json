@@ -18,21 +18,20 @@
       "title": "Revisar"
     },
     {
+      "id": "matt",
+      "title": "Matt Pocock",
+      "setup": {
+        "label": "Configurar este repositório",
+        "command": "/coding-kit:setup-matt-pocock-skills",
+        "done": "docs/agents/issue-tracker.md"
+      }
+    },
+    {
       "id": "tools",
       "title": "Ferramentas (instalar com um clique)"
     }
   ],
   "items": [
-    {
-      "id": "grill-me",
-      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/productivity/grilling",
-      "kind": "skill",
-      "group": "plan",
-      "label": "Interrogar o plano",
-      "command": "/coding-kit:grill-me",
-      "description": "Entrevista em rodadas até o plano ficar claro, com uma resposta recomendada para cada pergunta. Use antes de uma funcionalidade grande ou ainda nebulosa.",
-      "source": "mattpocock/skills (MIT)"
-    },
     {
       "id": "writing-plans",
       "repo": "https://github.com/obra/superpowers/tree/HEAD/skills/writing-plans",
@@ -101,24 +100,6 @@
       "source": "obra/superpowers (MIT)"
     },
     {
-      "id": "improve-codebase-architecture",
-      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/improve-codebase-architecture",
-      "kind": "skill",
-      "group": "review",
-      "label": "Melhorar a arquitetura",
-      "command": "/coding-kit:improve-codebase-architecture",
-      "description": "Procura no projeto módulos rasos e acoplados, mostra as melhorias num relatório visual e aprofunda a que você escolher. Para refatorar além do diff.",
-      "source": "mattpocock/skills (MIT)"
-    },
-    {
-      "id": "code-review",
-      "kind": "builtin",
-      "group": "review",
-      "label": "Revisar o diff",
-      "command": "/code-review",
-      "description": "Procura bugs no diff atual antes de um commit ou PR."
-    },
-    {
       "id": "simplify",
       "kind": "builtin",
       "group": "review",
@@ -133,6 +114,352 @@
       "label": "Revisão de segurança",
       "command": "/security-review",
       "description": "Para mudanças em login, permissões, dados sensíveis ou entradas de usuário."
+    },
+    {
+      "id": "ask-matt",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Engenharia",
+      "label": "Qual skill usar?",
+      "description": "Pergunte qual skill ou fluxo serve para o seu caso: um roteador sobre todas as skills desta seção. Bom ponto de partida.",
+      "command": "/coding-kit:ask-matt",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/ask-matt",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "setup-matt-pocock-skills",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Engenharia",
+      "label": "Configurar este repositório",
+      "description": "Escolhe o rastreador de issues (GitHub, GitLab ou arquivos locais), os rótulos de triagem e onde ficam os docs. Rode uma vez por repositório, antes das skills que dependem disso.",
+      "command": "/coding-kit:setup-matt-pocock-skills",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/setup-matt-pocock-skills",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "grill-with-docs",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Engenharia",
+      "label": "Interrogar o plano com docs",
+      "description": "A mesma entrevista implacável do Interrogar o plano, mas que vai escrevendo o glossário do domínio e os ADRs (registros de decisão) enquanto conversa.",
+      "command": "/coding-kit:grill-with-docs",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/grill-with-docs",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "to-spec",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Engenharia",
+      "label": "Virar especificação",
+      "description": "Transforma a conversa atual numa especificação e publica no rastreador de issues. Sem entrevista: só junta o que já foi decidido.",
+      "command": "/coding-kit:to-spec",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/to-spec",
+      "source": "mattpocock/skills (MIT)",
+      "needsSetup": true
+    },
+    {
+      "id": "to-tickets",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Engenharia",
+      "label": "Quebrar em tickets",
+      "description": "Quebra um plano ou especificação em tickets finos de ponta a ponta, cada um dizendo de quais depende, publicados no rastreador.",
+      "command": "/coding-kit:to-tickets",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/to-tickets",
+      "source": "mattpocock/skills (MIT)",
+      "needsSetup": true
+    },
+    {
+      "id": "implement",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Engenharia",
+      "label": "Implementar",
+      "description": "Implementa uma especificação ou um conjunto de tickets: testes primeiro onde combinado e uma revisão do código antes do commit.",
+      "command": "/coding-kit:implement",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/implement",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "implement-spec",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Engenharia",
+      "label": "Implementar a especificação inteira",
+      "description": "Implementa o resultado do Virar especificação e do Quebrar em tickets numa branch só, com subagentes em paralelo.",
+      "command": "/coding-kit:implement-spec",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/implement-spec",
+      "source": "mattpocock/skills (MIT)",
+      "needsSetup": true
+    },
+    {
+      "id": "wayfinder",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Engenharia",
+      "label": "Mapear um trabalho enorme",
+      "description": "Planeja um trabalho grande demais para uma sessão como um mapa de tickets de decisão no rastreador, e resolve um por vez até o caminho ficar claro.",
+      "command": "/coding-kit:wayfinder",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/wayfinder",
+      "source": "mattpocock/skills (MIT)",
+      "needsSetup": true
+    },
+    {
+      "id": "triage",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Engenharia",
+      "label": "Triar issues",
+      "description": "Move issues e PRs de fora por uma máquina de estados de triagem: categoriza, verifica, interroga se preciso e escreve briefings prontos para um agente.",
+      "command": "/coding-kit:triage",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/triage",
+      "source": "mattpocock/skills (MIT)",
+      "needsSetup": true
+    },
+    {
+      "id": "tdd",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Engenharia",
+      "label": "TDD (vertical)",
+      "description": "Vermelho, verde, refatora, uma fatia vertical por vez, com testes de integração. Outras skills chamam esta; difere do Testes primeiro (TDD) por trabalhar em fatias de ponta a ponta.",
+      "command": "/coding-kit:tdd",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/tdd",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "diagnosing-bugs",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Engenharia",
+      "label": "Diagnosticar um bug difícil",
+      "description": "Ciclo fechado para bug difícil ou regressão de desempenho: reproduz no vermelho, minimiza, levanta hipóteses, instrumenta, corrige e deixa um teste de regressão.",
+      "command": "/coding-kit:diagnosing-bugs",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/diagnosing-bugs",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "prototype",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Engenharia",
+      "label": "Protótipo descartável",
+      "description": "Monta um protótipo para responder uma dúvida de design: se um modelo de estado ou uma lógica faz sentido, ou como uma tela deveria ficar.",
+      "command": "/coding-kit:prototype",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/prototype",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "codebase-design",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Engenharia",
+      "label": "Desenho de módulos profundos",
+      "description": "Vocabulário comum para desenhar módulos profundos: onde fica uma costura, como deixar o código mais testável e fácil de navegar. Outras skills usam esta.",
+      "command": "/coding-kit:codebase-design",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/codebase-design",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "domain-modeling",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Engenharia",
+      "label": "Modelar o domínio",
+      "description": "Afina o modelo de domínio do projeto: os termos do código, o GLOSSARY.md e os ADRs.",
+      "command": "/coding-kit:domain-modeling",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/domain-modeling",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "improve-codebase-architecture",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Engenharia",
+      "label": "Melhorar a arquitetura",
+      "description": "Varre o código atrás de oportunidades de aprofundar módulos, mostra num relatório HTML e depois interroga sobre a que você escolher.",
+      "command": "/coding-kit:improve-codebase-architecture",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/improve-codebase-architecture",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "code-review",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Engenharia",
+      "label": "Revisar em dois eixos",
+      "description": "Revisa as mudanças desde um ponto fixo em dois eixos, em subagentes paralelos: segue os padrões do repositório? Bate com o que a issue ou especificação pediu?",
+      "command": "/coding-kit:code-review",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/code-review",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "pr",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Engenharia",
+      "label": "Escrever o PR",
+      "description": "O formato do corpo de um PR: resumo, evidências e o risco de dar merge.",
+      "command": "/coding-kit:pr",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/pr",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "research",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Engenharia",
+      "label": "Pesquisar com fontes",
+      "description": "Investiga uma pergunta em fontes primárias de confiança e grava o que achou num Markdown no repositório, num agente em segundo plano.",
+      "command": "/coding-kit:research",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/research",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "retro",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Engenharia",
+      "label": "Retrospectiva da sessão",
+      "description": "Faz uma retrospectiva de uma sessão de código e sugere melhorias no ambiente do agente.",
+      "command": "/coding-kit:retro",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/retro",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "wizard",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Engenharia",
+      "label": "Gerar um assistente em bash",
+      "description": "Gera um assistente interativo em bash que guia uma pessoa pelos passos que só ela pode fazer: credenciais, segredos de CI, painéis de terceiros, migrações.",
+      "command": "/coding-kit:wizard",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/wizard",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "grill-me",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Produtividade",
+      "label": "Interrogar o plano",
+      "description": "Entrevista em rodadas até o plano ficar claro, com uma resposta recomendada para cada pergunta. Use antes de uma funcionalidade grande ou ainda nebulosa.",
+      "command": "/coding-kit:grill-me",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/productivity/grill-me",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "grilling",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Produtividade",
+      "label": "Interrogar (base)",
+      "description": "A entrevista por trás do Interrogar o plano e de outras skills desta seção. Outras skills chamam esta.",
+      "command": "/coding-kit:grilling",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/productivity/grilling",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "handoff",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Produtividade",
+      "label": "Passar para outro agente",
+      "description": "Compacta a conversa num documento de passagem para outro agente continuar. Diferente do mod handoff, que abre um chat novo.",
+      "command": "/coding-kit:handoff",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/productivity/handoff",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "teach",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Produtividade",
+      "label": "Ensinar um assunto",
+      "description": "Ensina um conceito ou habilidade nova em várias sessões, usando esta pasta para guardar o progresso.",
+      "command": "/coding-kit:teach",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/productivity/teach",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "to-questionnaire",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Produtividade",
+      "label": "Virar questionário",
+      "description": "Transforma uma decisão que você não consegue fechar sozinho num questionário em Markdown para outra pessoa responder.",
+      "command": "/coding-kit:to-questionnaire",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/productivity/to-questionnaire",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "wait-what",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Produtividade",
+      "label": "Explicar de novo",
+      "description": "A última mensagem não ficou clara: explica de outro jeito, usando o glossário do projeto.",
+      "command": "/coding-kit:wait-what",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/productivity/wait-what",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "writing-for-agents",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Produtividade",
+      "label": "Escrever para agentes",
+      "description": "Como escrever skills, AGENTS.md, CLAUDE.md e outros documentos que um agente vai ler.",
+      "command": "/coding-kit:writing-for-agents",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/productivity/writing-for-agents",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "git-guardrails-claude-code",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Outras",
+      "label": "Travas de git",
+      "description": "Cria hooks do Claude Code que bloqueiam comandos de git perigosos antes de rodar: push, reset --hard, clean, branch -D. Grava em .claude/settings.json ao ser usada.",
+      "command": "/coding-kit:git-guardrails-claude-code",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/misc/git-guardrails-claude-code",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "setup-pre-commit",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Outras",
+      "label": "Hooks de pre-commit",
+      "description": "Configura Husky com lint-staged (Prettier), checagem de tipos e testes no commit. Para projetos JavaScript ou TypeScript.",
+      "command": "/coding-kit:setup-pre-commit",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/misc/setup-pre-commit",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "migrate-to-shoehorn",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Outras",
+      "label": "Migrar para shoehorn",
+      "description": "Troca as asserções `as` dos testes por @total-typescript/shoehorn. Para projetos TypeScript.",
+      "command": "/coding-kit:migrate-to-shoehorn",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/misc/migrate-to-shoehorn",
+      "source": "mattpocock/skills (MIT)"
+    },
+    {
+      "id": "scaffold-exercises",
+      "kind": "skill",
+      "group": "matt",
+      "sub": "Outras",
+      "label": "Montar exercícios",
+      "description": "Cria a estrutura de pastas de um curso: seções, problemas, soluções e explicações que passam no lint.",
+      "command": "/coding-kit:scaffold-exercises",
+      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/misc/scaffold-exercises",
+      "source": "mattpocock/skills (MIT)"
     },
     {
       "id": "context7",
@@ -581,17 +908,6 @@
       }
     },
     {
-      "dir": "grill-me",
-      "repo": "mattpocock/skills",
-      "path": "skills/productivity/grilling",
-      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
-      "frontmatter": {
-        "name": "grill-me",
-        "description": "A relentless interview to sharpen a plan or design before building it. Use only when the user types /coding-kit:grill-me.",
-        "disable-model-invocation": "true"
-      }
-    },
-    {
       "dir": "systematic-debugging",
       "repo": "obra/superpowers",
       "path": "skills/systematic-debugging",
@@ -710,45 +1026,746 @@
       }
     },
     {
-      "dir": "improve-codebase-architecture",
+      "dir": "ask-matt",
       "repo": "mattpocock/skills",
-      "path": "skills/engineering/improve-codebase-architecture",
+      "path": "skills/engineering/ask-matt",
       "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
       "frontmatter": {
         "disable-model-invocation": "true"
       },
       "rewrite": [
         {
-          "find": "Call the Skill tool with \"codebase-design\" for the architecture vocabulary",
-          "replace": "Use this architecture vocabulary"
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
         },
         {
-          "find": "the `/codebase-design` vocabulary",
-          "replace": "the architecture vocabulary above"
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "setup-matt-pocock-skills",
+      "repo": "mattpocock/skills",
+      "path": "skills/engineering/setup-matt-pocock-skills",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
         },
         {
-          "find": "(from the `/codebase-design` skill)",
-          "replace": "(module, interface, depth, seam, adapter, leverage, locality)"
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "grill-with-docs",
+      "repo": "mattpocock/skills",
+      "path": "skills/engineering/grill-with-docs",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
         },
         {
-          "find": "come straight from the `/codebase-design` skill",
-          "replace": "come straight from the architecture vocabulary in SKILL.md"
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "to-spec",
+      "repo": "mattpocock/skills",
+      "path": "skills/engineering/to-spec",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
         },
         {
-          "find": "the `/codebase-design` glossary",
-          "replace": "that vocabulary"
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "to-tickets",
+      "repo": "mattpocock/skills",
+      "path": "skills/engineering/to-tickets",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
         },
         {
-          "find": "call the Skill tool with \"grilling\" to walk the decision tree with them",
-          "replace": "grill them in rounds, as /coding-kit:grill-me does (number each question, give your recommended answer, wait for the answers), to walk the decision tree"
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "implement",
+      "repo": "mattpocock/skills",
+      "path": "skills/engineering/implement",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
         },
         {
-          "find": "; call the Skill tool with \"domain-modeling\" to keep the domain model current as you go",
-          "replace": ": keep the domain model current as you go"
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "implement-spec",
+      "repo": "mattpocock/skills",
+      "path": "skills/engineering/implement-spec",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
         },
         {
-          "find": "Call the Skill tool with \"codebase-design\" and use its design-it-twice parallel sub-agent pattern.",
-          "replace": "Design it twice: dispatch two or three sub-agents in parallel, each with a different interface, and compare them."
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "wayfinder",
+      "repo": "mattpocock/skills",
+      "path": "skills/engineering/wayfinder",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "triage",
+      "repo": "mattpocock/skills",
+      "path": "skills/engineering/triage",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "tdd",
+      "repo": "mattpocock/skills",
+      "path": "skills/engineering/tdd",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "false"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "diagnosing-bugs",
+      "repo": "mattpocock/skills",
+      "path": "skills/engineering/diagnosing-bugs",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "prototype",
+      "repo": "mattpocock/skills",
+      "path": "skills/engineering/prototype",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "false"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "codebase-design",
+      "repo": "mattpocock/skills",
+      "path": "skills/engineering/codebase-design",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "false"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "domain-modeling",
+      "repo": "mattpocock/skills",
+      "path": "skills/engineering/domain-modeling",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "false"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "improve-codebase-architecture",
+      "repo": "mattpocock/skills",
+      "path": "skills/engineering/improve-codebase-architecture",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "code-review",
+      "repo": "mattpocock/skills",
+      "path": "skills/engineering/code-review",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "false"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "pr",
+      "repo": "mattpocock/skills",
+      "path": "skills/engineering/pr",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "research",
+      "repo": "mattpocock/skills",
+      "path": "skills/engineering/research",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "false"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "retro",
+      "repo": "mattpocock/skills",
+      "path": "skills/engineering/retro",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "wizard",
+      "repo": "mattpocock/skills",
+      "path": "skills/engineering/wizard",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "grill-me",
+      "repo": "mattpocock/skills",
+      "path": "skills/productivity/grill-me",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "grilling",
+      "repo": "mattpocock/skills",
+      "path": "skills/productivity/grilling",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "false"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "handoff",
+      "repo": "mattpocock/skills",
+      "path": "skills/productivity/handoff",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "teach",
+      "repo": "mattpocock/skills",
+      "path": "skills/productivity/teach",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "to-questionnaire",
+      "repo": "mattpocock/skills",
+      "path": "skills/productivity/to-questionnaire",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "wait-what",
+      "repo": "mattpocock/skills",
+      "path": "skills/productivity/wait-what",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "writing-for-agents",
+      "repo": "mattpocock/skills",
+      "path": "skills/productivity/writing-for-agents",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "git-guardrails-claude-code",
+      "repo": "mattpocock/skills",
+      "path": "skills/misc/git-guardrails-claude-code",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "setup-pre-commit",
+      "repo": "mattpocock/skills",
+      "path": "skills/misc/setup-pre-commit",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "migrate-to-shoehorn",
+      "repo": "mattpocock/skills",
+      "path": "skills/misc/migrate-to-shoehorn",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "dir": "scaffold-exercises",
+      "repo": "mattpocock/skills",
+      "path": "skills/misc/scaffold-exercises",
+      "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
+      "exclude": [
+        "agents"
+      ],
+      "frontmatter": {
+        "disable-model-invocation": "true"
+      },
+      "rewrite": [
+        {
+          "find": "(Skill tool with) \"(?!coding-kit:)([a-z-]+)\"",
+          "replace": "$1 \"coding-kit:$2\"",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "replace": "$1/coding-kit:$2",
+          "regex": true
         }
       ]
     }
