@@ -92,6 +92,11 @@ const SERENA_SH = 'for p in $(seq 24282 24301); do curl -s -m 2 -X POST -H "Cont
 // Serena's dashboard never opens by itself; the first time Serena activates a project in this chat, a band offers it.
 let serenaSession = ''
 let serenaBand = false
+// A skill command typed at the start of the prompt (/coding-kit:grill-me ...): painted orange, with a band
+// above the prompt that shows its card. `skillOpen` is the band opened, for the rest of this chat.
+type Typed = { start: number; end: number; item?: Item; mine?: Found }
+let typed: Typed | null = null
+let skillOpen = false
 // Opens a link with the desktop's opener: xdg-open (Linux), gio, or open (macOS).
 const OPEN_SH = 'for c in xdg-open gio open; do command -v "$c" >/dev/null 2>&1 || continue; if [ "$c" = gio ]; then gio open "$1"; else "$c" "$1"; fi </dev/null >/dev/null 2>&1; exit $?; done; exit 3'
 
@@ -129,6 +134,69 @@ const redraw = ($: EngineInterface) => {
   } catch {
     // The next draw catches up.
   }
+}
+
+// One catalog card, drawn in the pane and, opened, in the band of a typed skill. Its buttons go to the
+// same ui.press hook wherever they are drawn. The band hides Usar: the command is already typed.
+type Els = ReturnType<EngineInterface['ui']['resolve']>
+function itemCard(els: Els, item: Item, width: number, inBand = false) {
+  const { Box, Text, Button } = els
+  const cw = width - 4
+  const noop = () => undefined
+  const inst = item.kind === 'mcp' || item.kind === 'tool'
+  const isIn = installed[item.id]
+  const confirm = pending?.id === item.id
+  const hot = hinted.has(item.id)
+  const other = inst && !isIn ? clash(item) : undefined
+  return (
+    <Box key={`card-${item.id}`} flexDirection="column" width={width} marginBottom={1} borderStyle="round" borderColor={hot ? ACCENT : undefined} borderDimColor={!hot} paddingX={1}>
+      <Box flexDirection="row" justifyContent="space-between" width={cw}>
+        <Text bold wrap="truncate-end">{item.label}</Text>
+        <Box flexDirection="row" gap={1} flexShrink={0}>
+          {hot ? <Text color={ACCENT}>★ sugerido</Text> : inst ? <Text color={isIn ? GOOD : undefined} dimColor={!isIn}>{busy === item.id ? '…' : isIn ? '✓ instalado' : 'não instalado'}</Text> : null}
+          {item.repo ? <Button key={`repo:${item.id}`} plain dimColor onPress={noop}>⎇</Button> : null}
+        </Box>
+      </Box>
+      <Text dimColor wrap="wrap">{item.description}</Text>
+      {item.command ? <Text dimColor wrap="truncate-end">{`${item.command}${item.source ? ` · ${item.source}` : ''}`}</Text> : null}
+      {confirm ? (
+        <Box flexDirection="column" width={cw}>
+          <Text color={WARN} wrap="wrap">{pending!.action === 'install' ? 'Instalar? Muda a config do Claude Code (vale para chats novos).' : 'Remover?'}</Text>
+          <Box flexDirection="row" gap={1}>
+            <Button key="confirm" label="Confirmar" variant="primary" onPress={noop} />
+            <Button key="cancel" label="Cancelar" onPress={noop} />
+          </Box>
+        </Box>
+      ) : (
+        <Box flexDirection="row" gap={1}>
+          {!inBand && (!inst || isIn) ? <Button key={`use:${item.id}`} label="Usar" variant="primary" onPress={noop} /> : null}
+          {inst && busy !== item.id ? <Button key={`${isIn ? 'remove' : 'install'}:${item.id}`} label={isIn ? 'Remover' : 'Instalar'} onPress={noop} /> : null}
+          {other ? <Text dimColor wrap="truncate-end">{`Remova ${other.label.split(' (')[0]} antes`}</Text> : null}
+        </Box>
+      )}
+    </Box>
+  )
+}
+
+// The skill whose command starts the draft: a catalog skill (by its full or short name) or one of yours.
+function typedSkill(text: string): Typed | null {
+  const m = /^(\s*)(\/\S+)/.exec(text)
+  const cmd = m?.[2]
+  if (!m || !cmd) return null
+  const start = (m[1] ?? '').length
+  const end = start + cmd.length
+  const short = (c: string) => `/${c.slice(c.indexOf(':') + 1)}`
+  const item = catalog.items.find(i => i.kind === 'skill' && i.command && (i.command === cmd || short(i.command) === cmd))
+  if (item) return { start, end, item }
+  const mine = found.find(f => f.command === cmd)
+  return mine ? { start, end, mine } : null
+}
+const paintOf = (t: Typed | null) => (t ? [{ start: t.start, end: t.end, color: ACCENT }] : [])
+function setTyped($: EngineInterface, t: Typed | null) {
+  const key = (x: Typed | null) => (x ? `${x.item?.id ?? x.mine?.command}@${x.start}-${x.end}` : '')
+  if (key(t) === key(typed)) return
+  typed = t
+  redraw($)
 }
 
 // ---- the /mods switchboard: off in switches.json turns the mod off in every chat ----
@@ -589,6 +657,18 @@ export const register: Register = on => {
       if (url) await $.process.run(['/bin/sh', '-c', OPEN_SH, 'sh', url], { timeoutMs: 15_000 }).catch(() => undefined)
       else $.ui.toast('Coding Kit: não achei o painel do Serena deste chat.')
     } else if (what === 'serena-dismiss') serenaBand = false
+    else if (what === 'skill-open') skillOpen = !skillOpen
+    else if (what === 'skill-close') {
+      // Takes only the command (and one space after it) out of the draft; the rest stays as typed.
+      const box = await $.prompt.read()
+      const t = typedSkill(box.text)
+      if (t) {
+        const cut = t.end + (box.text[t.end] === ' ' ? 1 : 0)
+        const cursor = box.cursor >= cut ? box.cursor - cut : 0
+        await $.prompt.fill({ text: box.text.slice(cut), mode: 'replace', cursor }).catch(err => log($, `fill: ${String(err)}`))
+      }
+      typed = null
+    }
     else if (what === 'repo' && item?.repo) await $.process.run(['/bin/sh', '-c', OPEN_SH, 'sh', item.repo], { timeoutMs: 15_000 }).catch(() => undefined)
     else if (what === 'level' && LEVELS.includes(id as Level)) {
       level = id as Level
@@ -625,6 +705,61 @@ export const register: Register = on => {
     } else return next(e)
     redraw($)
     return { element: el }
+  })
+
+  // Typing: paint the skill command orange in the box the editor shows, and keep the band in step.
+  on('prompt.edit', async ($, e, next) => {
+    const r = await next(e)
+    if (off) return r
+    const t = typedSkill(r.text)
+    setTyped($, t)
+    return t ? { ...r, decorations: [...(r.decorations ?? []), ...paintOf(t)] } : r
+  }).catch(($, e, next) => next(e))
+
+  // Any other change (history, a fill, a clear, a submit): the same, painted over the box as it stands.
+  on('prompt.change', async ($, e, next) => {
+    const r = await next(e)
+    if (off) return r
+    const t = typedSkill(e.text)
+    setTyped($, t)
+    if (t) void $.prompt.paint({ text: e.text, decorations: paintOf(t) }).catch(() => undefined)
+    return r
+  }).catch(($, e, next) => next(e))
+
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (off || !typed || e.props.hasSurvey) return next(e)
+    const rest = await next(e)
+    const els = $.ui.resolve(e)
+    const { Box, Text, Button } = els
+    const noop = () => undefined
+    const width = Math.max(32, e.props.bodyColumns)
+    const t = typed
+    const label = t.item?.label ?? t.mine!.command
+    const description = t.item?.description ?? t.mine!.description
+    const toggle = <Button key="skill-open" plain dimColor onPress={noop}>{skillOpen ? '▴' : '▾'}</Button>
+    const close = <Button key="skill-close" plain dimColor role="dismiss" onPress={noop}>✕</Button>
+    return (
+      <Box flexDirection="column">
+        {rest}
+        <Box flexDirection="row" alignItems="center" justifyContent="space-between" gap={1} width={width}>
+          <Text wrap="truncate-end">
+            <Text color={ACCENT}>{`◆ ${label}`}</Text>
+            {skillOpen ? null : <Text dimColor>{` — ${description}`}</Text>}
+          </Text>
+          <Box flexDirection="row" gap={1} flexShrink={0}>
+            {toggle}
+            {close}
+          </Box>
+        </Box>
+        {skillOpen && t.item ? itemCard(els, t.item, width, true) : null}
+        {skillOpen && t.mine ? (
+          <Box flexDirection="column" width={width} borderStyle="round" borderDimColor paddingX={1}>
+            <Text dimColor>{`${t.mine.command} · ${t.mine.from}`}</Text>
+            {t.mine.description ? <Text dimColor wrap="wrap">{t.mine.description}</Text> : null}
+          </Box>
+        ) : null}
+      </Box>
+    )
   })
 
   // One unfiltered hook: a typed tool matcher makes tsc recurse through the connector types.
@@ -679,41 +814,7 @@ export const register: Register = on => {
     ]
     const tileW = Math.floor((width - (tiles.length - 1)) / tiles.length)
 
-    const card = (item: Item) => {
-      const inst = item.kind === 'mcp' || item.kind === 'tool'
-      const isIn = installed[item.id]
-      const confirm = pending?.id === item.id
-      const hot = hinted.has(item.id)
-      const other = inst && !isIn ? clash(item) : undefined
-      return (
-        <Box key={`card-${item.id}`} flexDirection="column" width={width} marginBottom={1} borderStyle="round" borderColor={hot ? ACCENT : undefined} borderDimColor={!hot} paddingX={1}>
-          <Box flexDirection="row" justifyContent="space-between" width={cw}>
-            <Text bold wrap="truncate-end">{item.label}</Text>
-            <Box flexDirection="row" gap={1} flexShrink={0}>
-              {hot ? <Text color={ACCENT}>★ sugerido</Text> : inst ? <Text color={isIn ? GOOD : undefined} dimColor={!isIn}>{busy === item.id ? '…' : isIn ? '✓ instalado' : 'não instalado'}</Text> : null}
-              {item.repo ? <Button key={`repo:${item.id}`} plain dimColor onPress={noop}>⎇</Button> : null}
-            </Box>
-          </Box>
-          <Text dimColor wrap="wrap">{item.description}</Text>
-          {item.command ? <Text dimColor wrap="truncate-end">{`${item.command}${item.source ? ` · ${item.source}` : ''}`}</Text> : null}
-          {confirm ? (
-            <Box flexDirection="column" width={cw}>
-              <Text color={WARN} wrap="wrap">{pending!.action === 'install' ? 'Instalar? Muda a config do Claude Code (vale para chats novos).' : 'Remover?'}</Text>
-              <Box flexDirection="row" gap={1}>
-                <Button key="confirm" label="Confirmar" variant="primary" onPress={noop} />
-                <Button key="cancel" label="Cancelar" onPress={noop} />
-              </Box>
-            </Box>
-          ) : (
-            <Box flexDirection="row" gap={1}>
-              {!inst || isIn ? <Button key={`use:${item.id}`} label="Usar" variant="primary" onPress={noop} /> : null}
-              {inst && busy !== item.id ? <Button key={`${isIn ? 'remove' : 'install'}:${item.id}`} label={isIn ? 'Remover' : 'Instalar'} onPress={noop} /> : null}
-              {other ? <Text dimColor wrap="truncate-end">{`Remova ${other.label.split(' (')[0]} antes`}</Text> : null}
-            </Box>
-          )}
-        </Box>
-      )
-    }
+    const card = (item: Item) => itemCard(els, item, width)
 
     return (
       <Box flexDirection="column" width={width}>

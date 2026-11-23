@@ -47,6 +47,10 @@ pane). Every entry has **Usar**, which puts its command in the prompt box for yo
 - Tools install with one click and a confirm (`claude mcp add --scope user ...`, or `uv tool
   install` for Graphify) and apply to new chats. codebase-memory and Graphify are both code graphs,
   so the pane installs only one of them at a time; Serena goes with either.
+- Typing a skill's command at the start of the prompt (`/coding-kit:grill-me`, `/grill-me`, or one of
+  your own skills) paints it orange and shows a one-line band with its description. **▾** opens the
+  same card as in the pane (without Usar: the command is already typed); **✕** takes only the command
+  out of the prompt and keeps the rest of what you typed.
 - Serena starts with no project and no dashboard: it activates a project (and creates its `.serena/`
   folder) only when it is used. The first time it does in a chat, a band above the prompt offers to
   open that chat's Serena dashboard.

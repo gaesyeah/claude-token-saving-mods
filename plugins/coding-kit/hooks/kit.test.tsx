@@ -227,3 +227,46 @@ test('Serena activating a project shows a band once, and Abrir painel looks up t
   expect(await band.find({ key: 'serena-open' })).toBeUndefined()
   await band.unmount()
 })
+
+test('a typed skill command is painted orange and gets a band; ✕ takes only the command out', async ($, on) => {
+  const filled: string[] = []
+  engine(on, { code: true, ran: [], filled, toasts: [] })
+  const box = { text: '', cursor: 0 }
+  on('prompt.edit', (_: any, e: any) => {
+    box.text = e.text.slice(0, e.start) + e.inputText + e.text.slice(e.end)
+    box.cursor = e.start + e.inputText.length
+    return { ...box }
+  })
+  on('prompt.read', () => ({ value: { ...box } }))
+  await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
+  const props = { hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 20, bodyColumns: 100, scroll: { offset: 0, bodyRows: 20 } }
+  const band = await $.ui.mount({ plugin: 'coding-kit', component: 'AbovePrompt', props, surface: 'desktop' } as any)
+  const type = (inputText: string) => $.prompt.edit({ origin: { kind: 'composer' }, text: box.text, cursor: box.cursor, start: box.cursor, end: box.cursor, inputText } as any)
+
+  // A slash that is not a skill: no paint, no band.
+  let r: any = await type('/nada ')
+  expect(r.decorations ?? []).toEqual([])
+  expect(await band.find({ key: 'skill-close' })).toBeUndefined()
+  box.text = ''
+  box.cursor = 0
+
+  r = await type('/coding-kit:grill-me quero um cache')
+  expect(r.decorations).toEqual([{ start: 0, end: 20, color: '#d97757' }])
+  expect(await band.find({ type: 'Text', text: /Interrogar o plano/ })).toBeDefined()
+  // Minimized: no card buttons; opened: the card, without Usar.
+  expect(await band.find({ key: 'repo:grill-me' })).toBeUndefined()
+  await band.press({ key: 'skill-open' })
+  expect(await band.find({ type: 'Text', text: /Entrevista em rodadas/ })).toBeDefined()
+  expect(await band.find({ key: 'use:grill-me' })).toBeUndefined()
+
+  await band.press({ key: 'skill-close' })
+  expect(filled.at(-1)).toBe('quero um cache')
+  expect(await band.find({ key: 'skill-close' })).toBeUndefined()
+
+  // The short name counts too.
+  box.text = ''
+  box.cursor = 0
+  r = await type('/grill-me')
+  expect(r.decorations).toEqual([{ start: 0, end: 9, color: '#d97757' }])
+  await band.unmount()
+})
