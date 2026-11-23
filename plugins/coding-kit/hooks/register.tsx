@@ -64,8 +64,8 @@ let catalog: Catalog = { groups: [], items: [] }
 let installed: Record<string, boolean | undefined> = {}
 let found: Found[] = []
 let showMine = false
-// Catalog groups hidden with their ▾ Esconder, like Suas skills; every group starts shown.
-const hiddenGroups = new Set<string>()
+// Catalog groups opened with their ▸ Mostrar; like Suas skills, every group starts hidden.
+const openGroups = new Set<string>()
 let pending: { id: string; action: 'install' | 'remove' } | null = null
 let busy = ''
 let note = ''
@@ -728,7 +728,7 @@ export const register: Register = on => {
       await $.store.set('autoOpen', autoOpen)
     } else if (what === 'toggle-mine') showMine = !showMine
     else if (what === 'toggle-group' && id) {
-      if (!hiddenGroups.delete(id)) hiddenGroups.add(id)
+      if (!openGroups.delete(id)) openGroups.add(id)
     }
     else if ((what === 'install' || what === 'remove') && item) {
       // a clash is already shown beside the button
@@ -961,9 +961,9 @@ export const register: Register = on => {
           const items = catalog.items.filter(i => i.group === g.id)
           if (!items.length) return null
           return (
-            <Box key={`group-${g.id}`} flexDirection="column" width={width} marginBottom={hiddenGroups.has(g.id) ? 1 : 0}>
-              {header(g.title, items.length, !hiddenGroups.has(g.id), `toggle-group:${g.id}`)}
-              {hiddenGroups.has(g.id) ? null : items.map(card)}
+            <Box key={`group-${g.id}`} flexDirection="column" width={width} marginBottom={openGroups.has(g.id) ? 0 : 1}>
+              {header(g.title, items.length, openGroups.has(g.id), `toggle-group:${g.id}`)}
+              {openGroups.has(g.id) ? items.map(card) : null}
             </Box>
           )
         })}

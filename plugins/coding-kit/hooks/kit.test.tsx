@@ -11,6 +11,11 @@ const PANE = {
 
 const files: Record<string, string> = {}
 
+// The pane's groups start hidden; a test that reads cards opens them all.
+async function openGroups(ui: any) {
+  for (const g of ['plan', 'build', 'fix', 'review', 'tools']) if (await ui.find({ key: `toggle-group:${g}` })) await ui.press({ key: `toggle-group:${g}` })
+}
+
 // Stands for the engine: a project folder, the plugin's own files, and the commands the pane runs.
 function engine(on: any, opts: { code: boolean; ran: string[][]; filled: string[]; toasts: string[]; curl?: (url: string) => string; writes?: Record<string, string>; dir?: { v: string }; opened?: string[]; sh?: string[][]; shOut?: string; mockClock?: boolean; fillArgs?: any[] }) {
   const own = (path: string) => (path.endsWith('/catalog.json') ? JSON.stringify(catalogJson) : path.endsWith('/skills/ponytail/SKILL.md') ? '---\nname: ponytail\n---\n# Ponytail\nActive for the whole session.\nrules here' : undefined)
@@ -134,6 +139,7 @@ test('the pane lists the catalog, Usar fills the prompt, installs need a confirm
   engine(on, { code: true, ran, filled, toasts: [] })
   await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  await openGroups(ui)
   expect(await ui.find({ type: 'Text', text: /Interrogar o plano/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /Context7/ })).toBeDefined()
   expect(await ui.find({ type: 'Button', text: /Reler instalados e skills do disco/ })).toBeDefined()
@@ -156,6 +162,7 @@ test('the two code graphs are never installed together, Serena goes with either'
   await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
   await new Promise(r => setTimeout(r, 50))
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  await openGroups(ui)
   expect(await ui.find({ type: 'Text', text: /Remova Graphify antes/ })).toBeDefined()
   expect(await ui.find({ key: 'repo:serena' })).toBeDefined()
   expect(await ui.find({ key: 'repo:context7' })).toBeUndefined()
@@ -194,6 +201,7 @@ test('bundled skills: one GitHub check a week, an update only after a confirm, f
   expect(urls.filter(u => u.includes('/commits?')).length).toBe(1)
 
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  await openGroups(ui)
   expect(await ui.find({ type: 'Text', text: /Atualização para 1 skill/ })).toBeDefined()
   await ui.press({ key: 'apply-updates' })
   expect(Object.keys(writes).length).toBe(0)
@@ -307,6 +315,7 @@ test('Usar in the pane paints its own fill and shows the band; a Tab completion 
   const band = await $.ui.mount({ plugin: 'coding-kit', component: 'AbovePrompt', props, surface: 'desktop' } as any)
 
   const pane = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  await openGroups(pane)
   await pane.press({ key: 'use:grill-me' })
   await pane.unmount()
   expect(fills.at(-1).decorations).toEqual([{ start: 0, end: 20, color: '#d97757' }])
@@ -333,12 +342,14 @@ test('every pane section hides and shows, and Usar is off for the skill already 
   })
   await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  // Hidden at first, like Suas skills.
+  expect(await ui.find({ key: 'use:grill-me' })).toBeUndefined()
+  await ui.press({ key: 'toggle-group:plan' })
   expect(await ui.find({ key: 'use:grill-me' })).toBeDefined()
+  expect(await ui.find({ key: 'use:systematic-debugging' })).toBeUndefined()
   await ui.press({ key: 'toggle-group:plan' })
   expect(await ui.find({ key: 'use:grill-me' })).toBeUndefined()
-  expect(await ui.find({ key: 'use:systematic-debugging' })).toBeDefined()
-  await ui.press({ key: 'toggle-group:plan' })
-  expect(await ui.find({ key: 'use:grill-me' })).toBeDefined()
+  await openGroups(ui)
 
   await $.prompt.edit({ origin: { kind: 'composer' }, text: '', cursor: 0, start: 0, end: 0, inputText: '/grill-me ' } as any)
   expect(await ui.find({ key: 'use:grill-me' })).toBeUndefined()
