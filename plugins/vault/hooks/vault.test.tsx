@@ -313,18 +313,22 @@ test('a qmd that fails a query (a 500) gives no nod: a common-word match is not 
   let down = false
   const t = await withQmd($, on, () => {
     if (down) throw new Error('qmd HTTP 500')
-    return []
+    return [{ docid: '#1', score: 0.75 + 0.25 * 0.9, file: 'qmd://vault/Resources/Deploy.md', title: 't', snippet: '' }]
   })
   t.write(`${VAULT}/Resources/Deploy.md`, 'servidor pipeline staging rollback')
   t.write(`${VAULT}/Resources/Kubernetes probes.md`, 'liveness e readiness')
   down = true
   await say($, 'log colado: servidor pipeline staging rollback falhou')
   expect(t.contexts.at(-1)).toBeUndefined()
-  // Down for the next minute too, so the old word rule does not come back meanwhile.
+  // Still failing on the next prompt: still no word hint, but a rare word in a note's name gets through.
   await say($, 'outro log: servidor pipeline staging rollback caiu')
   expect(t.contexts.at(-1)).toBeUndefined()
   await say($, 'como configuro kubernetes direito?')
   expect(t.contexts.at(-1)?.join('\n')).toContain('- Resources/Kubernetes probes.md (termos: kubernetes)')
+  // Back up: the very next prompt asks qmd again, with no minute's wait.
+  down = false
+  await say($, 'como faço o deploy em staging com rollback?')
+  expect(t.contexts.at(-1)?.join('\n')).toContain('- Resources/Deploy.md')
 })
 
 test('a rare word of the prompt in a note name hints it even when the reranker says no', async ($, on) => {

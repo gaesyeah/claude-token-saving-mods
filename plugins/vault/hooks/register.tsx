@@ -77,7 +77,6 @@ let qmdVersion = ''
 const rerankOk = () => /^2\./.test(qmdVersion)
 // Whether the last /health on the port was qmd's, and when it was asked: prompts go only to a checked qmd.
 let qmdLive = false
-let checkedAt = 0
 let section = ''
 let logged = false
 let indexedAt = 0
@@ -361,7 +360,6 @@ async function rgHits($: EngineInterface, terms: string[]): Promise<(Hit & { n: 
 // reload on the next query). Started detached: it outlives the chat and serves every chat after it.
 // The port is fixed, so the answer must be qmd's own ({"status":"ok","uptime":n}) before a prompt goes there.
 async function qmdUp($: EngineInterface) {
-  checkedAt = await $.clock.now()
   const r = await withTimeout($, $.http.fetch(`${QMD_URL}/health`), 1000, 'qmd health').catch(() => undefined)
   let ok = false
   try {
@@ -429,8 +427,9 @@ async function recall($: EngineInterface, text: string): Promise<Hit[]> {
   const terms = keywords(text)
   if (terms.length < 2) return []
   const fail = (what: string) => async (err: unknown) => (await log($, `${what} failed: ${String(err)}`), null)
-  // A daemon found down, or one whose last query failed, is asked again a minute later (a refused connection answers at once).
-  if (qmd && rerankOk() && !qmdLive && (await $.clock.now()) - checkedAt > 60_000) await qmdUp($)
+  // A daemon found down, or one whose last query failed, is asked again on the next prompt: /health
+  // answers in ~0 ms when up and at once when refused, so one failure costs one prompt's hints, not more.
+  if (qmd && rerankOk() && !qmdLive) await qmdUp($)
   // A qmd 2.x that is installed but failed or is down gives no nod: only a rare word in a note's name
   // gets through, or words alone would bring back the pasted-text noise.
   const asked = Boolean(qmd && rerankOk() && qmdLive)

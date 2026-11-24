@@ -34,7 +34,8 @@ bash -c 'node -v | grep -qE "^v(2[2-9]|[3-9][0-9])" || { echo "Node 22+ needed (
 
 Then run `/vault index` in a chat. If a proxy blocks the model download, stay on ripgrep. With qmd installed
 but its daemon down or failing, word matches need a rare word in a note's name (common words of pasted
-text would hint unrelated notes), so hints are fewer until a new chat or `/vault index` brings it back.
+text would hint unrelated notes), so hints are fewer while it is down. The mod asks it again on each prompt, so hints come back as
+soon as it answers; a daemon that is not running comes back with a new chat or `/vault index`.
 
 handoff's "Start new chat" button opens a `claude://` link, which the Linux desktop app registers
 for itself (`xdg-mime query default x-scheme-handler/claude` should print the Claude `.desktop` file).
