@@ -4,7 +4,7 @@ import { expect, test } from 'claude-code/testing'
 const HOME = '/home/u'
 const VAULT = `${HOME}/Vault`
 
-function engine(on: any, o: { qmd?: string } = {}) {
+function engine(on: any, o: { qmd?: string | (() => string); version?: string; pidfile?: string; health?: string } = {}) {
   // The mod's own templates, wherever the test puts the plugin.
   const tpl: Record<string, string> = {
     'para/CLAUDE.md': '# Este vault\nPARA',
@@ -20,12 +20,13 @@ function engine(on: any, o: { qmd?: string } = {}) {
   const contexts: (readonly string[] | undefined)[] = []
   const submitted: string[] = []
   let now = Date.UTC(2026, 10, 24, 15, 0)
-  const t = { qmdRuns: [] as string[][] }
+  const t = { qmdRuns: [] as string[][], fetches: [] as string[], stops: [] as string[] }
   const write = (p: string, t: string) => ((files[p] = t), (mtimes[p] = now))
   const under = (d: string) => Object.keys(files).filter(p => p.startsWith(`${d}/`))
 
   on('clock.now', () => ({ value: now }))
-  on('clock.after', () => ({ value: undefined }))
+  // Fires a 0 ms timer (a prompt sent after the hook); a timeout never fires, so a call never times out.
+  on('clock.after', (_: any, e: any) => (e.ms === 0 ? { value: undefined } : new Promise(() => undefined)))
   on('env.get', (_: any, e: any) => ({ value: e.name === 'HOME' ? HOME : undefined }))
   on('session.cwd', () => ({ value: `${HOME}/work/app` }))
   on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))
@@ -55,6 +56,10 @@ function engine(on: any, o: { qmd?: string } = {}) {
       const script = argv[2]!
       if (script.startsWith('command -v qmd')) return o.qmd === undefined ? { value: { exitCode: 1, stdout: '', stderr: '' } } : ok('/x/qmd\n')
       if (script.includes('cat >>')) return (write(argv[4]!, (files[argv[4]!] ?? '') + e.init.stdin), ok())
+      // createNew: noclobber, so a file already there is left alone and the call fails.
+      if (script.includes('set -C')) return argv[4]! in files ? { value: { exitCode: 1, stdout: '', stderr: 'exists' } } : (write(argv[4]!, e.init.stdin), ok())
+      // stopDaemon: qmd mcp stop only when the pidfile still names the mod's PID.
+      if (script.includes('mcp stop')) return o.pidfile === argv[5] ? (t.stops.push(argv[5]!), ok('Stopped')) : { value: { exitCode: 3, stdout: '', stderr: '' } }
       if (script.includes('find . -type f')) {
         const d = `${own(argv[4]!)}/`
         return ok(Object.keys(tpl).filter(k => k.startsWith(d)).map(k => `./${k.slice(d.length)}`).join('\n'))
@@ -63,8 +68,17 @@ function engine(on: any, o: { qmd?: string } = {}) {
     }
     if (argv[0] === '/x/qmd') {
       t.qmdRuns.push(argv)
-      if (argv[1] === 'vsearch') return ok(o.qmd)
-      return ok()
+      if (argv[1] === '--version') return ok(`qmd ${o.version ?? '2.9.0'} (aa247d0)\n`)
+            return ok()
+    }
+    if (argv[0] === 'find') {
+      const dir: string = e.init.cwd
+      return ok(under(dir).filter(p => !p.includes('/.obsidian/')).map(p => `${(mtimes[p] ?? 0) / 1000}\t${p.slice(dir.length + 1)}`).join('\n'))
+    }
+    if (argv[0] === 'rg' && argv.some(a => a.startsWith('\\[\\['))) {
+      const dir: string = e.init.cwd
+      const md = under(dir).filter(p => p.endsWith('.md') && !/\/(Daily|Templates)\//.test(p))
+      return ok(md.flatMap(p => [...files[p]!.matchAll(/\[\[[^\]|#^]+/g)].map(m => `.${p.slice(dir.length)}:${m[0]}`)).join('\n'))
     }
     if (argv[0] === 'rg') {
       const dir: string = e.init.cwd
@@ -72,12 +86,20 @@ function engine(on: any, o: { qmd?: string } = {}) {
         .map(p => `.${p.slice(dir.length)}`)
         .filter(p => p.endsWith('.md') && !/^\.\/(Daily|Templates)\/|^\.\/CLAUDE\.md$|\/\.obsidian\//.test(p))
       if (argv[1] === '--files') return ok(md.join('\n'))
-      const terms = argv.flatMap((a, i) => (argv[i - 1] === '-e' ? [a] : []))
+      const terms = argv.flatMap((a, i) => (argv[i - 1] === '-e' ? [a.replace(/^\\b/, '')] : []))
       const out = md.flatMap(p => terms.flatMap(t => (files[`${dir}${p.slice(1)}`]!.toLowerCase().includes(t) ? [`${p}:${t}`] : [])))
       return out.length ? ok(out.join('\n')) : { value: { exitCode: 1, stdout: '', stderr: '' } }
     }
     return ok()
   })
+  // qmd's HTTP daemon: up when the test gives qmd an answer; /query answers it.
+  on('http.fetch', (_: any, e: any) => {
+    t.fetches.push(e.url)
+    if (o.qmd === undefined) throw new Error('connection refused')
+    const text = e.url.endsWith('/health') ? (o.health ?? '{"status":"ok","uptime":5}') : typeof o.qmd === 'function' ? o.qmd() : o.qmd
+    return { value: { status: 200, ok: true, headers: {}, text } }
+  })
+  on('tool.call', () => ({ result: 'ok' }))
   on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'x', scope: 'shared' }] }))
   on('prompt.submit', (_: any, e: any) => {
     if (e.origin?.kind === 'plugin') submitted.push(e.text)
@@ -85,7 +107,7 @@ function engine(on: any, o: { qmd?: string } = {}) {
     return { text: e.text }
   })
   on('turn.complete', (_: any, e: any) => ({ turnId: e.turnId, text: '' }))
-  return { store, files, dirs, contexts, submitted, write, later: (ms: number) => (now += ms), qmdRuns: t.qmdRuns }
+  return { store, files, dirs, contexts, submitted, write, later: (ms: number) => (now += ms), qmdRuns: t.qmdRuns, fetches: t.fetches, stops: t.stops, mtimes }
 }
 
 const start = ($: any) => $.session.start({ cwd: `${HOME}/work/app`, surface: 'desktop', isInteractive: true } as any)
@@ -190,21 +212,150 @@ test('the system prompt names the vault set at chat start, and /vault save hands
   expect(t.submitted.at(-1)).toContain('Inbox/')
 })
 
-test('with qmd, a note that says it in other words is hinted too, and the collection skips daily notes', async ($, on) => {
-  const json = JSON.stringify([
-    { docid: '#1', score: 0.66, file: 'qmd://vault/Resources/Cache do prompt.md', title: 'Cache' },
-    { docid: '#2', score: 0.7, file: 'qmd://vault/Daily/2026-11-24.md', title: 'dia' },
-  ])
-  const t = engine(on, { qmd: json })
+test('with qmd, a note the reranker finds relevant is hinted with a line of it; a weak one and an unbacked word match are not', async ($, on) => {
+  // The daemon blends rank and reranker: the first result scores 0.75 + 0.25 × rerank.
+  const row = (file: string, score: number, snippet = '') => ({ docid: '#1', score, file: `qmd://vault/${file}`, title: 't', snippet })
+  let answer = [row('Resources/Cache%20do%20prompt.md', 0.75 + 0.25 * 0.9, '3: @@ -1,4 @@\n4: # Prompt cache\n5: expira em cinco minutos sem uso'), row('Daily/2026-11-24.md', 0.5)]
+  const t = engine(on, { qmd: () => JSON.stringify({ results: answer }) })
   await start($)
+  await settle()
   expect((await cmd($, 'use ~/Vault')).text).toContain('coleção "vault" criada')
   expect(t.qmdRuns.find(a => a[1] === 'collection' && a[2] === 'add')).toContain('**/*.md,!Daily/**,!Templates/**,!CLAUDE.md')
+  expect(t.qmdRuns.some(a => a[1] === 'context')).toBe(false)
   t.write(`${VAULT}/Resources/Cache do prompt.md`, '# Prompt cache\nexpira em cinco minutos')
   await say($, 'por quanto tempo a memória temporária das instruções fica guardada?')
   const hint = t.contexts.at(-1)?.join('\n') ?? ''
-  expect(hint).toContain('- Resources/Cache do prompt.md (qmd 0.66)')
+  expect(hint).toContain('- Resources/Cache do prompt.md (qmd 0.90): expira em cinco minutos sem uso')
   expect(hint).not.toContain('Daily/')
-  expect(t.qmdRuns.find(a => a[1] === 'vsearch')).toContain('0.6')
+  // The reranker says no (0.04), and the two words that match are not backed: no hint.
+  answer = [row('Resources/Git.md', 0.75 + 0.25 * 0.04)]
+  t.write(`${VAULT}/Resources/Git.md`, 'rebase interativo junta commits')
+  await say($, 'faça um rebase interativo agora')
+  expect(t.contexts.at(-1)).toBeUndefined()
+  // A result the reranker moved up still reads as relevant: 0.375 + 0.25 × 0.8 is rank 2's blend.
+  answer = [row('Resources/Git.md', 0.75 + 0.25 * 0.02), row('Resources/Squash.md', 0.375 + 0.25 * 0.8)]
+  await say($, 'como junto meus últimos commits num só?')
+  expect(t.contexts.at(-1)?.join('\n')).toContain('- Resources/Squash.md (qmd 0.80)')
+})
+
+test('/vault review and inbox come with what the hook worked out: orphans, broken links, stale projects, the Inbox', async ($, on) => {
+  const t = engine(on)
+  await start($)
+  await cmd($, 'use ~/Vault')
+  await cmd($, 'setup para')
+  t.write(`${VAULT}/Projects/Velho.md`, '# Velho')
+  t.later(40 * 86_400_000)
+  t.write(`${VAULT}/Resources/A.md`, 'liga [[B]] e [[Sumida]] e ![[Claude.base#Do projeto]]')
+  t.write(`${VAULT}/Resources/B.md`, 'nada')
+  t.write(`${VAULT}/Resources/Solta.md`, 'sem links')
+  t.write(`${VAULT}/Inbox/ideia.md`, 'crua')
+  await cmd($, 'review')
+  await settle()
+  const review = t.submitted.at(-1)!
+  expect(review).toContain('Resources/Solta.md')
+  expect(review).toContain('Resources/A.md → [[Sumida]]')
+  expect(review).not.toContain('[[Claude.base')
+  expect(review).toContain('Projects/Velho.md')
+  expect(review).toContain('Inbox: 1 notas')
+  expect(review).toContain('Reviews/')
+  await cmd($, 'inbox')
+  await settle()
+  expect(t.submitted.at(-1)).toContain('  - Inbox/ideia.md')
+  expect(t.submitted.at(-1)).toContain('  - Resources')
+})
+
+test('/vault ask hands Claude the hits it found, and /vault counts hinted notes Claude opened', async ($, on) => {
+  const t = engine(on)
+  await start($)
+  await cmd($, 'use ~/Vault')
+  t.write(`${VAULT}/Resources/Cache do prompt.md`, '# Prompt cache\nO cache do prompt expira depois de cinco minutos sem uso.\n')
+  await cmd($, 'ask quanto tempo o cache do prompt dura?')
+  await settle()
+  expect(t.submitted.at(-1)).toContain('- Resources/Cache do prompt.md')
+  await say($, 'quanto tempo o cache do prompt dura sem uso?')
+  await $.tool.call({ tool: 'Read', file_path: `${VAULT}/Resources/Cache do prompt.md`, tool_use_id: 'u1' } as any)
+  await $.tool.call({ tool: 'Read', file_path: `${VAULT}/Resources/Cache do prompt.md`, tool_use_id: 'u2' } as any)
+  expect((await cmd($, '')).text).toContain('Dicas: 1 notas sugeridas, 1 abertas pelo Claude desde')
+})
+
+test('a vault adopted as it was gets no Projects folder from a handoff; the copy keeps the link', async ($, on) => {
+  const t = engine(on)
+  t.write(`${HOME}/Documents/Vault/minha.md`, 'x')
+  await start($)
+  await settle()
+  t.write(`${HOME}/.claude/handoffs/2026-11-24-1000-x.md`, '# Handoff: x\n\nContinue work in `~/work/shop`.\n')
+  await done($)
+  await settle()
+  expect(t.files[`${HOME}/Documents/Vault/Claude/Handoffs/2026-11-24-1000-x.md`]).toContain('project: "[[shop]]"')
+  expect(`${HOME}/Documents/Vault/Projects/shop.md` in t.files).toBe(false)
+})
+
+const row = (file: string, score: number, snippet = '') => ({ docid: '#1', score, file: `qmd://vault/${file}`, title: 't', snippet })
+// A started chat with qmd 2.x up, the vault set, and the daemon answering `answer()`.
+async function withQmd($: any, on: any, answer: () => unknown[], o: { version?: string; health?: string } = {}) {
+  const t = engine(on, { qmd: () => JSON.stringify({ results: answer() }), ...o })
+  await start($)
+  await settle()
+  await cmd($, 'use ~/Vault')
+  return t
+}
+
+test('a rare word of the prompt in a note name hints it even when the reranker says no', async ($, on) => {
+  const t = await withQmd($, on, () => [row('Resources/Docker%20multi-stage%20build.md', 0.75 + 0.25 * 0.04)])
+  t.write(`${VAULT}/Resources/Docker multi-stage build.md`, '# Multi-stage build\nCompile numa imagem com o toolchain e copie só o binário.')
+  t.write(`${VAULT}/Resources/Postgres.md`, 'índice parcial')
+  t.write(`${VAULT}/Resources/React.md`, 'useEffect duas vezes')
+  await say($, 'como deixo o docker mais leve?')
+  expect(t.contexts.at(-1)?.join('\n')).toContain('- Resources/Docker multi-stage build.md (termos: docker)')
+})
+
+test('/vault corte sets the reranker cut, and /vault shows the last meaning hints\' scores', async ($, on) => {
+  let answer = [row('Resources/Cache.md', 0.75 + 0.25 * 0.9)]
+  const t = await withQmd($, on, () => answer)
+  expect((await cmd($, 'corte 2')).text).toContain('/vault corte <número de 0 a 1>')
+  await say($, 'por quanto tempo a memória temporária das instruções fica guardada?')
+  expect(t.contexts.at(-1)?.join('\n')).toContain('(qmd 0.90)')
+  answer = [row('Resources/Outra.md', 0.75 + 0.25 * 0.5)]
+  await say($, 'e quanto custa reescrever o prefixo inteiro de novo?')
+  const st = (await cmd($, '')).text
+  expect(st).toContain('Últimas 2 dicas por significado: scores 0.50 a 0.90')
+  expect(st).toContain('Corte do reranker: 0.40 (padrão)')
+  expect(st).toContain('Abrir pouco não quer dizer ruído')
+  expect((await cmd($, 'corte 0,95')).text).toContain('0.95')
+  answer = [row('Resources/Terceira.md', 0.75 + 0.25 * 0.9)]
+  await say($, 'quanto tempo dura a memória das instruções sem uso?')
+  expect(t.contexts.at(-1)).toBeUndefined()
+  expect((t.store.get('config') as any).cut).toBe(0.95)
+})
+
+test('a qmd that is not 2.x leaves the hints to ripgrep, and /vault says why', async ($, on) => {
+  const answer = () => [row('Resources/Cache.md', 1)]
+  const t = await withQmd($, on, answer, { version: '3.0.1' })
+  await say($, 'por quanto tempo a memória temporária das instruções fica guardada?')
+  expect(t.contexts.at(-1)).toBeUndefined()
+  expect((await cmd($, '')).text).toContain('qmd 3.0.1 não é 2.x')
+})
+
+test('a port 8181 answered by something else is not used', async ($, on) => {
+  const t = await withQmd($, on, () => [row('Resources/Cache.md', 1)], { health: '<html>other app</html>' })
+  await say($, 'por quanto tempo a memória temporária das instruções fica guardada?')
+  expect(t.contexts.at(-1)).toBeUndefined()
+  expect(t.fetches.some(u => u.endsWith('/query'))).toBe(false)
+  expect((await cmd($, '')).text).toContain('daemon parado')
+})
+
+test('with the mod off, the daemon it started is stopped, and one it did not start is left alone', async ($, on) => {
+  const t = engine(on, { qmd: '[]', pidfile: '4242' })
+  t.write(`${HOME}/.claude/mods/switches.json`, '{"vault": false}')
+  t.store.set('daemon', '4242')
+  await start($)
+  await settle()
+  expect(t.stops).toEqual(['4242'])
+  expect(t.store.get('daemon')).toBe(null)
+  t.store.set('daemon', '999')
+  await start($)
+  await settle()
+  expect(t.stops).toEqual(['4242'])
 })
 
 test('the first chat with no vault sets one up by itself and asks PARA or Zettel in the band', async ($, on) => {

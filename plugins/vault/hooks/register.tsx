@@ -10,11 +10,14 @@ import type { EngineInterface, Register } from 'claude-code'
 //    with properties and a link to their project's note. Each source file is copied once: a
 //    note the person moves or deletes is never written again.
 // 3. A Daily note gets one line per chat and per copied note.
-// 4. Each prompt is searched against the vault (qmd BM25, else ripgrep; no model call). A strong
-//    match adds a short hidden hint with the paths, never the notes themselves.
-// 5. /vault save, ask, inbox and review hand Claude a prompt that works in the vault.
-// Search: qmd (github.com/tobi/qmd, local BM25 + vectors + rerank) when it is installed, with a
-// multilingual embedding model; ripgrep otherwise.
+// 4. Each prompt is searched against the vault (ripgrep for words, plus qmd's vectors and reranker
+//    when its daemon runs; no Claude call). A strong match adds a short hidden hint with the paths
+//    and a line of each, never the notes themselves.
+// 5. /vault save, ask, inbox and review hand Claude a prompt that works in the vault; ask, inbox and
+//    review come with what the hook already found (search hits, links, orphans), so Claude reads less.
+// Search: qmd (github.com/tobi/qmd, local BM25 + vectors + rerank) when it is installed, through its
+// HTTP daemon (models stay loaded: ~30 ms to ~600 ms a prompt, where a fresh CLI run takes 3-5 s),
+// with a multilingual embedding model; ripgrep otherwise.
 
 const NAME = 'vault'
 const COLLECTION = 'vault'
@@ -24,6 +27,16 @@ const CHOICE = { plugin: 'vault', key: 'choice' } as const
 // qmd's default embedding model is tuned for English; this one covers 119 languages.
 const EMBED = 'hf:Qwen/Qwen3-Embedding-0.6B-GGUF/Qwen3-Embedding-0.6B-Q8_0.gguf'
 const HINTS = 3
+// qmd's own default port: one daemon per index, so a daemon already serving it is reused.
+const QMD_URL = 'http://localhost:8181'
+// A warm daemon answers in under a second; one that unloaded its models after 5 idle minutes needs ~2 s.
+const QMD_MS = 2500
+// The reranker's 0..1 relevance: in tests real matches scored 0.44-1.0, unrelated prompts 0-0.36.
+// The default cut; /vault corte <n> sets the person's own (see /vault for the last hints' scores).
+const MIN_RERANK = 0.4
+const cut = () => cfg.cut ?? MIN_RERANK
+// How many of the last meaning hints' scores /vault shows.
+const SCORES = 20
 const FOLDERS: Record<string, string[]> = {
   para: ['Inbox', 'Projects', 'Areas', 'Resources', 'Archive', 'Daily', 'Reviews', 'Templates', 'Claude'],
   zettel: ['Inbox', 'Notes', 'MOCs', 'Sources', 'Projects', 'Daily', 'Reviews', 'Templates', 'Claude'],
@@ -43,8 +56,9 @@ const STOP = new Set(
 )
 
 type Model = 'para' | 'zettel' | 'existing'
-type Config = { path?: string; model?: Model; reads?: boolean; daily?: boolean }
-type Hit = { path: string; why: string }
+type Config = { path?: string; model?: Model; reads?: boolean; daily?: boolean; cut?: number }
+type Hit = { path: string; why: string; line?: string; score?: number }
+type Stats = { hints: number; read: number; since: number }
 type Source = { kind: string; dir: string; to: string; skip?: RegExp }
 
 let claudeDir = ''
@@ -55,10 +69,17 @@ let cwd = ''
 let startedAt = 0
 let cfg: Config = {}
 let qmd = ''
+// `qmd --version`'s number; the reranker filter is read with qmd 2.x's blend, so it waits for a 2.
+let qmdVersion = ''
+const rerankOk = () => /^2\./.test(qmdVersion)
+// Whether the last /health on the port was qmd's, and when it was asked: prompts go only to a checked qmd.
+let qmdLive = false
+let checkedAt = 0
 let section = ''
 let logged = false
 let indexedAt = 0
 const hinted = new Set<string>()
+const opened = new Set<string>()
 
 const trim = (v: string | undefined) => (v ?? '').trim()
 const tilde = (p: string) => (home && p.startsWith(`${home}/`) ? `~${p.slice(home.length)}` : p)
@@ -86,6 +107,23 @@ async function sh($: EngineInterface, script: string, args: string[] = [], timeo
 async function append($: EngineInterface, path: string, text: string) {
   const r = await $.process.run(['/bin/sh', '-c', 'mkdir -p "$(dirname "$1")" && cat >> "$1"', 'sh', path], { stdin: text, timeoutMs: 10_000 })
   if (r.exitCode !== 0) throw new Error(`append to ${path} failed: ${r.stderr.slice(0, 200)}`)
+}
+// Writes a file only if it is not there yet, atomically (noclobber): two chats copying the same
+// note can not both write it, so only one of them adds its Daily line.
+async function createNew($: EngineInterface, path: string, text: string) {
+  const r = await $.process.run(['/bin/sh', '-c', 'mkdir -p "$(dirname "$1")" && set -C && cat > "$1"', 'sh', path], { stdin: text, timeoutMs: 10_000 })
+  return r.exitCode === 0
+}
+async function withTimeout<T>($: EngineInterface, p: Promise<T>, ms: number, what: string): Promise<T> {
+  const box: { timer?: { cancel: () => void } } = {}
+  const late = new Promise<never>((_, reject) => {
+    box.timer = $.clock.after(ms, () => reject(new Error(`${what} gave no answer in ${ms} ms`)))
+  })
+  try {
+    return await Promise.race([p, late])
+  } finally {
+    box.timer?.cancel()
+  }
 }
 async function log($: EngineInterface, line: string) {
   await append($, `${claudeDir}/mods-logs/vault/vault.log`, `${new Date(await $.clock.now()).toISOString()} ${line}\n`).catch(() => undefined)
@@ -119,6 +157,29 @@ async function findQmd($: EngineInterface) {
   return r && r.exitCode === 0 ? trim(r.stdout.split('\n')[0]) : ''
 }
 const qmdEnv = () => ({ QMD_EMBED_MODEL: EMBED })
+async function readVersion($: EngineInterface) {
+  const r = await $.process.run([qmd, '--version'], { timeoutMs: 10_000, env: qmdEnv() }).catch(() => undefined)
+  qmdVersion = r?.stdout.match(/(\d+\.\d+\.\d+)/)?.[1] ?? ''
+  if (!rerankOk()) await log($, `qmd ${qmdVersion || 'sem versão'}: o filtro do reranker é o do qmd 2.x, então as dicas usam só o ripgrep`)
+}
+
+// How many hinted notes Claude then opened: the hints' precision, seen in /vault.
+async function stats($: EngineInterface): Promise<Stats> {
+  const s = (await $.store.get('stats').catch(() => undefined)) as Partial<Stats> | undefined
+  return { hints: s?.hints ?? 0, read: s?.read ?? 0, since: s?.since ?? (await $.clock.now()) }
+}
+async function count($: EngineInterface, field: 'hints' | 'read', n: number) {
+  const s = await stats($)
+  await $.store.set('stats', { ...s, [field]: s[field] + n }).catch(() => undefined)
+}
+// The reranker scores of the last meaning hints, newest last: what /vault corte is calibrated on.
+async function scores($: EngineInterface) {
+  const v = await $.store.get('scores').catch(() => undefined)
+  return Array.isArray(v) ? (v as number[]).filter(n => typeof n === 'number') : []
+}
+async function keepScores($: EngineInterface, add: number[]) {
+  if (add.length) await $.store.set('scores', [...(await scores($)), ...add].slice(-SCORES)).catch(() => undefined)
+}
 
 async function saveConfig($: EngineInterface, next: Config) {
   cfg = next
@@ -134,7 +195,9 @@ function projectOf(folder: string) {
 }
 const safeName = (s: string) => s.replace(/[\\/:*?"<>|#^[\]]/g, '-').trim()
 
+// A vault adopted as it was gets no Projects/ folder it never had; its notes keep the [[link]].
 async function ensureProject($: EngineInterface, name: string, folder: string) {
+  if (cfg.model === 'existing' && !(await $.fs.exists(`${vault()}/Projects`))) return
   const path = `${vault()}/Projects/${safeName(name)}.md`
   if (await $.fs.exists(path)) return
   const now = await $.clock.now()
@@ -221,9 +284,7 @@ async function mirrorOnce($: EngineInterface) {
         const folder = s.kind === 'handoff' ? handoffFolder(text) : f.mtimeMs >= startedAt ? cwd : ''
         const project = projectOf(folder)
         const dest = `${vault()}/${s.to}/${f.name}`
-        if (!(await $.fs.exists(dest))) {
-          await $.process.run(['mkdir', '-p', `${vault()}/${s.to}`])
-          await $.fs.write(dest, noteFor({ kind: s.kind, name: f.name, text, project, src, ms: f.mtimeMs }))
+        if (await createNew($, dest, noteFor({ kind: s.kind, name: f.name, text, project, src, ms: f.mtimeMs }))) {
           if (project) await ensureProject($, project, folder)
           await daily($, f.mtimeMs, `[[${f.name.replace(/\.md$/, '')}]] (${s.kind}${project ? `, [[${safeName(project)}]]` : ''})`)
         }
@@ -252,75 +313,140 @@ function keywords(text: string) {
 }
 
 // ripgrep: a note matches when it holds most of the prompt's words that exist in the vault at all
-// (words no note has, like "responda", say nothing), in its text or its name. Rarer words rank higher.
-// Run inside the vault, so the globs are anchored at its root.
+// (words no note has, like "responda", say nothing), from a word's start, in its text or its name, and
+// one of them is rare (in a fifth of the notes or fewer): a word most notes have says nothing either.
+// Rarer words rank higher. Run inside the vault, so the globs are anchored at its root.
 const RG_GLOBS = ['-g', '*.md', '-g', '!.obsidian/**', '-g', '!/Daily/**', '-g', '!/Templates/**', '-g', '!/CLAUDE.md']
-async function rgHits($: EngineInterface, terms: string[]): Promise<Hit[]> {
+async function rgHits($: EngineInterface, terms: string[]): Promise<(Hit & { n: number; name: boolean })[]> {
   const at = { timeoutMs: 3000, cwd: vault() }
   const [content, files] = await Promise.all([
-    $.process.run(['rg', '-i', '-o', '--no-heading', '--with-filename', '--max-count', '30', ...RG_GLOBS, ...terms.flatMap(t => ['-e', t]), '.'], at),
+    // From a word's start, not -w: "palavra" still finds "palavras", and "code" no longer finds "barcode".
+    $.process.run(['rg', '-i', '-o', '--no-heading', '--with-filename', '--max-count', '30', ...RG_GLOBS, ...terms.flatMap(t => ['-e', `\\b${t}`]), '.'], at),
     $.process.run(['rg', '--files', ...RG_GLOBS, '.'], at),
   ])
   const seen = new Map<string, Set<string>>()
-  const add = (rel: string, found: string) => {
+  const named = new Map<string, Set<string>>()
+  const add = (rel: string, found: string, into = seen) => {
     const path = `${vault()}/${rel.replace(/^\.\//, '')}`
-    for (const t of terms) if (found.includes(t)) (seen.get(path) ?? seen.set(path, new Set()).get(path)!).add(t)
+    for (const t of terms) if (found.includes(t)) (into.get(path) ?? into.set(path, new Set()).get(path)!).add(t)
   }
   for (const line of content.stdout.split('\n')) {
     const i = line.lastIndexOf(':')
     if (i > 0) add(line.slice(0, i), line.slice(i + 1).toLowerCase())
   }
   const all = files.stdout.split('\n').filter(Boolean)
-  for (const rel of all) add(rel, base(rel).toLowerCase())
+  for (const rel of all) {
+    add(rel, base(rel).toLowerCase())
+    add(rel, base(rel).toLowerCase(), named)
+  }
   const df = new Map<string, number>()
   for (const s of seen.values()) for (const t of s) df.set(t, (df.get(t) ?? 0) + 1)
   const need = Math.max(2, Math.ceil(df.size * 0.6))
+  const rare = (t: string) => (df.get(t) ?? 0) <= Math.max(1, all.length * 0.2)
   const idf = (t: string) => Math.log((all.length + 1) / (df.get(t) ?? 1))
   const score = (s: Set<string>) => [...s].reduce((sum, t) => sum + idf(t), 0)
+  // A rare, long word of the prompt in a note's name ("docker" in "Docker multi-stage build") is enough
+  // alone: the reranker can miss it, in Portuguese above all.
+  const byName = (path: string) => [...(named.get(path) ?? [])].some(t => t.length >= 5 && rare(t))
   return [...seen.entries()]
-    .filter(([, s]) => s.size >= need)
+    .filter(([path, s]) => (s.size >= need && [...s].some(rare)) || byName(path))
     .sort((a, b) => b[1].size - a[1].size || score(b[1]) - score(a[1]))
-    .map(([path, s]) => ({ path, why: `termos: ${[...s].join(', ')}` }))
+    .map(([path, s]) => ({ path, why: `termos: ${[...s].join(', ')}`, n: s.size, name: byName(path) }))
 }
 
-// qmd's vector search: finds notes that say the same thing in other words (~1 s on a CPU). Its
-// scores are absolute here (unrelated prompts come back empty); 0.6 kept only real matches in tests.
-// shortcut: 0.6 was tuned on a small vault, raise it if hints get noisy in a big one.
-const MIN_SCORE = '0.6'
-async function qmdHits($: EngineInterface, text: string): Promise<Hit[]> {
-  const r = await $.process.run([qmd, 'vsearch', oneLine(text, 300), '--json', '-n', '3', '-c', COLLECTION, '--min-score', MIN_SCORE], { timeoutMs: 4000, env: qmdEnv() })
-  if (r.exitCode !== 0) throw new Error(r.stderr.slice(0, 200))
-  const json = JSON.parse(r.stdout.trim() || '[]') as unknown
-  const rows = (Array.isArray(json) ? json : []) as Record<string, unknown>[]
+// qmd's daemon keeps the embedding and rerank models loaded (they unload after 5 idle minutes and
+// reload on the next query). Started detached: it outlives the chat and serves every chat after it.
+// The port is fixed, so the answer must be qmd's own ({"status":"ok","uptime":n}) before a prompt goes there.
+async function qmdUp($: EngineInterface) {
+  checkedAt = await $.clock.now()
+  const r = await withTimeout($, $.http.fetch(`${QMD_URL}/health`), 1000, 'qmd health').catch(() => undefined)
+  let ok = false
+  try {
+    const b = r?.ok ? (JSON.parse(r.text) as { status?: unknown; uptime?: unknown }) : {}
+    ok = b.status === 'ok' && typeof b.uptime === 'number'
+  } catch {
+    // Not JSON: something else holds the port.
+  }
+  qmdLive = ok
+  return ok
+}
+async function startDaemon($: EngineInterface) {
+  if (!qmd || !vault() || (await qmdUp($))) return
+  const r = await sh($, 'QMD_EMBED_MODEL="$2" "$1" mcp --http --daemon < /dev/null 2>&1', [qmd, EMBED], 20_000)
+  await log($, `qmd daemon: ${oneLine(r.stdout, 160)}`)
+  // Its PID, so the mod stops only a daemon it started itself.
+  const pid = r.stdout.match(/\(PID (\d+)\)/)?.[1]
+  if (pid) await $.store.set('daemon', pid).catch(() => undefined)
+  if (!(await qmdUp($))) return
+  // Loads the models now, so the first prompt does not wait for them.
+  await qmdQuery($, 'vault', 1, 60_000).catch(() => undefined)
+}
+
+// With the mod off, the daemon it started goes too: only when qmd's pidfile still names that PID.
+async function stopDaemon($: EngineInterface) {
+  const pid = await $.store.get('daemon').catch(() => undefined)
+  if (!qmd || typeof pid !== 'string' || !pid) return
+  const r = await sh($, 'f="${XDG_CACHE_HOME:-$HOME/.cache}/qmd/mcp.pid"; [ "$(cat "$f" 2>/dev/null)" = "$2" ] || exit 3; "$1" mcp stop', [qmd, pid], 15_000)
+  await log($, r.exitCode === 3 ? `qmd daemon ${pid}: não é mais o do mod, não parei` : `qmd daemon ${pid} parado (mod desligado): ${oneLine(r.stdout, 120)}`)
+  await $.store.set('daemon', null).catch(() => undefined)
+}
+
+// One vector search, reranked. The daemon's score blends rank and reranker: for a result whose vector
+// rank is k (1-3) it is 0.75/k + 0.25 × rerank, so the reranker's own 0..1 relevance is read back from
+// it. The ranges do not overlap for k=1 (0.75-1); for 2 or 3 the lower reading is taken.
+// shortcut: those weights are qmd 2.x's (store.ts, rrfWeight); re-read them if qmd changes its blend.
+const rerankOf = (s: number) => (s >= 0.75 ? (s - 0.75) / 0.25 : s >= 0.375 ? (s - 0.375) / 0.25 : (s - 0.25) / 0.25)
+type QmdRow = { path: string; title: string; line: string; rerank: number }
+async function qmdQuery($: EngineInterface, query: string, limit: number, ms = QMD_MS): Promise<QmdRow[]> {
+  // Three candidates keep every vector rank at 3 or under, where the blend above holds; the reranker
+  // reads each whole chunk, so each candidate costs ~0.2 s on a CPU.
+  const body = JSON.stringify({ searches: [{ type: 'vec', query: oneLine(query, 500) }], collections: [COLLECTION], limit, rerank: true, candidateLimit: Math.max(3, limit) })
+  const res = await withTimeout($, $.http.fetch(`${QMD_URL}/query`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }), ms, 'qmd')
+  if (!res.ok) throw new Error(`qmd HTTP ${res.status}: ${res.text.slice(0, 200)}`)
+  const rows = ((JSON.parse(res.text) as { results?: Record<string, unknown>[] }).results ?? []).slice(0, limit)
   return rows
     .map(row => {
-      const rel = String(row.file ?? '').replace(/^qmd:\/\/[^/]+\//, '')
+      const rel = decodeURIComponent(String(row.file ?? '').replace(/^qmd:\/\/[^/]+\//, ''))
       const score = typeof row.score === 'number' ? row.score : 0
-      return { path: `${vault()}/${rel}`, why: `qmd ${score.toFixed(2)}` }
+      return { path: `${vault()}/${rel}`, title: String(row.title ?? ''), line: snippetLine(String(row.snippet ?? '')), rerank: limit <= 3 ? Math.max(0, rerankOf(score)) : 0 }
     })
     .filter(h => h.path !== `${vault()}/` && !/\/(Daily|Templates)\//.test(h.path))
 }
+// The first line of a qmd snippet that says something: no line numbers, diff header, frontmatter or heading.
+function snippetLine(s: string) {
+  const lines = s.split('\n').map(l => l.replace(/^\d+:\s?/, '').trim())
+  const body = lines.filter(l => l && !l.startsWith('@@') && !l.startsWith('#') && l !== '---' && !/^[\w-]+:\s/.test(l))
+  return oneLine(body[0] ?? '', 110)
+}
 
+// Words and meaning run side by side. With qmd up, a note the reranker finds relevant is hinted, and a
+// word match it did not back needs three words or more, or a rare word in its name; without it (or with
+// a qmd whose blend the reranker reading does not know), the word matches alone.
 async function recall($: EngineInterface, text: string): Promise<Hit[]> {
   const terms = keywords(text)
   if (terms.length < 2) return []
-  // Words first (exact, milliseconds), then meaning; the two run side by side.
-  const fail = (what: string) => async (err: unknown) => (await log($, `${what} failed: ${String(err)}`), [] as Hit[])
-  const [words, meaning] = await Promise.all([rgHits($, terms).catch(fail('ripgrep')), qmd ? qmdHits($, text).catch(fail('qmd vsearch')) : []])
-  const hits = [...words, ...meaning.filter(m => !words.some(w => w.path === m.path))]
-  return hits.filter(h => !hinted.has(h.path)).slice(0, HINTS)
+  const fail = (what: string) => async (err: unknown) => (await log($, `${what} failed: ${String(err)}`), null)
+  // A daemon found down, or one whose last query failed, is asked again a minute later (a refused connection answers at once).
+  if (qmd && rerankOk() && !qmdLive && (await $.clock.now()) - checkedAt > 60_000) await qmdUp($)
+  const [words, meaning] = await Promise.all([rgHits($, terms).catch(fail('ripgrep')), qmd && rerankOk() && qmdLive ? qmdQuery($, text, 3).catch(err => ((qmdLive = false), fail('qmd')(err))) : null])
+  const strong = (meaning ?? []).filter(m => m.rerank >= cut())
+  const backed = (p: string) => strong.some(m => m.path === p)
+  const fromWords = (words ?? []).filter(w => !meaning || w.n >= 3 || w.name || backed(w.path)).map(w => ({ ...w, line: strong.find(m => m.path === w.path)?.line }))
+  const fromMeaning = strong.filter(m => !fromWords.some(w => w.path === m.path)).map(m => ({ path: m.path, why: `qmd ${m.rerank.toFixed(2)}`, line: m.line, score: m.rerank }))
+  return [...fromWords, ...fromMeaning].filter(h => !hinted.has(h.path)).slice(0, HINTS)
 }
 
 function hintText(hits: Hit[]) {
   return [
-    `Vault (${tilde(vault())}): estas notas podem ter o que o pedido precisa. Se servirem, leia-as antes de pesquisar na web ou reler arquivos grandes; se não, ignore.`,
-    ...hits.map(h => `- ${h.path.startsWith(`${vault()}/`) ? h.path.slice(vault().length + 1) : h.path} (${h.why})`),
+    `Vault (${tilde(vault())}): estas notas podem ter o que o pedido precisa. Se a linha já responde, não abra a nota; se servirem, leia-as antes de pesquisar na web ou reler arquivos grandes; se não, ignore.`,
+    ...hits.map(h => `- ${rel(h.path)} (${h.why})${h.line ? `: ${h.line}` : ''}`),
   ].join('\n')
 }
+const rel = (p: string) => (p.startsWith(`${vault()}/`) ? p.slice(vault().length + 1) : p)
 
 const searchCmd = () =>
   qmd
-    ? `QMD_EMBED_MODEL=${EMBED} ${qmd} query "<pergunta>" -c ${COLLECTION} -n 8 --json (híbrida, por significado; ~5 s, timeout de 60 s). O score é relativo: o primeiro resultado vem alto mesmo sem nota sobre o assunto, então confira lendo. Grep no vault para nomes exatos.`
+    ? `QMD_EMBED_MODEL=${EMBED} ${qmd} query $'intent: <o que procura>\\nlex: <palavras exatas>\\nvec: <a ideia em outras palavras>' -c ${COLLECTION} -n 5 --files --no-rerank 2>/dev/null (escreva você mesmo intent, lex e vec: assim o qmd não roda o modelo de expansão, ~1,5 s; imprime docid,score,caminho e o score é só a posição). Leia só a nota que importa, ou um trecho: ${qmd} get <caminho>:<linha>:<quantas>. Nomes e palavras exatas: ${qmd} search "<termos>" -c ${COLLECTION} -n 5 --files 2>/dev/null (instantâneo) ou Grep.`
     : `Grep em ${vault()} (glob *.md)`
 
 function systemSection() {
@@ -333,14 +459,19 @@ function systemSection() {
 
 // ---- qmd index ----
 
+const OLD_CONTEXT = 'Segundo cérebro da pessoa'
 async function ensureCollection($: EngineInterface) {
   if (!qmd || !vault()) return ''
   const list = await $.process.run([qmd, 'collection', 'list'], { timeoutMs: 15_000, env: qmdEnv() }).catch(() => undefined)
-  if (list && new RegExp(`\\b${COLLECTION}\\b`).test(list.stdout)) return 'já existia'
+  if (list && new RegExp(`\\b${COLLECTION}\\b`).test(list.stdout)) {
+    // Version 0.1 added a collection context, which qmd prints on every result line: ~20 tokens each.
+    const ctx = await $.process.run([qmd, 'context', 'list'], { timeoutMs: 15_000, env: qmdEnv() }).catch(() => undefined)
+    if (ctx?.stdout.includes(OLD_CONTEXT)) await $.process.run([qmd, 'context', 'rm', `qmd://${COLLECTION}`], { timeoutMs: 15_000, env: qmdEnv() }).catch(() => undefined)
+    return 'já existia'
+  }
   // Daily notes repeat the prompts and templates are empty: both would crowd out real notes.
   const r = await $.process.run([qmd, 'collection', 'add', vault(), '--name', COLLECTION, '--mask', '**/*.md,!Daily/**,!Templates/**,!CLAUDE.md'], { timeoutMs: 120_000, env: qmdEnv() })
   if (r.exitCode !== 0) throw new Error(trim(r.stderr) || trim(r.stdout))
-  await $.process.run([qmd, 'context', 'add', `qmd://${COLLECTION}`, 'Segundo cérebro da pessoa: notas, projetos, pesquisas e handoffs do Claude'], { timeoutMs: 15_000, env: qmdEnv() }).catch(() => undefined)
   return 'criada'
 }
 
@@ -426,22 +557,123 @@ async function autoSetup($: EngineInterface) {
   await log($, `auto setup: ${oneLine(text, 200)}`)
 }
 
+// ---- what the hook works out so Claude reads less ----
+
+// Every file with its mtime, and every [[link]] in the notes, resolved as Obsidian does: by path, or
+// by name anywhere in the vault. Dates are the files' mtimes, not the date property.
+async function vaultMap($: EngineInterface) {
+  const at = { timeoutMs: 15_000, cwd: vault() }
+  const [found, links] = await Promise.all([
+    $.process.run(['find', '.', '-path', './.obsidian', '-prune', '-o', '-path', './.trash', '-prune', '-o', '-path', '*/.git', '-prune', '-o', '-type', 'f', '-printf', '%T@\t%P\n'], at),
+    $.process.run(['rg', '-o', '--no-heading', '--with-filename', '\\[\\[[^\\]|#^]+', ...RG_GLOBS, '.'], at),
+  ])
+  const files = new Map<string, number>()
+  for (const l of found.stdout.split('\n')) {
+    const [t, p] = l.split('\t')
+    if (p) files.set(p, Number(t) * 1000)
+  }
+  const byName = new Map<string, string>()
+  for (const p of files.keys()) byName.set(base(p).toLowerCase(), p)
+  const resolve = (target: string) => {
+    const t = target.trim().replace(/^\.?\//, '')
+    const name = /\.[a-z0-9]+$/i.test(t) && !t.endsWith('.md') ? t : `${t.replace(/\.md$/, '')}.md`
+    return files.has(name) ? name : byName.get(base(name).toLowerCase())
+  }
+  const out = new Map<string, Set<string>>()
+  const into = new Map<string, Set<string>>()
+  const broken: string[] = []
+  for (const l of links.stdout.split('\n')) {
+    const i = l.indexOf(':[[')
+    if (i < 0) continue
+    const from = l.slice(0, i).replace(/^\.\//, '')
+    const target = l.slice(i + 3)
+    const to = resolve(target)
+    if (!to) broken.push(`${from} → [[${target.trim()}]]`)
+    else if (to !== from) {
+      ;(out.get(from) ?? out.set(from, new Set()).get(from)!).add(to)
+      ;(into.get(to) ?? into.set(to, new Set()).get(to)!).add(from)
+    }
+  }
+  return { files, out, into, broken: [...new Set(broken)] }
+}
+
+const DAY = 86_400_000
+const isNote = (p: string) => p.endsWith('.md') && !/^(Daily|Templates|Reviews)\//.test(p) && p !== 'CLAUDE.md'
+const list = (items: string[], max: number) => (items.length ? [...items.slice(0, max).map(i => `  - ${i}`), ...(items.length > max ? [`  - … e mais ${items.length - max}`] : [])] : ['  - nenhum'])
+
+async function reviewFacts($: EngineInterface) {
+  const now = await $.clock.now()
+  const { files, out, into, broken } = await vaultMap($)
+  const notes = [...files.keys()].filter(isNote)
+  const recent = notes.filter(p => now - files.get(p)! < 7 * DAY && !p.startsWith('Claude/'))
+  const claude = notes.filter(p => now - files.get(p)! < 7 * DAY && p.startsWith('Claude/'))
+  const orphans = notes.filter(p => !out.get(p)?.size && !into.get(p)?.size && p !== 'Home.md')
+  // A project is stale when neither its note nor any note linking to it changed in 30 days.
+  const stale = notes
+    .filter(p => /^Projects\/[^/]+\.md$/.test(p))
+    .filter(p => [p, ...(into.get(p) ?? [])].every(q => now - (files.get(q) ?? 0) >= 30 * DAY))
+  const inbox = notes.filter(p => p.startsWith('Inbox/'))
+  return [
+    'O hook já levantou isto (mtime dos arquivos; não precisa listar nem abrir o vault para achar):',
+    `- Notas mudadas nos últimos 7 dias (${recent.length}):`,
+    ...list(recent, 40),
+    `- Notas que os mods gravaram em Claude/ nos últimos 7 dias: ${claude.length}`,
+    `- Projetos sem nota nova há 30 dias ou mais (${stale.length}):`,
+    ...list(stale, 20),
+    `- Notas órfãs, sem link de nem para elas (${orphans.length}):`,
+    ...list(orphans, 30),
+    `- Links quebrados (${broken.length}):`,
+    ...list(broken, 20),
+    `- Inbox: ${inbox.length} notas`,
+  ].join('\n')
+}
+
+async function inboxFacts($: EngineInterface) {
+  const { files } = await vaultMap($)
+  const inbox = [...files.keys()].filter(p => p.startsWith('Inbox/') && p.endsWith('.md'))
+  const dirs = [...new Set([...files.keys()].map(p => p.split('/').slice(0, -1).slice(0, 2).join('/')).filter(d => d && !/^(Daily|Templates|Claude|Inbox)(\/|$)/.test(d)))].sort()
+  return [
+    'O hook já levantou isto:',
+    `- Notas na Inbox (${inbox.length}):`,
+    ...list(inbox, 50),
+    '- Pastas do vault (2 níveis), para os destinos:',
+    ...list(dirs, 60),
+    'Abra só as notas da Inbox; para achar links, use a busca em vez de abrir outras notas.',
+  ].join('\n')
+}
+
+// /vault ask: the hook searches first and hands Claude the hits, which saves Claude a search call.
+async function askFacts($: EngineInterface, question: string) {
+  const hits: string[] = []
+  if (qmd && (qmdLive || (await qmdUp($)))) {
+    const rows = await qmdQuery($, question, 5).catch(() => [] as QmdRow[])
+    hits.push(...rows.map(r => `- ${rel(r.path)}${r.line ? `: ${r.line}` : ''}`))
+  }
+  if (!hits.length) {
+    const terms = keywords(question)
+    const words = terms.length ? await rgHits($, terms).catch(() => []) : []
+    hits.push(...words.slice(0, 5).map(w => `- ${rel(w.path)} (${w.why})`))
+  }
+  return hits.length ? `A busca do hook já achou estas candidatas (a mais relevante primeiro); comece por elas e busque de novo só se não bastarem:\n${hits.join('\n')}` : 'A busca do hook não achou nenhuma nota parecida; busque você mesmo uma vez antes de concluir que o vault não tem.'
+}
+
 // ---- the prompts /vault hands Claude ----
 
-function promptFor(sub: string, arg: string) {
+function promptFor(sub: string, arg: string, facts = '') {
   const v = vault()
-  const rules = `O vault fica em \`${v}\`; siga \`${v}/CLAUDE.md\`. Busca: ${searchCmd()}. Nunca apague notas.`
+  // The vault being studied has no CLAUDE.md to follow yet.
+  const rules = `O vault fica em \`${v}\`${sub === 'existing' ? '' : `; siga \`${v}/CLAUDE.md\``}. Busca: ${searchCmd()} Nunca apague notas.${facts ? `\n\n${facts}` : ''}`
   switch (sub) {
     case 'save':
       return `${rules}\n\nGuarde no vault uma nota sobre: ${arg || 'o ponto mais importante deste chat até aqui (decisão, aprendizado ou ideia)'}.\n- Antes, busque no vault: se já houver nota com essa ideia, atualize-a em vez de criar outra.\n- Nota nova vai em \`Inbox/\`, uma ideia só, título que diz a ideia, frontmatter (type: note, date de hoje, tags, project se este chat tiver projeto) e [[links]] para as notas relacionadas que a busca achou.\n- Escreva com as minhas palavras e as decisões deste chat; não invente.\n- No fim, diga o caminho da nota.`
     case 'ask':
-      return `${rules}\n\nResponda usando o meu vault: ${arg}\n- Busque primeiro e leia só as notas que importam.\n- Cite cada nota usada como [[nome]].\n- Se o vault não tiver a resposta, diga isso claramente antes de responder com o que você sabe.`
+      return `${rules}\n\nResponda usando o meu vault: ${arg}\n- Leia só as notas que importam, e só o trecho que importa quando a nota for longa.\n- Cite cada nota usada como [[nome]].\n- Se o vault não tiver a resposta, diga isso claramente antes de responder com o que você sabe.`
     case 'inbox':
       return `${rules}\n\nProcesse a \`Inbox/\` do vault. Para cada nota: proponha o destino (pasta, conforme o CLAUDE.md), um título melhor se precisar, tags e [[links]] para notas existentes. Mostre tudo numa lista e espere o meu ok antes de mover ou mudar qualquer coisa. Nada é apagado.`
     case 'review':
-      return `${rules}\n\nFaça a revisão semanal do vault:\n- o que entrou nos últimos 7 dias (\`Daily/\` e a propriedade date);\n- projetos sem nota nova há 30 dias ou mais;\n- notas sem nenhum [[link]] de ou para elas (órfãs);\n- o tamanho da \`Inbox/\`.\nEscreva o resultado em \`Reviews/<ano>-W<semana>.md\` com links e me mostre um resumo curto. Não mova nem apague nada sem o meu ok.`
+      return `${rules}\n\nFaça a revisão semanal do vault com o levantamento acima: o que entrou, projetos parados, órfãs (sugira 1 ou 2 links para cada uma, pelo nome; abra só as que não der para julgar pelo nome), links quebrados e a Inbox. Escreva o resultado em \`Reviews/<ano>-W<semana>.md\` com [[links]] e me mostre um resumo curto. Não mova nem apague nada sem o meu ok.`
     case 'existing':
-      return `${rules.replace(/; siga [^;]+;/, ';')}\n\nEste vault já existia. Estude-o: a árvore de pastas (2 níveis), 2 ou 3 notas de exemplo de cada pasta principal, o frontmatter e os templates que ele usa. Depois escreva \`${v}/CLAUDE.md\` com as convenções dele: o que vai em cada pasta, como as notas são nomeadas, o frontmatter, como as notas se ligam, e que \`Claude/\` é escrito pelos mods. Se \`${v}/CLAUDE.md\` já existir, mostre o que mudaria e espere o meu ok. Não mexa em nenhuma outra nota.`
+      return `${rules}\n\nEste vault já existia. Estude-o: a árvore de pastas (2 níveis), 2 ou 3 notas de exemplo de cada pasta principal, o frontmatter e os templates que ele usa. Depois escreva \`${v}/CLAUDE.md\` com as convenções dele: o que vai em cada pasta, como as notas são nomeadas, o frontmatter, como as notas se ligam, e que \`Claude/\` é escrito pelos mods. Se \`${v}/CLAUDE.md\` já existir, mostre o que mudaria e espere o meu ok. Não mexa em nenhuma outra nota.`
   }
   return ''
 }
@@ -460,7 +692,17 @@ async function status($: EngineInterface) {
     lines.push('', 'Para um vault novo: /vault use ~/Documentos/Vault e depois /vault setup para (ou zettel).')
   } else {
     lines.push(`Vault: ${tilde(vault())} (modelo: ${cfg.model ?? 'nenhum ainda, use /vault setup para|zettel|existing'})`)
-    lines.push(`Busca: ${qmd ? `qmd (${tilde(qmd)}), híbrida, com embeddings multilíngues` : 'ripgrep, só palavras. Para busca por significado: npm install -g @tobilu/qmd e depois /vault index'}`)
+    const up = qmd ? await qmdUp($) : false
+    lines.push(`Busca: ${qmd ? `qmd (${tilde(qmd)}), vetores multilíngues e reranker; daemon ${up ? `rodando em ${QMD_URL} (~1 GB de RAM com os modelos carregados; descarrega após 5 min parado)` : 'parado: as dicas usam só o ripgrep até o próximo chat ou /vault index'}` : 'ripgrep, só palavras. Para busca por significado: npm install -g @tobilu/qmd e depois /vault index'}`)
+    const st = await stats($)
+    if (st.hints) lines.push(`Dicas: ${st.hints} notas sugeridas, ${st.read} abertas pelo Claude desde ${ymd(st.since)}. Abrir pouco não quer dizer ruído: a linha da dica pode já ter respondido.`)
+    if (qmd && qmdVersion && !rerankOk()) lines.push(`Atenção: qmd ${qmdVersion} não é 2.x; o filtro do reranker foi feito para o 2.x, então as dicas usam só o ripgrep.`)
+    const sc = await scores($)
+    const sorted = [...sc].sort((a, b) => a - b)
+    if (qmd)
+      lines.push(
+      `Corte do reranker: ${cut().toFixed(2)}${cfg.cut === undefined ? ' (padrão)' : ''}.${sc.length ? ` Últimas ${sc.length} dicas por significado: scores ${sorted[0]!.toFixed(2)} a ${sorted.at(-1)!.toFixed(2)}, mediana ${sorted[Math.floor(sorted.length / 2)]!.toFixed(2)}.` : ''} Para calibrar: veja no log (${tilde(`${claudeDir}/mods-logs/vault/vault.log`)}) as linhas "hint:" de notas sem relação com o prompt e suba o corte acima dos scores "qmd 0.xx" delas: /vault corte 0.5.`,
+    )
     const prev = await $.store.get('mirrored').catch(() => undefined)
     lines.push(`Copiadas para Claude/: ${Array.isArray(prev) ? prev.length : 0} notas (handoffs, pesquisas${cfg.reads ? ', leituras' : ''})`)
     lines.push(`Leituras do Input Router: ${cfg.reads ? 'copiadas' : 'não copiadas (/vault reads on)'} · Nota diária: ${cfg.daily === false ? 'desligada (/vault daily on)' : 'ligada'}`)
@@ -469,7 +711,7 @@ async function status($: EngineInterface) {
   }
   lines.push(
     '',
-    'Comandos: /vault save [assunto] · /vault ask <pergunta> · /vault inbox · /vault review · /vault index · /vault use <pasta> · /vault setup para|zettel|existing · /vault reads on|off · /vault daily on|off',
+    'Comandos: /vault save [assunto] · /vault ask <pergunta> · /vault inbox · /vault review · /vault index · /vault use <pasta> · /vault setup para|zettel|existing · /vault reads on|off · /vault daily on|off · /vault corte <0 a 1>',
   )
   return lines.join('\n')
 }
@@ -481,6 +723,7 @@ async function useVault($: EngineInterface, path: string) {
   try {
     idx = qmd ? `Índice do qmd: coleção "${COLLECTION}" ${await ensureCollection($)}; indexando em segundo plano.` : ''
     void reindex($)
+    void startDaemon($).catch(err => log($, `qmd daemon: ${String(err)}`))
   } catch (err) {
     idx = `O qmd não aceitou a coleção: ${String(err)}`
   }
@@ -537,8 +780,16 @@ async function run($: EngineInterface, args: string): Promise<{ text: string; co
     return { text: `${sub === 'reads' ? 'Leituras do Input Router' : 'Nota diária'}: ${on ? 'ligada' : 'desligada'}.${copied ? ` ${copied} notas copiadas.` : ''}${sub === 'reads' && on ? ' Elas resumem arquivos que você abriu: se o vault sincroniza, esses resumos vão junto.' : ''}` }
   }
 
+  if (sub === 'corte') {
+    const n = Number(arg.replace(',', '.'))
+    if (!arg || !Number.isFinite(n) || n < 0 || n > 1) return { text: `/vault corte <número de 0 a 1>, por exemplo /vault corte 0.5. Hoje: ${cut().toFixed(2)}${cfg.cut === undefined ? ' (padrão)' : ''}. /vault mostra os scores das últimas dicas.` }
+    await saveConfig($, { ...cfg, cut: n })
+    return { text: `Corte do reranker: ${n.toFixed(2)}. Dicas por significado abaixo disso não aparecem mais.` }
+  }
+
   if (sub === 'index') {
     qmd = await findQmd($)
+    if (qmd) await readVersion($)
     const copied = await mirror($)
     if (!qmd) return { text: `${copied} notas copiadas. Sem qmd, a busca usa ripgrep. Para busca por significado: npm install -g @tobilu/qmd (Node 22+), depois /vault index de novo.` }
     let col = ''
@@ -549,19 +800,22 @@ async function run($: EngineInterface, args: string): Promise<{ text: string; co
     }
     indexedAt = 0
     await reindex($)
-    return { text: `${copied} notas copiadas. Coleção "${COLLECTION}" ${col}; o qmd está indexando em segundo plano (log: ${tilde(`${claudeDir}/mods-logs/vault/qmd.log`)}). Na primeira vez ele baixa os modelos (~2 GB).` }
+    void startDaemon($).catch(err => log($, `qmd daemon: ${String(err)}`))
+    return { text: `${copied} notas copiadas. Coleção "${COLLECTION}" ${col}; o qmd está indexando em segundo plano (log: ${tilde(`${claudeDir}/mods-logs/vault/qmd.log`)}) e sobe o daemon de busca em ${QMD_URL}. Na primeira vez ele baixa os modelos (~2 GB).` }
   }
 
-  const prompt = promptFor(sub, arg)
-  if (!prompt) return { text: `Não conheço /vault ${sub}.\n\n${await status($)}` }
+  if (!promptFor(sub, arg)) return { text: `Não conheço /vault ${sub}.\n\n${await status($)}` }
   if (sub === 'ask' && !arg) return { text: 'Diga a pergunta: /vault ask o que decidi sobre o cache?' }
-  later($, prompt)
+  // A survey that fails leaves Claude to look for itself.
+  const facts = await (sub === 'ask' ? askFacts($, arg) : sub === 'review' ? reviewFacts($) : sub === 'inbox' ? inboxFacts($) : Promise.resolve('')).catch(async err => (await log($, `${sub} facts: ${String(err)}`), ''))
+  later($, promptFor(sub, arg, facts))
   return { text: `Pedi ao Claude: /vault ${sub}${arg ? ` ${oneLine(arg, 60)}` : ''}` }
 }
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     hinted.clear()
+    opened.clear()
     logged = false
     await setup($)
     if (!off) {
@@ -572,6 +826,16 @@ export const register: Register = on => {
       void mirror($).catch(err => log($, `mirror: ${String(err)}`))
       // Notes written in Obsidian since the last chat; qmd update only reads what changed.
       void reindex($)
+      void (async () => (qmd && (await readVersion($)), await ensureCollection($), await startDaemon($)))().catch(err => log($, `qmd: ${String(err)}`))
+    } else void stopDaemon($).catch(err => log($, `qmd stop: ${String(err)}`))
+    return next(e)
+  })
+
+  // A hinted note Claude opens counts toward the hints' precision.
+  on('tool.call', { tool: 'Read' }, async ($, e, next) => {
+    if (!off && hinted.has(e.file_path) && !opened.has(e.file_path)) {
+      opened.add(e.file_path)
+      await count($, 'read', 1)
     }
     return next(e)
   })
@@ -600,7 +864,9 @@ export const register: Register = on => {
     const hits = await recall($, typed).catch(() => [] as Hit[])
     if (!hits.length) return next(e)
     for (const h of hits) hinted.add(h.path)
-    await log($, `hint: ${hits.map(h => tilde(h.path)).join(', ')}`)
+    await count($, 'hints', hits.length)
+    await keepScores($, hits.flatMap(h => (h.score === undefined ? [] : [h.score])))
+    await log($, `hint: ${hits.map(h => `${tilde(h.path)} (${h.why})`).join(', ')}`)
     return next({ ...e, context: [...(e.context ?? []), hintText(hits)] })
   })
 

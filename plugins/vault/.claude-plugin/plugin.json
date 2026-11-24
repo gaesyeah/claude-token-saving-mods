@@ -1,11 +1,17 @@
 {
   "name": "vault",
-  "version": "0.1.3",
-  "description": "A second brain in an Obsidian vault, as plain Markdown that works with Obsidian closed: /vault sets up a PARA or Zettelkasten vault (or adopts yours), copies handoffs and research briefs in with links to their project, keeps a daily note, hints notes that match each prompt (qmd hybrid search or ripgrep), and has save, ask, inbox and review",
+  "version": "0.2.1",
+  "description": "A second brain in an Obsidian vault, as plain Markdown that works with Obsidian closed: /vault sets up a PARA or Zettelkasten vault (or adopts yours), copies handoffs and research briefs in with links to their project, keeps a daily note, hints notes that match each prompt (qmd vectors and reranker through its daemon, or ripgrep), and has save, ask, inbox and review",
   "author": {
     "name": "gaesyeah",
     "url": "https://github.com/gaesyeah"
   },
   "license": "MIT",
-  "keywords": ["mod", "function-hooks", "obsidian", "second-brain"]
+  "keywords": [
+    "mod",
+    "function-hooks",
+    "obsidian",
+    "second-brain"
+  ],
+  "types": "./types/index.d.ts"
 }
