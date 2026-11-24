@@ -17,6 +17,22 @@ Some mods use extra tools. They work without them; that part is just skipped.
 | handoff, savings-proof, model-router, research-router (open buttons) | `xdg-open` | `xdg-utils` (usually installed) | `xdg-utils` | `xdg-utils` | `open`, built in |
 | input-router (PDFs) | `pdftotext`, `pdfinfo` | `sudo apt install poppler-utils` | `sudo dnf install poppler-utils` | `sudo pacman -S poppler` | `brew install poppler` |
 | research-router (optional) | Firecrawl CLI | `npm i -g firecrawl-cli` | same | same | same |
+| vault (search by words) | ripgrep | `sudo apt install ripgrep` | `sudo dnf install ripgrep` | `sudo pacman -S ripgrep` | `brew install ripgrep` |
+| vault (search by meaning, optional) | qmd, Node 22+ | `npm install -g @tobilu/qmd` | same | same | same |
+
+vault searches the notes by words with ripgrep. qmd adds search by meaning: two small local models
+(an embedding model and a reranker, ~2 GB downloaded on the first `/vault index`) find a note that says
+the same thing in other words and drop the hints that have nothing to do with the prompt. They run on
+your CPU, not on Claude, so they cost no tokens; the daemon holds ~1 GB of RAM and unloads after 5
+idle minutes. Without qmd the vault works on words alone. One command checks Node and installs it (if
+npm has no write access to its global folder, it moves that folder to `~/.npm-global`, where the mod
+also looks):
+
+```bash
+bash -c 'node -v | grep -qE "^v(2[2-9]|[3-9][0-9])" || { echo "Node 22+ needed (have $(node -v 2>/dev/null || echo none))"; exit 1; }; npm install -g @tobilu/qmd || { npm config set prefix ~/.npm-global && npm install -g @tobilu/qmd; }'
+```
+
+Then run `/vault index` in a chat. If a proxy blocks the model download, stay on ripgrep.
 
 handoff's "Start new chat" button opens a `claude://` link, which the Linux desktop app registers
 for itself (`xdg-mime query default x-scheme-handler/claude` should print the Claude `.desktop` file).

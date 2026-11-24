@@ -309,6 +309,24 @@ async function withQmd($: any, on: any, answer: () => unknown[], o: { version?: 
   return t
 }
 
+test('a qmd that fails a query (a 500) gives no nod: a common-word match is not hinted, a rare name word still is', async ($, on) => {
+  let down = false
+  const t = await withQmd($, on, () => {
+    if (down) throw new Error('qmd HTTP 500')
+    return []
+  })
+  t.write(`${VAULT}/Resources/Deploy.md`, 'servidor pipeline staging rollback')
+  t.write(`${VAULT}/Resources/Kubernetes probes.md`, 'liveness e readiness')
+  down = true
+  await say($, 'log colado: servidor pipeline staging rollback falhou')
+  expect(t.contexts.at(-1)).toBeUndefined()
+  // Down for the next minute too, so the old word rule does not come back meanwhile.
+  await say($, 'outro log: servidor pipeline staging rollback caiu')
+  expect(t.contexts.at(-1)).toBeUndefined()
+  await say($, 'como configuro kubernetes direito?')
+  expect(t.contexts.at(-1)?.join('\n')).toContain('- Resources/Kubernetes probes.md (termos: kubernetes)')
+})
+
 test('a rare word of the prompt in a note name hints it even when the reranker says no', async ($, on) => {
   const t = await withQmd($, on, () => [row('Resources/Docker%20multi-stage%20build.md', 0.75 + 0.25 * 0.04)])
   t.write(`${VAULT}/Resources/Docker multi-stage build.md`, '# Multi-stage build\nCompile numa imagem com o toolchain e copie só o binário.')

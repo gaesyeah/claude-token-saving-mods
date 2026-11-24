@@ -431,10 +431,13 @@ async function recall($: EngineInterface, text: string): Promise<Hit[]> {
   const fail = (what: string) => async (err: unknown) => (await log($, `${what} failed: ${String(err)}`), null)
   // A daemon found down, or one whose last query failed, is asked again a minute later (a refused connection answers at once).
   if (qmd && rerankOk() && !qmdLive && (await $.clock.now()) - checkedAt > 60_000) await qmdUp($)
-  const [words, meaning] = await Promise.all([rgHits($, terms).catch(fail('ripgrep')), qmd && rerankOk() && qmdLive ? qmdQuery($, text, 3).catch(err => ((qmdLive = false), fail('qmd')(err))) : null])
+  // A qmd 2.x that is installed but failed or is down gives no nod: only a rare word in a note's name
+  // gets through, or words alone would bring back the pasted-text noise.
+  const asked = Boolean(qmd && rerankOk() && qmdLive)
+  const [words, meaning] = await Promise.all([rgHits($, terms).catch(fail('ripgrep')), asked ? qmdQuery($, text, 3).catch(err => ((qmdLive = false), fail('qmd')(err))) : null])
   const strong = (meaning ?? []).filter(m => m.rerank >= cut())
   const backed = (p: string) => (meaning ?? []).some(m => m.path === p && m.rerank >= WEAK_RERANK)
-  const fromWords = (words ?? []).filter(w => !meaning || w.name || backed(w.path)).map(w => ({ ...w, line: (meaning ?? []).find(m => m.path === w.path)?.line }))
+  const fromWords = (words ?? []).filter(w => (!meaning && !(qmd && rerankOk())) || w.name || backed(w.path)).map(w => ({ ...w, line: (meaning ?? []).find(m => m.path === w.path)?.line }))
   const fromMeaning = strong.filter(m => !fromWords.some(w => w.path === m.path)).map(m => ({ path: m.path, why: `qmd ${m.rerank.toFixed(2)}`, line: m.line, score: m.rerank }))
   return [...fromWords, ...fromMeaning].filter(h => !hinted.has(h.path)).slice(0, HINTS)
 }
