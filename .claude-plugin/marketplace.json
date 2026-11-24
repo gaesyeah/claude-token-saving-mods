@@ -81,7 +81,7 @@
       "name": "vault",
       "source": "./plugins/vault",
       "description": "A second brain in an Obsidian vault, as plain Markdown that works with Obsidian closed: /vault sets up a PARA or Zettelkasten vault (or adopts yours), copies handoffs and research briefs in with links to their project, keeps a daily note, hints notes that match each prompt (qmd vectors and reranker through its daemon, or ripgrep), and has save, ask, inbox and review",
-      "version": "0.3.0"
+      "version": "0.3.1"
     }
   ]
 }

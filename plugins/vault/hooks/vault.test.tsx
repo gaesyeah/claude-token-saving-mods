@@ -444,3 +444,13 @@ test('a failed qmd install says why in the band, and "Agora não" is remembered 
   await start($)
   expect(t.store.get('state:qmd')).toBe(null)
 })
+
+test('/vault in a chat that never set up does the setup and offers qmd in the band', async ($, on) => {
+  const t = engine(on)
+  // No session.start: a chat already open when the mod was installed and reloaded.
+  const r = await cmd($, '')
+  expect(t.store.get('state:choice')).toBe(true)
+  expect(String(t.store.get('state:band'))).toContain('~/Documents/Vault')
+  expect(t.store.get('state:qmd')).toBe('offer')
+  expect(r.text).toContain('Vault: ~/Documents/Vault')
+})

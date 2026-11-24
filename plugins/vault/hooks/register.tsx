@@ -762,7 +762,17 @@ async function applyModel($: EngineInterface, model: Model, study: boolean) {
 async function run($: EngineInterface, args: string): Promise<{ text: string; context?: string[] }> {
   const sub = trim(args).split(/\s+/)[0] ?? ''
   const arg = trim(trim(args).slice(sub.length))
-  if (!sub || sub === 'status' || sub === 'help') return { text: await status($) }
+  if (!sub || sub === 'status' || sub === 'help') {
+    // /vault in a chat that began before the mod was installed or set up (after /reload-plugins): it does
+    // what a new chat would, so the band shows the setup and qmd buttons without one.
+    if (!home) await setup($)
+    if (!off) {
+      if (!cfg.path || !cfg.model) await autoSetup($).catch(err => log($, `auto setup: ${String(err)}`))
+      if (!qmd) qmd = await findQmd($)
+      await offerQmd($)
+    }
+    return { text: await status($) }
+  }
 
   if (sub === 'use') {
     if (!arg) return { text: 'Diga a pasta: /vault use ~/Documentos/Vault' }
@@ -850,6 +860,11 @@ async function installQmd($: EngineInterface) {
   await $.state.set(QMD, `qmd instalado (${tilde(qmd)}). Ele indexa o vault e baixa os modelos (~2 GB) em segundo plano; as dicas por significado começam quando terminar, sem precisar fazer nada.`).catch(() => undefined)
 }
 
+// No qmd: the band offers to install it, until the person says not now.
+async function offerQmd($: EngineInterface) {
+  if (!qmd && vault() && (await $.store.get('qmdDeclined').catch(() => undefined)) !== true) await $.state.set(QMD, 'offer').catch(() => undefined)
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     hinted.clear()
@@ -864,8 +879,7 @@ export const register: Register = on => {
       void mirror($).catch(err => log($, `mirror: ${String(err)}`))
       // Notes written in Obsidian since the last chat; qmd update only reads what changed.
       void reindex($)
-      // No qmd: the band offers to install it, until the person says not now.
-      if (!qmd && vault() && (await $.store.get('qmdDeclined').catch(() => undefined)) !== true) await $.state.set(QMD, 'offer').catch(() => undefined)
+      await offerQmd($)
       void (async () => (qmd && (await readVersion($)), await ensureCollection($), await startDaemon($)))().catch(err => log($, `qmd: ${String(err)}`))
     } else void stopDaemon($).catch(err => log($, `qmd stop: ${String(err)}`))
     return next(e)
