@@ -1,0 +1,21 @@
+filters:
+  and:
+    - file.inFolder("Claude")
+    - file.ext == "md"
+views:
+  - type: table
+    name: Tudo do Claude
+    order:
+      - file.name
+      - type
+      - project
+      - date
+  - type: table
+    name: Do projeto
+    filters:
+      and:
+        - file.hasLink(this.file)
+    order:
+      - file.name
+      - type
+      - date

@@ -76,6 +76,12 @@
       "source": "./plugins/tool-diet",
       "description": "Moves big tools a project has not used in its last 3 to 5 chats behind ToolSearch, only when that saves 5k tokens or more per chat; /tool-diet shows the numbers",
       "version": "0.1.0"
+    },
+    {
+      "name": "vault",
+      "source": "./plugins/vault",
+      "description": "A second brain in an Obsidian vault, as plain Markdown that works with Obsidian closed: /vault sets up a PARA or Zettelkasten vault (or adopts yours), copies handoffs and research briefs in with links to their project, keeps a daily note, hints notes that match each prompt (qmd hybrid search or ripgrep), and has save, ask, inbox and review",
+      "version": "0.1.2"
     }
   ]
 }

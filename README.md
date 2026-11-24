@@ -20,12 +20,13 @@ desktop app for Linux and Claude Code 2.1.325.
 | **coding-kit** | Ponytail rules always on in code projects (cached system prompt, no per-message skill calls) and a side pane of one-click coding skills (Matt Pocock's 31 among them) and tools (Context7, Serena, codebase-memory, Graphify, rtk, lean-ctx, context-mode, Modern Web Guidance), each install showing what it changes first. See [its README](plugins/coding-kit/README.md). | `/coding-kit` |
 | **quota-meter** | Status line with the 5-hour and weekly limits used, and the average points each turn spends (the limits move in whole points, so it averages the last 40 turns). Read only. | `/quota` |
 | **tool-diet** | Big tools a project has not used in its last chats move behind ToolSearch, only when that saves 5k tokens or more. Bash, Read, Edit, Write, Grep, Glob, Agent and Skill never move. Decided when a chat starts, so the cache is never broken. | `/tool-diet` |
+| **vault** | A second brain in an Obsidian vault, as plain Markdown (Obsidian can stay closed). Sets itself up on the first chat (a vault Obsidian knows, else `~/Documents/Vault`; PARA when empty, your own structure when it has notes) and says so in a purple band; `/vault use` and `/vault setup para`, `zettel` or `existing` change it. It copies handoffs and research briefs in with links to their project, keeps a daily note, and hints the notes that match each prompt (paths only, never the notes). Search is [qmd](https://github.com/tobi/qmd) hybrid search when installed, ripgrep otherwise. `/vault save`, `ask`, `inbox`, `review`. | `/vault` |
 
 ## Install
 
 ```bash
 claude plugin marketplace add gaesyeah/claude-token-saving-mods
-for m in input-router effort-optimizer model-router cache-clock handoff research-router efficient-browser-use mods savings-proof coding-kit quota-meter tool-diet; do
+for m in input-router effort-optimizer model-router cache-clock handoff research-router efficient-browser-use mods savings-proof coding-kit quota-meter tool-diet vault; do
   claude plugin install "$m@token-saving-mods"
 done
 ```
@@ -51,6 +52,7 @@ sudo pacman -S imagemagick wl-clipboard xclip poppler
 - **wl-clipboard / xclip**: handoff's *Copy* button.
 - **poppler**: input-router reads PDFs.
 - **xdg-utils**: the *Open* buttons (installed on most desktops).
+- **ripgrep**: vault's search without qmd. **qmd** (`npm install -g @tobilu/qmd`, Node 22+, ~2 GB of local models on first index): vault's hybrid search, then `/vault index`.
 
 See [INSTALL.md](INSTALL.md) for the full table, macOS notes and troubleshooting.
 
