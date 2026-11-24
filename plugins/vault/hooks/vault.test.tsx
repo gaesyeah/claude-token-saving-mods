@@ -207,11 +207,11 @@ test('with qmd, a note that says it in other words is hinted too, and the collec
   expect(t.qmdRuns.find(a => a[1] === 'vsearch')).toContain('0.6')
 })
 
-test('the first chat with no vault sets one up by itself and says so in the band', async ($, on) => {
+test('the first chat with no vault sets one up by itself and asks PARA or Zettel in the band', async ($, on) => {
   const t = engine(on)
   await start($)
-  expect(t.dirs.has(`${HOME}/Documents/Vault/Inbox`)).toBe(true)
-  expect(t.files[`${HOME}/Documents/Vault/CLAUDE.md`]).toContain('PARA')
+  expect(t.dirs.has(`${HOME}/Documents/Vault/Inbox`)).toBe(false)
+  expect(t.store.get('state:choice')).toBe(true)
   expect(String(t.store.get('state:band'))).toContain('~/Documents/Vault')
   expect(String(t.store.get('state:band'))).not.toContain('Próximo passo')
 })

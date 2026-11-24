@@ -20,6 +20,7 @@ const NAME = 'vault'
 const COLLECTION = 'vault'
 const BAND = { plugin: 'vault', key: 'band' } as const
 const PURPLE = '#7c3aed'
+const CHOICE = { plugin: 'vault', key: 'choice' } as const
 // qmd's default embedding model is tuned for English; this one covers 119 languages.
 const EMBED = 'hf:Qwen/Qwen3-Embedding-0.6B-GGUF/Qwen3-Embedding-0.6B-Q8_0.gguf'
 const HINTS = 3
@@ -415,7 +416,9 @@ async function autoSetup($: EngineInterface) {
   if (!cfg.model) {
     const list = await $.fs.list(vault()).catch(() => [])
     const notes = list.some(f => !f.name.startsWith('.') && f.name !== 'Claude')
-    lines.push(await applyModel($, notes ? 'existing' : 'para', false))
+    // An empty folder waits for the person's pick in the band; one with notes keeps its structure.
+    if (notes) lines.push(await applyModel($, 'existing', false))
+    else await $.state.set(CHOICE, true).catch(() => undefined)
   }
   // The "Próximo passo" hint is for /vault use typed by hand; here the model is already set.
   const text = lines.join('\n').split('\n').filter(l => !l.startsWith('Próximo passo')).join('\n')
@@ -614,6 +617,7 @@ export const register: Register = on => {
     if (off || e.props.hasSurvey) return next(e)
     const { value } = await $.state.get(BAND)
     if (typeof value !== 'string' || !value) return next(e)
+    const choose = (await $.state.get(CHOICE)).value === true
     const rest = await next(e)
     const { Box, Text, Button } = $.ui.resolve(e)
     const [head, ...more] = value.split('\n')
@@ -632,13 +636,23 @@ export const register: Register = on => {
             </Text>
           ))}
           <Text dimColor>Para trocar: /vault use &lt;pasta&gt; · /vault setup para|zettel|existing</Text>
+          {choose ? <Text>Escolha o modelo: PARA organiza por projetos e áreas; Zettel liga ideias por links.</Text> : null}
           <Box flexDirection="row" gap={1}>
-            <Button key="ok" label="Entendi" role="dismiss" onPress={() => undefined} />
+            {choose ? <Button key="para" label="PARA" variant="primary" onPress={() => undefined} /> : null}
+            {choose ? <Button key="zettel" label="Zettelkasten" variant="secondary" onPress={() => undefined} /> : null}
+            {choose ? null : <Button key="ok" label="Entendi" role="dismiss" onPress={() => undefined} />}
           </Box>
         </Box>
       </Box>
     )
   })
+
+  for (const model of ['para', 'zettel'] as const)
+    on('ui.press', { plugin: 'vault', element: model }, async ($, e) => {
+      await $.state.set(CHOICE, null)
+      await $.state.set(BAND, await applyModel($, model, false))
+      return { element: e.element }
+    })
 
   on('ui.press', { plugin: 'vault', element: 'ok' }, async ($, e) => {
     await $.state.set(BAND, null)
