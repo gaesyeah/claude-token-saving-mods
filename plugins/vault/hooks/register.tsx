@@ -34,6 +34,9 @@ const QMD_MS = 2500
 // The reranker's 0..1 relevance: in tests real matches scored 0.44-1.0, unrelated prompts 0-0.36.
 // The default cut; /vault corte <n> sets the person's own (see /vault for the last hints' scores).
 const MIN_RERANK = 0.4
+// A word match with qmd up needs the reranker's nod, even a weak one: long pasted text holds 3+ common
+// words of many notes. shortcut: 0.15 is a guess under the 0.36 unrelated prompts reached; tune from the log.
+const WEAK_RERANK = 0.15
 const cut = () => cfg.cut ?? MIN_RERANK
 // How many of the last meaning hints' scores /vault shows.
 const SCORES = 20
@@ -420,7 +423,7 @@ function snippetLine(s: string) {
 }
 
 // Words and meaning run side by side. With qmd up, a note the reranker finds relevant is hinted, and a
-// word match it did not back needs three words or more, or a rare word in its name; without it (or with
+// word match needs its nod (WEAK_RERANK), or a rare word in its name; without it (or with
 // a qmd whose blend the reranker reading does not know), the word matches alone.
 async function recall($: EngineInterface, text: string): Promise<Hit[]> {
   const terms = keywords(text)
@@ -430,8 +433,8 @@ async function recall($: EngineInterface, text: string): Promise<Hit[]> {
   if (qmd && rerankOk() && !qmdLive && (await $.clock.now()) - checkedAt > 60_000) await qmdUp($)
   const [words, meaning] = await Promise.all([rgHits($, terms).catch(fail('ripgrep')), qmd && rerankOk() && qmdLive ? qmdQuery($, text, 3).catch(err => ((qmdLive = false), fail('qmd')(err))) : null])
   const strong = (meaning ?? []).filter(m => m.rerank >= cut())
-  const backed = (p: string) => strong.some(m => m.path === p)
-  const fromWords = (words ?? []).filter(w => !meaning || w.n >= 3 || w.name || backed(w.path)).map(w => ({ ...w, line: strong.find(m => m.path === w.path)?.line }))
+  const backed = (p: string) => (meaning ?? []).some(m => m.path === p && m.rerank >= WEAK_RERANK)
+  const fromWords = (words ?? []).filter(w => !meaning || w.name || backed(w.path)).map(w => ({ ...w, line: (meaning ?? []).find(m => m.path === w.path)?.line }))
   const fromMeaning = strong.filter(m => !fromWords.some(w => w.path === m.path)).map(m => ({ path: m.path, why: `qmd ${m.rerank.toFixed(2)}`, line: m.line, score: m.rerank }))
   return [...fromWords, ...fromMeaning].filter(h => !hinted.has(h.path)).slice(0, HINTS)
 }

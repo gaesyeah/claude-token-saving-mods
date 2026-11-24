@@ -236,6 +236,15 @@ test('with qmd, a note the reranker finds relevant is hinted with a line of it; 
   answer = [row('Resources/Git.md', 0.75 + 0.25 * 0.02), row('Resources/Squash.md', 0.375 + 0.25 * 0.8)]
   await say($, 'como junto meus últimos commits num só?')
   expect(t.contexts.at(-1)?.join('\n')).toContain('- Resources/Squash.md (qmd 0.80)')
+  // Pasted text: three or more words match, but the reranker's nod (0.15) is missing, so no hint.
+  t.write(`${VAULT}/Resources/Deploy.md`, 'servidor pipeline staging rollback')
+  answer = [row('Resources/Deploy.md', 0.75 + 0.25 * 0.1)]
+  await say($, 'log colado: servidor pipeline staging rollback falhou')
+  expect(t.contexts.at(-1)).toBeUndefined()
+  // A weak nod above 0.15 lets the same word match through, though it is under the 0.4 cut.
+  answer = [row('Resources/Deploy.md', 0.75 + 0.25 * 0.2)]
+  await say($, 'outro log: servidor pipeline staging rollback caiu')
+  expect(t.contexts.at(-1)?.join('\n')).toContain('- Resources/Deploy.md (termos:')
 })
 
 test('/vault review and inbox come with what the hook worked out: orphans, broken links, stale projects, the Inbox', async ($, on) => {
