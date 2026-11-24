@@ -24,7 +24,10 @@ vault searches the notes by words with ripgrep. qmd adds search by meaning: two 
 (an embedding model and a reranker, ~2 GB downloaded on the first `/vault index`) find a note that says
 the same thing in other words and drop the hints that have nothing to do with the prompt. They run on
 your CPU, not on Claude, so they cost no tokens; the daemon holds ~1 GB of RAM and unloads after 5
-idle minutes. Without qmd the vault works on words alone. One command checks Node and installs it (if
+idle minutes. Without qmd the vault works on words alone. With no qmd, the vault's band offers an
+*Instalar qmd* button: it installs Node 22 through [Volta](https://volta.sh) in `~/.volta` when Node is
+missing or older (no sudo, the system Node is left alone), then qmd, then indexes and starts the daemon.
+By hand, one command checks Node and installs qmd (if
 npm has no write access to its global folder, it moves that folder to `~/.npm-global`, where the mod
 also looks):
 

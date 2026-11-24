@@ -24,6 +24,8 @@ const COLLECTION = 'vault'
 const BAND = { plugin: 'vault', key: 'band' } as const
 const PURPLE = '#7c3aed'
 const CHOICE = { plugin: 'vault', key: 'choice' } as const
+const QMD = { plugin: 'vault', key: 'qmd' } as const
+const QMD_PKG = '@tobilu/qmd'
 // qmd's default embedding model is tuned for English; this one covers 119 languages.
 const EMBED = 'hf:Qwen/Qwen3-Embedding-0.6B-GGUF/Qwen3-Embedding-0.6B-Q8_0.gguf'
 const HINTS = 3
@@ -817,6 +819,37 @@ async function run($: EngineInterface, args: string): Promise<{ text: string; co
   return { text: `Pedi ao Claude: /vault ${sub}${arg ? ` ${oneLine(arg, 60)}` : ''}` }
 }
 
+// ---- installing qmd from the band ----
+
+// The band's "Instalar qmd": installs Node 22 through Volta when it is missing or older, then the package
+// (into ~/.npm-global when npm may not write its global folder, where findQmd looks too), then indexes and starts the daemon, all in the
+// background. qmd downloads its models (~2 GB) itself on the first index and query.
+async function installQmd($: EngineInterface) {
+  await $.state.set(QMD, 'installing').catch(() => undefined)
+  const r = await sh(
+    $,
+    // Node 22+ already there: npm. Missing or older: Volta in ~/.volta (no sudo, the system Node stays as
+    // it is), which pins the qmd it installs to its own Node 22. findQmd looks in ~/.volta/bin too.
+    'if node -v 2>/dev/null | grep -qE "^v(2[2-9]|[3-9][0-9])"; then npm install -g "$1" 2>&1 || { npm config set prefix "$HOME/.npm-global" && npm install -g "$1" 2>&1; }; else V="$HOME/.volta/bin/volta"; [ -x "$V" ] || { command -v curl >/dev/null || { echo "sem Node 22 e sem curl para instalar o Volta"; exit 3; }; curl -fsSL https://get.volta.sh | bash -s -- --skip-setup 2>&1; } && "$V" install node@22 2>&1 && "$V" install "$1" 2>&1; fi',
+    [QMD_PKG],
+    600_000,
+  ).catch(err => ({ exitCode: 1, stdout: String(err), stderr: '' }))
+  qmd = await findQmd($)
+  if (!qmd) {
+    const why = oneLine(trim(r.stdout).split('\n').filter(Boolean).at(-1) ?? 'erro desconhecido', 160)
+    await log($, `qmd install failed: ${why}`)
+    await $.state.set(QMD, `Não deu para instalar o qmd: ${why}. A busca segue só por palavras. Para tentar à mão: npm install -g ${QMD_PKG}`).catch(() => undefined)
+    return
+  }
+  await log($, `qmd installed: ${qmd}`)
+  await readVersion($)
+  await ensureCollection($).catch(err => log($, `qmd collection: ${String(err)}`))
+  indexedAt = 0
+  await reindex($)
+  void startDaemon($).catch(err => log($, `qmd daemon: ${String(err)}`))
+  await $.state.set(QMD, `qmd instalado (${tilde(qmd)}). Ele indexa o vault e baixa os modelos (~2 GB) em segundo plano; as dicas por significado começam quando terminar, sem precisar fazer nada.`).catch(() => undefined)
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     hinted.clear()
@@ -831,6 +864,8 @@ export const register: Register = on => {
       void mirror($).catch(err => log($, `mirror: ${String(err)}`))
       // Notes written in Obsidian since the last chat; qmd update only reads what changed.
       void reindex($)
+      // No qmd: the band offers to install it, until the person says not now.
+      if (!qmd && vault() && (await $.store.get('qmdDeclined').catch(() => undefined)) !== true) await $.state.set(QMD, 'offer').catch(() => undefined)
       void (async () => (qmd && (await readVersion($)), await ensureCollection($), await startDaemon($)))().catch(err => log($, `qmd: ${String(err)}`))
     } else void stopDaemon($).catch(err => log($, `qmd stop: ${String(err)}`))
     return next(e)
@@ -887,14 +922,52 @@ export const register: Register = on => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (off || e.props.hasSurvey) return next(e)
     const { value } = await $.state.get(BAND)
-    if (typeof value !== 'string' || !value) return next(e)
+    const q = (await $.state.get(QMD)).value
+    const band = typeof value === 'string' && value ? value : ''
+    if (!band && !q) return next(e)
     const choose = (await $.state.get(CHOICE)).value === true
     const rest = await next(e)
     const { Box, Text, Button } = $.ui.resolve(e)
-    const [head, ...more] = value.split('\n')
+    const [head, ...more] = band.split('\n')
+    const qmdRow = !q ? null : q === 'offer' ? (
+      <Box flexDirection="column">
+        <Text>
+          <Text color={PURPLE}>●</Text>
+          <Text bold> Busca por significado: </Text>
+          <Text>o qmd acha notas ditas com outras palavras e corta dicas sem relação. Instala com npm (e o Node 22 pelo Volta, em ~/.volta, se faltar ou for antigo; sem sudo) e baixa ~2 GB de modelos locais, que não gastam tokens.</Text>
+        </Text>
+        <Box flexDirection="row" gap={1}>
+          <Button key="qmd-install" label="Instalar qmd" variant="primary" onPress={() => undefined} />
+          <Button key="qmd-later" label="Agora não" role="dismiss" onPress={() => undefined} />
+        </Box>
+      </Box>
+    ) : q === 'installing' ? (
+      <Text>
+        <Text color={PURPLE}>●</Text>
+        <Text> Instalando o qmd em segundo plano (pode levar alguns minutos)…</Text>
+      </Text>
+    ) : (
+      <Box flexDirection="column">
+        <Text>
+          <Text color={PURPLE}>●</Text>
+          <Text> {q}</Text>
+        </Text>
+        <Box flexDirection="row" gap={1}>
+          <Button key="qmd-ok" label="Entendi" role="dismiss" onPress={() => undefined} />
+        </Box>
+      </Box>
+    )
+    if (!band)
+      return (
+        <Box flexDirection="column">
+          {rest}
+          {qmdRow}
+        </Box>
+      )
     return (
       <Box flexDirection="column">
         {rest}
+        {qmdRow}
         <Box flexDirection="column">
           <Text>
             <Text color={PURPLE}>●</Text>
@@ -924,6 +997,22 @@ export const register: Register = on => {
       await $.state.set(BAND, await applyModel($, model, false))
       return { element: e.element }
     })
+
+  on('ui.press', { plugin: 'vault', element: 'qmd-install' }, async ($, e) => {
+    void installQmd($).catch(err => log($, `qmd install: ${String(err)}`))
+    return { element: e.element }
+  })
+
+  on('ui.press', { plugin: 'vault', element: 'qmd-later' }, async ($, e) => {
+    await $.store.set('qmdDeclined', true).catch(() => undefined)
+    await $.state.set(QMD, null)
+    return { element: e.element }
+  })
+
+  on('ui.press', { plugin: 'vault', element: 'qmd-ok' }, async ($, e) => {
+    await $.state.set(QMD, null)
+    return { element: e.element }
+  })
 
   on('ui.press', { plugin: 'vault', element: 'ok' }, async ($, e) => {
     await $.state.set(BAND, null)

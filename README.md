@@ -52,7 +52,7 @@ sudo pacman -S imagemagick wl-clipboard xclip poppler
 - **wl-clipboard / xclip**: handoff's *Copy* button.
 - **poppler**: input-router reads PDFs.
 - **xdg-utils**: the *Open* buttons (installed on most desktops).
-- **ripgrep**: vault's search without qmd. **qmd** (`npm install -g @tobilu/qmd`, Node 22+, ~2 GB of local models on first index): vault's search by meaning: two local models (embedding and reranker, no Claude tokens) that find notes said in other words and drop unrelated hints; optional, the vault works on words without it. Then `/vault index`; [INSTALL.md](INSTALL.md) has a one-line install. The mod starts `qmd mcp --http --daemon` on localhost:8181; it holds ~1 GB of RAM while its models are loaded and unloads them after 5 idle minutes.
+- **ripgrep**: vault's search without qmd. **qmd** (`npm install -g @tobilu/qmd`, Node 22+, ~2 GB of local models on first index): vault's search by meaning: two local models (embedding and reranker, no Claude tokens) that find notes said in other words and drop unrelated hints; optional, the vault works on words without it; the vault's band offers to install it (and Node 22 through Volta, no sudo). Then `/vault index`; [INSTALL.md](INSTALL.md) has a one-line install. The mod starts `qmd mcp --http --daemon` on localhost:8181; it holds ~1 GB of RAM while its models are loaded and unloads them after 5 idle minutes.
 
 See [INSTALL.md](INSTALL.md) for the full table, macOS notes and troubleshooting.
 

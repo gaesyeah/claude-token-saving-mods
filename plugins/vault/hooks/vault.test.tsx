@@ -31,7 +31,7 @@ function engine(on: any, o: { qmd?: string | (() => string); version?: string; p
   on('session.cwd', () => ({ value: `${HOME}/work/app` }))
   on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))
   on('command.register', () => ({ value: { command: 'vault' } }))
-  on('state.get', (_: any, e: any) => ({ value: store.get(`state:${e.key}`) }))
+  on('state.get', (_: any, e: any) => ({ value: { value: store.get(`state:${e.key}`) ?? null, version: 1 } }))
   on('state.set', (_: any, e: any) => (store.set(`state:${e.key}`, e.value), { value: undefined }))
   on('store.get', (_: any, e: any) => ({ value: store.get(e.key) }))
   on('store.set', (_: any, e: any) => (store.set(e.key, e.value), { value: undefined }))
@@ -406,4 +406,41 @@ test('a folder that already has notes keeps its structure and gets no prompt sen
   expect((t.store.get('config') as any).model).toBe('existing')
   expect(t.dirs.has(`${HOME}/Documents/Vault/Inbox`)).toBe(false)
   expect(t.submitted.length).toBe(0)
+})
+
+const BAND = { plugin: 'vault', component: 'AbovePrompt', surface: 'desktop', props: { hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 20, bodyColumns: 100, scroll: { offset: 0, bodyRows: 20 } } }
+
+test('with no qmd the band offers to install it; the install indexes and starts the daemon, and its Entendi closes the row', async ($, on) => {
+  const o: { qmd?: string } = {}
+  const t = engine(on, o)
+  await start($)
+  await cmd($, 'use ~/Vault')
+  await start($)
+  expect(t.store.get('state:qmd')).toBe('offer')
+  const ui = await $.ui.mount(BAND as any)
+  expect(await ui.find({ key: 'qmd-install' })).toBeDefined()
+  o.qmd = '{"results":[]}'
+  await ui.press({ key: 'qmd-install' })
+  await settle()
+  expect(String(t.store.get('state:qmd'))).toContain('qmd instalado')
+  expect(t.qmdRuns.some(a => a[1] === 'collection' && a[2] === 'add')).toBe(true)
+  await (await $.ui.mount(BAND as any)).press({ key: 'qmd-ok' })
+  expect(t.store.get('state:qmd')).toBe(null)
+})
+
+test('a failed qmd install says why in the band, and "Agora não" is remembered across chats', async ($, on) => {
+  const t = engine(on)
+  await start($)
+  await cmd($, 'use ~/Vault')
+  await start($)
+  const ui = await $.ui.mount(BAND as any)
+  await ui.press({ key: 'qmd-install' })
+  await settle()
+  expect(String(t.store.get('state:qmd'))).toContain('Não deu para instalar o qmd')
+  await start($)
+  expect(t.store.get('state:qmd')).toBe('offer')
+  const ui2 = await $.ui.mount(BAND as any)
+  await ui2.press({ key: 'qmd-later' })
+  await start($)
+  expect(t.store.get('state:qmd')).toBe(null)
 })
