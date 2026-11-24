@@ -2,6 +2,10 @@
   "$comment": "The Coding Kit pane is drawn from this file. To add a skill: put its folder in skills/<name>/ (SKILL.md with disable-model-invocation: true so it costs no context until clicked) and add an item here with kind \"skill\". kind \"builtin\" is a Claude Code command; \"mcp\" an MCP server the pane installs with `claude mcp add`; \"tool\" a CLI the pane installs with the argv steps given. Items sharing an `exclusive` group can not be installed together. `hint` is a case-insensitive regex on your prompt that marks the item as suggested (no model call). `skills` lists where each bundled skill comes from: the pane checks GitHub once a week (no model call) and offers an update; `frontmatter` keys replace the upstream ones, `rewrite` fixes links to skills not bundled.",
   "groups": [
     {
+      "id": "tools",
+      "title": "Ferramentas"
+    },
+    {
       "id": "plan",
       "title": "Planejar"
     },
@@ -25,10 +29,6 @@
         "command": "/coding-kit:setup-matt-pocock-skills",
         "done": "docs/agents/issue-tracker.md"
       }
-    },
-    {
-      "id": "tools",
-      "title": "Ferramentas"
     }
   ],
   "items": [
@@ -124,17 +124,6 @@
       "description": "Pergunte qual skill ou fluxo serve para o seu caso: um roteador sobre todas as skills desta seção. Bom ponto de partida.",
       "command": "/coding-kit:ask-matt",
       "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/ask-matt",
-      "source": "mattpocock/skills (MIT)"
-    },
-    {
-      "id": "setup-matt-pocock-skills",
-      "kind": "skill",
-      "group": "matt",
-      "sub": "Engenharia",
-      "label": "Configurar este repositório",
-      "description": "Escolhe o rastreador de issues (GitHub, GitLab ou arquivos locais), os rótulos de triagem e onde ficam os docs. Rode uma vez por repositório, antes das skills que dependem disso.",
-      "command": "/coding-kit:setup-matt-pocock-skills",
-      "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/engineering/setup-matt-pocock-skills",
       "source": "mattpocock/skills (MIT)"
     },
     {

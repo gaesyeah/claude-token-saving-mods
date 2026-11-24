@@ -963,6 +963,23 @@ export const register: Register = on => {
     return { element: el }
   })
 
+  // A setup (Configurar este repositório) runs as a prompt: its result shows at the end of that reply.
+  on('turn.complete', async ($, e, next) => {
+    const r = await next(e)
+    if (off || (e as { agentId?: string }).agentId !== undefined || !cwd) return r
+    let changed = false
+    for (const g of catalog.groups) {
+      if (!g.setup) continue
+      const done = await $.fs.exists(`${cwd}/${g.setup.done}`).catch(() => false)
+      if (done !== !!setupDone[g.id]) {
+        setupDone[g.id] = done
+        changed = true
+      }
+    }
+    if (changed) redraw($)
+    return r
+  }).catch(($, e, next) => next(e))
+
   // Typing: paint the skill command orange in the box the editor shows, and keep the band in step.
   on('prompt.edit', async ($, e, next) => {
     const r = await next(e)

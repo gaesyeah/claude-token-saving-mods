@@ -635,3 +635,19 @@ test('recommended items come first in their section, and a conflict note sits ab
   expect(JSON.stringify(await ui.find({ key: 'buttons-plain' }))).toContain('install:plain')
   await ui.unmount()
 })
+
+test('a section setup done during a chat shows as done at the end of that reply, with no reload', async ($, on) => {
+  const filled: string[] = []
+  engine(on, { code: true, ran: [], filled, toasts: [], catalog: lab })
+  on('turn.complete', (_: any, e: any) => ({ turnId: e.turnId, text: '' }))
+  const ui = await labPane($)
+  expect(await ui.find({ key: 'setup:matt' })).toBeDefined()
+  files['/work/app/docs/agents/issue-tracker.md'] = 'github'
+  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't', reason: 'answer' } as any)
+  await settle()
+  expect(await ui.find({ key: 'setup:matt' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /configurado neste repositório/ })).toBeDefined()
+  expect(await ui.find({ key: 'use:spec' })).toBeDefined()
+  delete files['/work/app/docs/agents/issue-tracker.md']
+  await ui.unmount()
+})

@@ -21,6 +21,10 @@ def argvs(steps):
 
 
 class Catalog(unittest.TestCase):
+    def test_tools_come_right_under_your_own_skills(self):
+        # The pane draws Suas skills, then the groups in this order.
+        self.assertEqual(CATALOG["groups"][0]["id"], "tools")
+
     def test_the_tools_section_is_just_ferramentas(self):
         self.assertEqual(GROUPS["tools"]["title"], "Ferramentas")
 
@@ -207,9 +211,15 @@ class MattPocock(unittest.TestCase):
         first = next(i for i in CATALOG["items"] if i["group"] == "matt")
         self.assertEqual(first["id"], "ask-matt")
 
+    def test_the_setup_is_the_section_button_not_a_card_too(self):
+        self.assertNotIn("setup-matt-pocock-skills", ITEMS)
+        self.assertIn("setup-matt-pocock-skills", SOURCES)
+
     def test_every_skill_is_a_card_in_its_sub_section(self):
         for sub, names in MATT.items():
             for n in names:
+                if n == "setup-matt-pocock-skills":
+                    continue
                 i = ITEMS[n]
                 self.assertEqual((i["kind"], i["group"], i["sub"], i["command"]), ("skill", "matt", sub, f"/coding-kit:{n}"), n)
                 self.assertTrue(i["label"] and i["description"], n)

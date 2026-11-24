@@ -27,7 +27,8 @@ change that fully solves the task, no speculative abstractions, a short reply.
 ## 2. The Coding Kit pane
 
 `/coding-kit` opens a side pane (it also opens by itself at the first prompt about code in a code project; turn that off in the
-pane). Every section starts hidden: **▸ Mostrar** opens it. **Usar** puts an entry's command in the prompt box for you to complete.
+pane). Every section starts hidden: **▸ Mostrar** opens it. Ferramentas comes right under Suas skills, and
+recommended entries come first in their section. **Usar** puts an entry's command in the prompt box for you to complete.
 
 | Section | Entries | Kind |
 | --- | --- | --- |
@@ -36,7 +37,7 @@ pane). Every section starts hidden: **▸ Mostrar** opens it. **Usar** puts an e
 | Construir | Testes primeiro (`/coding-kit:test-driven-development`), Design de interface (`/coding-kit:frontend-design`), Modern Web Guidance | bundled skills, a plugin |
 | Corrigir | Depurar a fundo (`/coding-kit:systematic-debugging`) | bundled skill |
 | Revisar | Verificar antes de dar como pronto (`/coding-kit:verification-before-completion`), `/code-review`, `/simplify`, `/security-review` | bundled skill, Claude Code built-ins |
-| Matt Pocock | all 31 skills of [mattpocock/skills](https://github.com/mattpocock/skills) (engineering, productivity, misc), with **Qual skill usar?** first | bundled skills |
+| Matt Pocock | all 31 skills of [mattpocock/skills](https://github.com/mattpocock/skills) (engineering, productivity, misc), with **Qual skill usar?** first; the setup skill is the section's **Configurar este repositório** button | bundled skills |
 | Ferramentas | Context7, Serena, codebase-memory, Graphify, rtk, lean-ctx, context-mode | installed from the pane |
 | Suas skills | every skill in `~/.claude/skills`, the project's `.claude/skills` and other plugins | found on disk |
 
@@ -81,7 +82,8 @@ pane). Every section starts hidden: **▸ Mostrar** opens it. **Usar** puts an e
 - **Configurar este repositório** runs `/coding-kit:setup-matt-pocock-skills` (issue tracker, triage
   labels, docs layout). Until it has run (`docs/agents/issue-tracker.md` exists), the five skills that
   need it (`to-spec`, `to-tickets`, `triage`, `wayfinder`, `implement-spec`) show *precisa configurar
-  antes* instead of Usar.
+  antes* instead of Usar. The pane checks again at the end of every reply, so the setup shows as done
+  as soon as it ran.
 - Their links to each other point at this plugin (`/coding-kit:…`, `coding-kit:<skill>` for the Skill tool).
 
 ### The prompt
