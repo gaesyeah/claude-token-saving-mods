@@ -191,14 +191,17 @@ function itemCard(els: Els, item: Item, width: number, inBand = false) {
   const other = inst && !isIn ? clash(item) : undefined
   return (
     <Box key={`card-${item.id}`} flexDirection="column" width={width} marginBottom={1} borderStyle="round" borderColor={hot ? ACCENT : undefined} borderDimColor={!hot} paddingX={1}>
-      <Box flexDirection="row" justifyContent="space-between" width={cw}>
+      <Box key={`title-${item.id}`} flexDirection="row" justifyContent="space-between" width={cw}>
         <Text bold wrap="truncate-end">{item.label}</Text>
-        <Box flexDirection="row" gap={1} flexShrink={0}>
+        {item.repo ? <Button key={`repo:${item.id}`} plain dimColor onPress={noop}>⎇</Button> : null}
+      </Box>
+      {/* Marks under the name, side by side, so a narrow pane never cuts the name for them. */}
+      {(item.recommended && !hot) || hot || inst ? (
+        <Box key={`badges-${item.id}`} flexDirection="row" gap={1} width={cw}>
           {item.recommended && !hot ? <Text color={ACCENT}>★ recomendado</Text> : null}
           {hot ? <Text color={ACCENT}>★ sugerido</Text> : inst ? <Text color={isIn ? GOOD : undefined} dimColor={!isIn}>{busy === item.id ? '…' : isIn ? '✓ instalado' : 'não instalado'}</Text> : null}
-          {item.repo ? <Button key={`repo:${item.id}`} plain dimColor onPress={noop}>⎇</Button> : null}
         </Box>
-      </Box>
+      ) : null}
       <Text dimColor wrap="wrap">{item.description}</Text>
       {item.command ? <Text dimColor wrap="truncate-end">{`${item.command}${item.source ? ` · ${item.source}` : ''}`}</Text> : null}
       {mod ? <Text color={WARN} wrap="wrap">{`⚠ ${mod.why}${modsOff[mod.mod] ? ` O ${mod.mod} está desligado.` : ''}`}</Text> : null}

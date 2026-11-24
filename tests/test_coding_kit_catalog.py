@@ -21,6 +21,9 @@ def argvs(steps):
 
 
 class Catalog(unittest.TestCase):
+    def test_the_tools_section_is_just_ferramentas(self):
+        self.assertEqual(GROUPS["tools"]["title"], "Ferramentas")
+
     def test_every_item_is_in_a_known_group(self):
         for i in CATALOG["items"]:
             self.assertIn(i["group"], GROUPS, i["id"])
