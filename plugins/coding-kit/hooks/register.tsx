@@ -207,6 +207,11 @@ function itemCard(els: Els, item: Item, width: number, inBand = false) {
       {mod ? <Text color={WARN} wrap="wrap">{`⚠ ${mod.why}${modsOff[mod.mod] ? ` O ${mod.mod} está desligado.` : ''}`}</Text> : null}
       {inst && isIn && item.prepared ? <Text color={preparedHere[item.id] ? GOOD : undefined} dimColor={!preparedHere[item.id]}>{preparedHere[item.id] ? '✓ pronto neste projeto' : 'ainda não preparado neste projeto'}</Text> : null}
       {outputs[item.id] ? <Text dimColor wrap="wrap">{outputs[item.id]}</Text> : null}
+      {other && !confirm ? (
+        <Box key={`clash-${item.id}`} width={cw}>
+          <Text dimColor wrap="wrap">{`Remova ${other.label.split(' (')[0]} antes${why ? `: ${why}` : ''}`}</Text>
+        </Box>
+      ) : null}
       {confirm ? (
         <Box flexDirection="column" width={cw}>
           <Text color={WARN} wrap="wrap">{pending!.action === 'install' ? 'Instalar? Muda a config do Claude Code (vale para chats novos).' : 'Remover?'}</Text>
@@ -217,13 +222,12 @@ function itemCard(els: Els, item: Item, width: number, inBand = false) {
           </Box>
         </Box>
       ) : (
-        <Box flexDirection="row" gap={1}>
+        <Box key={`buttons-${item.id}`} flexDirection="row" gap={1}>
           {!inBand && waits ? <Text dimColor>{`Usar · precisa configurar antes (${group!.setup!.label})`}</Text> : null}
           {!inBand && !waits && (!inst || isIn) && (item.command || item.fill) ? (typed?.item?.id === item.id ? <Text dimColor>Usar · já no prompt</Text> : <Button key={`use:${item.id}`} label="Usar" variant="primary" onPress={noop} />) : null}
           {shown ? (item.actions ?? []).map(a => <Button key={`action:${item.id}/${a.id}`} label={a.rule && rules[ruleKey(item, a)] ? (a.offLabel ?? a.label) : a.label} onPress={noop} />) : null}
           {mod && inst && isIn ? <Button key={`${modsOff[mod.mod] ? 'mod-on' : 'mod-off'}:${item.id}`} label={modsOff[mod.mod] ? `Religar o ${mod.mod}` : `Desligar o ${mod.mod}`} onPress={noop} /> : null}
           {inst && busy !== item.id ? <Button key={`${isIn ? 'remove' : 'install'}:${item.id}`} label={isIn ? 'Remover' : 'Instalar'} onPress={noop} /> : null}
-          {other ? <Text dimColor wrap="wrap">{`Remova ${other.label.split(' (')[0]} antes${why ? `: ${why}` : ''}`}</Text> : null}
         </Box>
       )}
     </Box>
@@ -1177,7 +1181,9 @@ export const register: Register = on => {
             : null}
         </Box>
         {catalog.groups.map(g => {
-          const items = catalog.items.filter(i => i.group === g.id)
+          // Recommended first; the rest keep the catalog's order.
+          const all = catalog.items.filter(i => i.group === g.id)
+          const items = [...all.filter(i => i.recommended), ...all.filter(i => !i.recommended)]
           if (!items.length) return null
           return (
             <Box key={`group-${g.id}`} flexDirection="column" width={width} marginBottom={openGroups.has(g.id) ? 0 : 1}>

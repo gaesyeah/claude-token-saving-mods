@@ -610,3 +610,28 @@ test('a card keeps its title row for the name, with the recommended mark and the
   expect(JSON.stringify(badges)).toContain('✓ instalado')
   await ui.unmount()
 })
+
+test('recommended items come first in their section, and a conflict note sits above the buttons, not beside them', async ($, on) => {
+  const cat = {
+    groups: [{ id: 'tools', title: 'Ferramentas' }],
+    exclusives: { x: 'Fazem o mesmo papel.' },
+    items: [
+      { id: 'plain', kind: 'tool', group: 'tools', label: 'Plain', description: 'p', exclusive: 'x', check: { argv: ['plain'] }, install: [['plain']], changes: ['p'] },
+      { id: 'held', kind: 'tool', group: 'tools', label: 'Held', description: 'h', exclusive: 'x', check: { argv: ['held'] }, install: [['held']], changes: ['h'] },
+      { id: 'star', kind: 'tool', group: 'tools', label: 'Star', description: 's', recommended: true, check: { argv: ['star'] }, install: [['star']], changes: ['s'] },
+    ],
+  }
+  engine(on, { code: true, ran: [], filled: [], toasts: [], catalog: cat, run: argv => (['plain', 'star'].includes(argv[0]!) ? { exitCode: 1 } : argv[0] === 'held' ? {} : undefined) })
+  await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
+  await new Promise(r => setTimeout(r, 40))
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' } as any)
+  await ui.press({ key: 'toggle-group:tools' })
+  const group = JSON.stringify(await ui.find({ key: 'group-tools' }))
+  expect(group.indexOf('card-star')).toBeGreaterThan(-1)
+  expect(group.indexOf('card-star')).toBeLessThan(group.indexOf('card-plain'))
+  expect(group.indexOf('card-plain')).toBeLessThan(group.indexOf('card-held'))
+  expect(JSON.stringify(await ui.find({ key: 'clash-plain' }))).toContain('Remova Held antes')
+  expect(JSON.stringify(await ui.find({ key: 'buttons-plain' }))).not.toContain('Remova')
+  expect(JSON.stringify(await ui.find({ key: 'buttons-plain' }))).toContain('install:plain')
+  await ui.unmount()
+})
