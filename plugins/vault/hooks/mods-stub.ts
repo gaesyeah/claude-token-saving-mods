@@ -6,7 +6,10 @@ import { test as kitTest } from 'claude-code/testing'
 // and what is logged, appended or opened kept in `calls`.
 export const switches: Record<string, unknown> = {}
 export const calls: { method: string; args: unknown }[] = []
-export const fakes: { append?: (path: string, text: string) => void } = {}
+export const fakes: {
+  append?: (path: string, text: string) => void
+  modelResolve?: (e: any) => Record<string, unknown>
+} = {}
 
 function core(on: any) {
   on('engine.create', async (_: any, e: any, next: any) => {
@@ -38,7 +41,9 @@ function core(on: any) {
   on('mods.sh', (_: any, e: any) => (calls.push({ method: 'sh', args: e }), { value: { exitCode: 0, stdout: '', stderr: '' } }))
   on('mods.spent', (_: any, e: any) => (calls.push({ method: 'spent', args: e }), { value: undefined }))
   on('mods.modelCatalog', () => ({ value: null }))
-  on('mods.modelResolve', (_: any, e: any) => ({ value: { model: e.fallback, provider: null, source: 'fallback' } }))
+  on('mods.modelResolve', (_: any, e: any) => ({
+    value: fakes.modelResolve?.(e) ?? { model: e.fallback, provider: null, source: 'fallback' },
+  }))
   on('mods.openAsked', () => ({ value: false }))
   on('mods.prices', () => ({ value: [] }))
   on('mods.paneAllowed', () => ({ value: true }))
@@ -53,6 +58,7 @@ export const test = (name: string, body: ($: any, on: any) => unknown) =>
     for (const k of Object.keys(switches)) delete switches[k]
     calls.length = 0
     fakes.append = undefined
+    fakes.modelResolve = undefined
     core(on)
     await body($, on)
   })

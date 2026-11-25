@@ -3,6 +3,7 @@ import { effortOptions } from './effort-options'
 
 export type ModelResolution = {
   model: string
+  provider?: string | null
   effort?: string
   source: 'clauderipple' | 'fallback'
 }
@@ -17,6 +18,13 @@ type CompleteDeps<T extends CompletionResult> = {
   options?: unknown
 }
 
+/** Provider-qualify ClaudeRipple models so its proxy selects the exact configured provider. */
+export function modelForRequest(resolved: ModelResolution): string {
+  if (resolved.source !== 'clauderipple' || !resolved.provider) return resolved.model
+  const prefix = `${resolved.provider}:`
+  return resolved.model.startsWith(prefix) ? resolved.model : `${prefix}${resolved.model}`
+}
+
 /** Run the helper completion through the resolved model, then retain the legacy alias retry. */
 export async function completeWithResolvedModel<T extends CompletionResult>({
   resolve,
@@ -29,7 +37,7 @@ export async function completeWithResolvedModel<T extends CompletionResult>({
   try {
     const resolved = await resolve()
     const result = await complete({
-      model: resolved.model,
+      model: modelForRequest(resolved),
       ...effortOptions(resolved),
       ...request,
     }, options)

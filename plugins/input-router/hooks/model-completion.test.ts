@@ -5,7 +5,7 @@ test('input-router sends the resolved ClaudeRipple model without an undeclared e
   const calls: Array<{ request: Record<string, unknown>; options: unknown }> = []
   const result = await completeWithResolvedModel({
     // This is the resolver output covered independently by mods-core's catalog tests.
-    resolve: async () => ({ model: 'qwen2.5:3b', source: 'clauderipple' }),
+    resolve: async () => ({ model: 'qwen2.5:3b', provider: 'ollama-local', source: 'clauderipple' }),
     complete: async (request, options) => {
       calls.push({ request, options })
       return { isAnswered: true, reason: 'answered' }
@@ -18,7 +18,7 @@ test('input-router sends the resolved ClaudeRipple model without an undeclared e
   expect(result.model).toBe('qwen2.5:3b')
   expect(calls).toHaveLength(1)
   expect(calls[0]?.request).toEqual({
-    model: 'qwen2.5:3b',
+    model: 'ollama-local:qwen2.5:3b',
     prompt: 'test prompt',
     system: 'test system',
     maxTokens: 400,
@@ -49,7 +49,7 @@ test('input-router preserves low effort for the existing fallback model', async 
 test('input-router retries the legacy alias after an API error without carrying worker effort', async () => {
   const calls: Record<string, unknown>[] = []
   await completeWithResolvedModel({
-    resolve: async () => ({ model: 'qwen2.5:3b', effort: 'medium', source: 'clauderipple' }),
+    resolve: async () => ({ model: 'qwen2.5:3b', provider: 'ollama-local', effort: 'medium', source: 'clauderipple' }),
     complete: async request => {
       calls.push(request)
       return calls.length === 1
@@ -61,7 +61,7 @@ test('input-router retries the legacy alias after an API error without carrying 
   })
 
   expect(calls).toEqual([
-    { model: 'qwen2.5:3b', effort: 'medium', prompt: 'retry test' },
+    { model: 'ollama-local:qwen2.5:3b', effort: 'medium', prompt: 'retry test' },
     { model: 'haiku', prompt: 'retry test' },
   ])
 })

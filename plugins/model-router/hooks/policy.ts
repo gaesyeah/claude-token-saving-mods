@@ -224,6 +224,8 @@ export function requestModelId(model: string): string {
 
 export interface PolicyConfig {
   tiers: Tiers
+  /** Provider-qualified IDs used only when sending the selected tier to the engine. */
+  requestTiers?: Tiers
   /**
    * How sure the decision must be to spend more (a bigger model, more
    * reasoning). Being wrong here costs money, so the bar is low.
@@ -237,8 +239,10 @@ export interface PolicyConfig {
 }
 
 export interface Routing {
-  /** The model to run on, or null to leave the request as it is. */
+  /** The model family/id used for accounting and policy comparisons. */
   model: string | null
+  /** Provider-qualified ID for the engine request, when a provider was resolved. */
+  requestModel?: string | null
   /** The reasoning level to ask for, or null to leave it as it is. */
   effort: Effort | null
   /** Why, for the log line. */
@@ -342,7 +346,7 @@ export function route(
     return { model: null, effort: null, reason: `kept ${kept}, wanted ${wanted} (${said})` }
   }
 
-  return { model, effort, reason: forced ? `${tier}, forced by risk` : `${tier} (${said})` }
+  return { model, ...(model && config.requestTiers ? { requestModel: config.requestTiers[tier] ?? model } : {}), effort, reason: forced ? `${tier}, forced by risk` : `${tier} (${said})` }
 }
 
 /**

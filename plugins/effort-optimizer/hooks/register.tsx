@@ -266,10 +266,12 @@ async function pickPaid($: EngineInterface, text: string, now: Level | ''): Prom
   const lastReply = lastAssistantText(messages).slice(0, 1200)
   const resolved = await $.mods.modelResolve({ role: 'judge', fallback: 'claude-sonnet-5-5' })
   const r = await $.model.complete({
-    model: resolved.model,
+    model: resolved.source === 'clauderipple' && resolved.provider
+      ? (resolved.model.startsWith(`${resolved.provider}:`) ? resolved.model : `${resolved.provider}:${resolved.model}`)
+      : resolved.model,
     prompt: pickPrompt(text.slice(0, 4000), lastReply, now),
     maxTokens: 120,
-    effort: 'low',
+    ...(resolved.source === 'fallback' ? { effort: 'low' } : {}),
     timeoutMs: 20_000,
   })
   // Quota Meter's pane shows what the mods spend on their own model calls.
