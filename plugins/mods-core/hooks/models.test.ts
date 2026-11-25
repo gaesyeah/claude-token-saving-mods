@@ -62,11 +62,13 @@ test('agent IDs must resolve uniquely to a usable non-judge model', () => {
     agents: [
       { name: 'worker', model: 'worker-model', provider: 'p' },
       { name: 'ambiguous', model: 'worker-model', provider: 'p' },
+      { name: 'ambiguous', model: 'other-worker-model', provider: 'p' },
       { name: 'judge-agent', model: 'judge-model', provider: 'p' },
     ],
     providers: [{ name: 'p', usable: true }],
     models: [
       { model: 'worker-model', provider: 'p', judgeOnly: false },
+      { model: 'other-worker-model', provider: 'p', judgeOnly: false },
       { model: 'judge-model', provider: 'p', judgeOnly: true },
     ],
   }, { settings: { rules: { general: { mode: 'ladder', rungs: {
