@@ -1,5 +1,5 @@
 import type { EngineInterface, ModelUsage, Register, SessionMessage } from 'claude-code'
-import { effortOptions } from './effort-options'
+import { completeWithResolvedModel } from './model-completion'
 
 import type { Card, CardPart, CardTool } from '../types'
 
@@ -280,21 +280,22 @@ type Asked = Awaited<ReturnType<EngineInterface['model']['complete']>>
 async function ask($: EngineInterface, system: string, prompt: string, maxTokens: number, signal: AbortSignal | undefined) {
   const request = { prompt, system, maxTokens, timeoutMs: CALL_MS }
   const opts = signal ? { signal } : undefined
-  try {
-    const resolved = await $.mods.modelResolve({ role: 'light', fallback: MODEL })
-    const r = (await $.model.complete({
-      model: resolved.model,
-      ...effortOptions(resolved),
-      ...request,
-    }, opts)) as Asked
-    if (r.usage) void $.mods.spent({ mod: NAME, model: resolved.model, usage: r.usage }).catch(() => undefined)
-    if (r.isAnswered || r.reason !== 'api-error') return { model: resolved.model, r }
-  } catch {
-    // The alias is the second try.
+  const { model, result: r, attempts } = await completeWithResolvedModel({
+    resolve: () => $.mods.modelResolve({ role: 'light', fallback: MODEL }),
+    complete: (input, options) => $.model.complete(
+      input as Parameters<EngineInterface['model']['complete']>[0],
+      options as Parameters<EngineInterface['model']['complete']>[1],
+    ) as Promise<Asked>,
+    fallbackModel: MODEL_ALIAS,
+    request,
+    options: opts,
+  })
+  for (const attempt of attempts) {
+    if (attempt.result.usage) {
+      void $.mods.spent({ mod: NAME, model: attempt.model, usage: attempt.result.usage }).catch(() => undefined)
+    }
   }
-  const r = (await $.model.complete({ model: MODEL_ALIAS, ...request }, opts)) as Asked
-  if (r.usage) void $.mods.spent({ mod: NAME, model: MODEL_ALIAS, usage: r.usage }).catch(() => undefined)
-  return { model: MODEL_ALIAS, r }
+  return { model, r }
 }
 
 function usageOf(r: Asked): Call {
