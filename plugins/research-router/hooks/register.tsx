@@ -1,5 +1,6 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ModelUsage, Register, TurnUsage } from 'claude-code'
+import { effortOptions } from './effort-options'
 import type { AgentView, AutoView, FoundView, RunView, SourceView, ToolUse } from '../types'
 import { explorerSvg } from './mascot.ts'
 
@@ -1280,11 +1281,7 @@ async function shorten($: EngineInterface, query: string, toolUseId: string | un
       commentary.slice(0, ALL_CHARS),
     ].join('\n'),
     maxTokens: 700,
-    ...(resolved.effort
-      ? { effort: resolved.effort }
-      : resolved.source === 'fallback'
-        ? { effort: 'low' }
-        : {}),
+    ...effortOptions(resolved),
     timeoutMs: AUTO_MS,
   }).finally(() => update($, busyAtom, n => Math.max(0, (n ?? 0) - 1)))
   if (m.usage) void $.mods.spent({ mod: NAME, model: helperModel, usage: m.usage }).catch(() => undefined)
