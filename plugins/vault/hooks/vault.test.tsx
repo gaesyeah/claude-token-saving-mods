@@ -5,7 +5,7 @@ import { fakes, switches, test } from './mods-stub'
 const HOME = '/home/u'
 const VAULT = `${HOME}/Vault`
 
-function engine(on: any, o: { qmd?: string | (() => string); version?: string; pidfile?: string; health?: string } = {}) {
+function engine(on: any, o: { qmd?: string | (() => string); version?: string; pidfile?: string; health?: string } = {}, resolved?: { model: string; provider: string; source: 'clauderipple' }) {
   // The mod's own templates, wherever the test puts the plugin.
   const tpl: Record<string, string> = {
     'para/CLAUDE.md': '# Este vault\nPARA',
@@ -20,6 +20,7 @@ function engine(on: any, o: { qmd?: string | (() => string); version?: string; p
   const store = new Map<string, unknown>()
   const contexts: (readonly string[] | undefined)[] = []
   const submitted: string[] = []
+  const modelRequests: Record<string, unknown>[] = []
   let now = Date.UTC(2026, 10, 24, 15, 0)
   const t = { qmdRuns: [] as string[][], fetches: [] as string[], stops: [] as string[] }
   const write = (p: string, t: string) => ((files[p] = t), (mtimes[p] = now))
@@ -120,6 +121,8 @@ function engine(on: any, o: { qmd?: string | (() => string); version?: string; p
   on('mods.qmdStart', () => ({ value: up() ? { pid: '', out: '' } : { pid: '4242', out: 'Started (PID 4242)' } }))
   on('mods.qmdStop', (_: any, e: any) => (o.pidfile === e.pid ? (t.stops.push(e.pid), { value: 'stopped' }) : { value: 'other' }))
   on('tool.call', () => ({ result: 'ok' }))
+  on('model.complete', (_: any, e: any) => (modelRequests.push(e), { value: { isAnswered: true, text: '{"save":false}' } }))
+  if (resolved) on('mods.modelResolve', () => ({ value: resolved }))
   on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'x', scope: 'shared' }] }))
   on('prompt.submit', (_: any, e: any) => {
     if (e.origin?.kind === 'plugin') submitted.push(e.text)
@@ -127,12 +130,12 @@ function engine(on: any, o: { qmd?: string | (() => string); version?: string; p
     return { text: e.text }
   })
   on('turn.complete', (_: any, e: any) => ({ turnId: e.turnId, text: '' }))
-  return { store, files, dirs, contexts, submitted, write, later: (ms: number) => (now += ms), qmdRuns: t.qmdRuns, fetches: t.fetches, stops: t.stops, mtimes }
+  return { store, files, dirs, contexts, submitted, modelRequests, write, later: (ms: number) => (now += ms), qmdRuns: t.qmdRuns, fetches: t.fetches, stops: t.stops, mtimes }
 }
 
 const start = ($: any) => $.session.start({ cwd: `${HOME}/work/app`, surface: 'desktop', isInteractive: true } as any)
 const cmd = ($: any, args: string) => $.command.run({ command: 'vault', args } as any) as Promise<any>
-const done = ($: any) => $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't', reason: 'answer' } as any)
+const done = ($: any, answer = '') => $.turn.complete({ answer, durationMs: 1, isAborted: false, turnId: 't', reason: 'answer' } as any)
 // Lets the hooks' background work (void ...) finish.
 const settle = async () => {
   for (let i = 0; i < 200; i++) await Promise.resolve()
@@ -516,4 +519,14 @@ test('the weekly review shows in the band 7 days after the last one, for the per
   expect(t.store.get('state:review')).toBe(null)
   await start($)
   expect(t.store.get('state:review')).toBe(null)
+})
+
+test('capture sends the provider-qualified ClaudeRipple model to model.complete', async ($, on) => {
+  const t = engine(on, {}, { model: 'qwen2.5:3b', provider: 'ollama-local', source: 'clauderipple' })
+  await start($)
+  await cmd($, 'use ~/Vault')
+  await say($, 'guarde a decisão de usar o banco local')
+  await done($, 'Decidimos manter o banco local para os testes.')
+  await settle()
+  expect(t.modelRequests[0]).toMatchObject({ model: 'ollama-local:qwen2.5:3b' })
 })

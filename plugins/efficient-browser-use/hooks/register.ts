@@ -367,12 +367,13 @@ async function registerDescriber($: EngineInterface) {
   if (describerReady) return
   try {
     const helper = await $.mods.modelResolve({ role: 'light', fallback: 'haiku' })
+    const model = modelForRequest(helper)
     await $.agent.register({
       name: 'describer',
       description: 'Efficient Browser Use only: describes one picture file in words. Not for general use.',
       prompt: DESCRIBER_PROMPT,
       tools: ['Read'],
-      model: helper.model,
+      model,
     })
     describerReady = true
   } catch (err) {
@@ -382,12 +383,13 @@ async function registerDescriber($: EngineInterface) {
 
 async function describe($: EngineInterface, file: string): Promise<{ text: string; tokens: number | null; model: string }> {
   const helper = await $.mods.modelResolve({ role: 'light', fallback: 'haiku' })
+  const model = modelForRequest(helper)
   const r = await $.tool.call({
     tool: 'Agent',
     description: 'Describe a picture',
     prompt: describerReady ? `Describe the picture at ${file}` : `${DESCRIBER_PROMPT}\n\nThe picture: ${file}`,
     subagent_type: describerReady ? `${NAME}:describer` : 'general-purpose',
-    model: helper.model,
+    model,
   } as never)
   const raw = 'text' in r && typeof r.text === 'string' ? r.text : ''
   if (r.deny !== undefined || r.isError || !raw.trim()) throw new Error(r.deny ?? (raw.slice(0, 200) || 'no description'))

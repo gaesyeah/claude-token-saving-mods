@@ -346,7 +346,7 @@ export function route(
     return { model: null, effort: null, reason: `kept ${kept}, wanted ${wanted} (${said})` }
   }
 
-  return { model, ...(model ? { requestModel: config.requestTiers?.[tier] ?? model } : {}), effort, reason: forced ? `${tier}, forced by risk` : `${tier} (${said})` }
+  return { model, ...(model && config.requestTiers ? { requestModel: config.requestTiers[tier] ?? model } : {}), effort, reason: forced ? `${tier}, forced by risk` : `${tier} (${said})` }
 }
 
 /**

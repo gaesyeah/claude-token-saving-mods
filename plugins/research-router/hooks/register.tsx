@@ -1,6 +1,6 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ModelUsage, Register, TurnUsage } from 'claude-code'
-import { completeWithEffort, completeWithModel } from './model-completion'
+import { completeWithEffort, completeWithModel, modelForRequest } from './model-completion'
 import type { AgentView, AutoView, FoundView, RunView, SourceView, ToolUse } from '../types'
 import { explorerSvg } from './mascot.ts'
 
@@ -74,7 +74,7 @@ type Link = { title: string; url: string }
 type Source = Link & { text: string; via: string; newest?: string }
 // `noWebFetch`: WebFetch failed to answer once in this run (missing, or no answer in time), so the run stops asking it.
 // `agentCost`: dollars the deep-mode subagents used, at list price.
-type Job = { id: number; question: string; reply: number; tools: ToolUse[]; helperIn: number; helperOut: number; helperModel: string; helperEffort?: string; read: number; agentCost: number; noWebFetch?: boolean }
+type Job = { id: number; question: string; reply: number; tools: ToolUse[]; helperIn: number; helperOut: number; helperModel: string; helperRequestModel: string; helperEffort?: string; read: number; agentCost: number; noWebFetch?: boolean }
 type CallResult = { text?: string; result?: unknown; isError?: true; deny?: string }
 // `since`: the first day of the time window the request names, YYYY-MM-DD. `official`: pages to read first.
 type Plan = { mode: 'quick' | 'deep'; queries: string[]; parts: string[]; since: string | null; official: string[] }
@@ -388,7 +388,7 @@ async function ask($: EngineInterface, job: Job, prompt: string, maxTokens: numb
   const usedModel = job.helperModel
   const r = await completeWithModel(
     request => $.model.complete(request as Parameters<EngineInterface['model']['complete']>[0]),
-    requestModel,
+    job.helperRequestModel,
     {
       system: SYSTEM,
       prompt,
@@ -1064,13 +1064,14 @@ function notesFile(o: {
 }
 
 async function runResearch($: EngineInterface, id: number, question: string, reply: number, forceDeep: boolean) {
-  const job: Job = { id, question, reply, tools: [], helperIn: 0, helperOut: 0, helperModel: MODEL, read: 0, agentCost: 0 }
+  const job: Job = { id, question, reply, tools: [], helperIn: 0, helperOut: 0, helperModel: MODEL, helperRequestModel: MODEL, read: 0, agentCost: 0 }
   const t0 = await $.clock.now()
   const today = day(t0)
   const secs = async () => Math.round((await $.clock.now()) - t0) / 1000
   try {
     const helper = await $.mods.modelResolve({ role: 'light', fallback: MODEL })
     job.helperModel = helper.model
+    job.helperRequestModel = modelForRequest(helper)
     job.helperEffort = helper.effort
     await step($, id, 'Planning')
     await $.process.run(['/bin/mkdir', '-p', notesDir()], { timeoutMs: 10_000 }).catch(() => undefined)
