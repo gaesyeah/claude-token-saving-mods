@@ -1,6 +1,6 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ModelUsage, Register, TurnUsage } from 'claude-code'
-import { effortOptions } from './effort-options'
+import { completeWithEffort } from './model-completion'
 import type { AgentView, AutoView, FoundView, RunView, SourceView, ToolUse } from '../types'
 import { explorerSvg } from './mascot.ts'
 
@@ -1268,22 +1268,24 @@ async function shorten($: EngineInterface, query: string, toolUseId: string | un
   // Haiku is about to work on this search: show the pane, and the mascot moves until it answers.
   void openPane($)
   await update($, busyAtom, n => (n ?? 0) + 1)
-  const m = await $.model.complete({
-    model: helperModel,
-    system: SYSTEM,
-    prompt: [
-      `Search query: ${query}`,
-      '',
-      "Below is a web search tool's commentary on its results. Shorten it to the findings that matter for the query.",
-      'Keep every number, name, date and URL that bears on the query, each finding next to its URL. Short bullets. At most 250 words. No preamble.',
-      '',
-      'Commentary:',
-      commentary.slice(0, ALL_CHARS),
-    ].join('\n'),
-    maxTokens: 700,
-    ...effortOptions(resolved),
-    timeoutMs: AUTO_MS,
-  }).finally(() => update($, busyAtom, n => Math.max(0, (n ?? 0) - 1)))
+  const m = await completeWithEffort(
+    request => $.model.complete(request as Parameters<EngineInterface['model']['complete']>[0]),
+    resolved,
+    {
+      system: SYSTEM,
+      prompt: [
+        `Search query: ${query}`,
+        '',
+        "Below is a web search tool's commentary on its results. Shorten it to the findings that matter for the query.",
+        'Keep every number, name, date and URL that bears on the query, each finding next to its URL. Short bullets. At most 250 words. No preamble.',
+        '',
+        'Commentary:',
+        commentary.slice(0, ALL_CHARS),
+      ].join('\\n'),
+      maxTokens: 700,
+      timeoutMs: AUTO_MS,
+    },
+  ).finally(() => update($, busyAtom, n => Math.max(0, (n ?? 0) - 1)))
   if (m.usage) void $.mods.spent({ mod: NAME, model: helperModel, usage: m.usage }).catch(() => undefined)
   const u = countUsage(m.usage)
   const cost = dollars(u.input, u.output, helperModel)
