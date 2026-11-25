@@ -75,10 +75,6 @@ export function resolveModelFromCatalog(catalog: ModelCatalog | null, role: Mode
   const saved = catalog.settings && typeof catalog.settings === 'object' ? catalog.settings as Record<string, any> : null
   const settings = saved && saved.settings && typeof saved.settings === 'object' ? saved.settings as Record<string, any> : saved
   let ladder: any = settings && settings.mode === 'ladder' && settings.rungs && typeof settings.rungs === 'object' ? settings : null
-  if (!ladder && settings && typeof settings.preset === 'string' && catalog.presets && typeof catalog.presets === 'object') {
-    const selected = (catalog.presets as Record<string, any>)[settings.preset]
-    if (selected && typeof selected === 'object') ladder = selected.rungs && typeof selected.rungs === 'object' ? selected : selected
-  }
   if (!ladder) return { model: fallback, provider: null, source: 'fallback' }
   const rung = ladder.rungs?.[role]
   if (!rung || typeof rung !== 'object') return { model: fallback, provider: null, source: 'fallback' }
