@@ -24,6 +24,12 @@ const COLLECTION = 'vault'
 const BAND = { plugin: 'vault', key: 'band' } as const
 const PURPLE = '#7c3aed'
 const CHOICE = { plugin: 'vault', key: 'choice' } as const
+// The low line above the chat: what qmd's models did for this prompt.
+const SEARCH = { plugin: 'vault', key: 'search' } as const
+// The last hints, for the pane; and a counter the pane reads, so a button press redraws it.
+const RECENT = { plugin: 'vault', key: 'recent' } as const
+const TICK = { plugin: 'vault', key: 'tick' } as const
+const PANE = 'vault'
 // qmd's default embedding model is tuned for English; this one covers 119 languages.
 const EMBED = 'hf:Qwen/Qwen3-Embedding-0.6B-GGUF/Qwen3-Embedding-0.6B-Q8_0.gguf'
 const HINTS = 3
@@ -77,6 +83,8 @@ let qmdVersion = ''
 const rerankOk = () => /^2\./.test(qmdVersion)
 // Whether the last /health on the port was qmd's, and when it was asked: prompts go only to a checked qmd.
 let qmdLive = false
+// What qmd did for the last prompt: null when it was not asked or failed.
+let lastSearch: { ms: number } | null = null
 let section = ''
 let logged = false
 let indexedAt = 0
@@ -424,6 +432,7 @@ function snippetLine(s: string) {
 // word match needs its nod (WEAK_RERANK), or a rare word in its name; without it (or with
 // a qmd whose blend the reranker reading does not know), the word matches alone.
 async function recall($: EngineInterface, text: string): Promise<Hit[]> {
+  lastSearch = null
   const terms = keywords(text)
   if (terms.length < 2) return []
   const fail = (what: string) => async (err: unknown) => (await log($, `${what} failed: ${String(err)}`), null)
@@ -433,7 +442,9 @@ async function recall($: EngineInterface, text: string): Promise<Hit[]> {
   // A qmd 2.x that is installed but failed or is down gives no nod: only a rare word in a note's name
   // gets through, or words alone would bring back the pasted-text noise.
   const asked = Boolean(qmd && rerankOk() && qmdLive)
+  const t0 = await $.clock.now()
   const [words, meaning] = await Promise.all([rgHits($, terms).catch(fail('ripgrep')), asked ? qmdQuery($, text, 3).catch(err => ((qmdLive = false), fail('qmd')(err))) : null])
+  lastSearch = meaning ? { ms: (await $.clock.now()) - t0 } : null
   const strong = (meaning ?? []).filter(m => m.rerank >= cut())
   const backed = (p: string) => (meaning ?? []).some(m => m.path === p && m.rerank >= WEAK_RERANK)
   const fromWords = (words ?? []).filter(w => (!meaning && !(qmd && rerankOk())) || w.name || backed(w.path)).map(w => ({ ...w, line: (meaning ?? []).find(m => m.path === w.path)?.line }))
@@ -762,11 +773,16 @@ async function run($: EngineInterface, args: string): Promise<{ text: string; co
   const arg = trim(trim(args).slice(sub.length))
   if (!sub || sub === 'status' || sub === 'help') {
     // /vault in a chat that began before the mod was installed or set up (after /reload-plugins): it does
-    // what a new chat would, so the band shows the setup and qmd buttons without one.
+    // what a new chat would, so the band shows the setup buttons without one.
     if (!home) await setup($)
     if (!off) {
       if (!cfg.path || !cfg.model) await autoSetup($).catch(err => log($, `auto setup: ${String(err)}`))
       if (!qmd) qmd = await findQmd($)
+    }
+    // Plain /vault opens the side pane, which holds the long status; /vault status still prints it.
+    if (!sub && !off) {
+      await $.ui.open({ id: PANE, title: 'Vault' }).catch(err => log($, `pane: ${String(err)}`))
+      return { text: `Vault: ${vault() ? `${tilde(vault())} (modelo: ${cfg.model ?? 'nenhum ainda'})` : 'nenhum escolhido'}. O painel do vault está aberto ao lado; /vault status mostra tudo aqui.` }
     }
     return { text: await status($) }
   }
@@ -876,7 +892,14 @@ export const register: Register = on => {
     }
     // Fail open: a search that breaks leaves the prompt as typed.
     const hits = await recall($, typed).catch(() => [] as Hit[])
+    await $.state
+      .set(SEARCH, lastSearch ? `Vault · qmd buscou em ${lastSearch.ms} ms · ${hits.length ? `${hits.length} ${hits.length === 1 ? 'nota sugerida' : 'notas sugeridas'} (${hits.map(h => h.why.replace(/^termos: .*/, 'palavras')).join(', ')})` : 'nenhuma nota relevante'}` : null)
+      .catch(() => undefined)
     if (!hits.length) return next(e)
+    const prev = (await $.state.get(RECENT).catch(() => ({ value: null }))).value
+    await $.state
+      .set(RECENT, [...(Array.isArray(prev) ? prev : []), { at: await $.clock.now(), hits: hits.map(h => `${rel(h.path)} (${h.why})`) }].slice(-10))
+      .catch(() => undefined)
     for (const h of hits) hinted.add(h.path)
     await count($, 'hints', hits.length)
     await keepScores($, hits.flatMap(h => (h.score === undefined ? [] : [h.score])))
@@ -897,14 +920,29 @@ export const register: Register = on => {
     if (off || e.props.hasSurvey) return next(e)
     const { value } = await $.state.get(BAND)
     const band = typeof value === 'string' && value ? value : ''
-    if (!band) return next(e)
+    const search = (await $.state.get(SEARCH)).value
+    if (!band && !search) return next(e)
     const choose = (await $.state.get(CHOICE)).value === true
     const rest = await next(e)
     const { Box, Text, Button } = $.ui.resolve(e)
+    // One dim line: only the dot is purple, so it stays quieter than the setup band.
+    const line = search ? (
+      <Text dimColor wrap="truncate-end">
+        <Text color={PURPLE}>●</Text> {search}
+      </Text>
+    ) : null
+    if (!band)
+      return (
+        <Box flexDirection="column">
+          {rest}
+          {line}
+        </Box>
+      )
     const [head, ...more] = band.split('\n')
     return (
       <Box flexDirection="column">
         {rest}
+        {line}
         <Box flexDirection="column">
           <Text>
             <Text color={PURPLE}>●</Text>
@@ -934,6 +972,97 @@ export const register: Register = on => {
       await $.state.set(BAND, await applyModel($, model, false))
       return { element: e.element }
     })
+
+  // The side pane: the status in short sections, a button per command, and the last hints.
+  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    const { Box, Text, Button } = $.ui.resolve(e)
+    if (off) return <Text dimColor>O Vault está desligado. Ligue em /mods.</Text>
+    await $.state.get(TICK)
+    const width = Math.max(32, e.props.bodyColumns)
+    const noop = () => undefined
+    if (!vault()) return <Text dimColor wrap="wrap">Nenhum vault escolhido. Digite /vault use ~/Documentos/Vault, ou abra um chat novo para ele se configurar sozinho.</Text>
+    const st = await stats($)
+    const prev = await $.store.get('mirrored').catch(() => undefined)
+    const tiles = [
+      { label: 'Modelo', value: cfg.model ?? 'nenhum' },
+      { label: 'Copiadas', value: String(Array.isArray(prev) ? prev.length : 0) },
+      { label: 'Dicas', value: `${st.read}/${st.hints} abertas` },
+    ]
+    const tileW = Math.floor((width - (tiles.length - 1)) / tiles.length)
+    // The status lines, minus the command list the buttons below replace.
+    const lines = (await status($)).split('\n').filter(l => l && !l.startsWith('Comandos:'))
+    const recent = (await $.state.get(RECENT)).value
+    const button = (key: string, label: string) => <Button key={key} label={label} onPress={noop} />
+    return (
+      <Box flexDirection="column" width={width}>
+        <Box key="title" flexDirection="column" marginBottom={1}>
+          <Text bold>
+            <Text color={PURPLE}>●</Text> Vault
+          </Text>
+          <Text dimColor wrap="wrap">Segundo cérebro no Obsidian: notas em Markdown, buscadas a cada prompt sem gastar tokens.</Text>
+        </Box>
+        <Box key="tiles" flexDirection="row" gap={1} width={width} marginBottom={1}>
+          {tiles.map(t => (
+            <Box key={`t-${t.label}`} flexDirection="column" borderStyle="round" paddingX={1} width={tileW}>
+              <Text dimColor wrap="truncate-end">{t.label}</Text>
+              <Text bold color={PURPLE} wrap="truncate-end">{t.value}</Text>
+            </Box>
+          ))}
+        </Box>
+        <Box key="do" flexDirection="column" marginBottom={1}>
+          <Text bold>Pedir ao Claude</Text>
+          <Box flexDirection="row" gap={1} flexWrap="wrap">
+            {button('do:save', 'Guardar o chat')}
+            {button('do:inbox', 'Processar a Inbox')}
+            {button('do:review', 'Revisão semanal')}
+          </Box>
+          <Text dimColor wrap="wrap">Para perguntar ao vault: /vault ask &lt;pergunta&gt;</Text>
+        </Box>
+        <Box key="set" flexDirection="column" marginBottom={1}>
+          <Text bold>Ajustes</Text>
+          <Box flexDirection="row" gap={1} flexWrap="wrap">
+            {button('do:index', 'Reindexar')}
+            {button(`do:reads ${cfg.reads ? 'off' : 'on'}`, cfg.reads ? '☑ Leituras' : '☐ Leituras')}
+            {button(`do:daily ${cfg.daily === false ? 'on' : 'off'}`, cfg.daily === false ? '☐ Nota diária' : '☑ Nota diária')}
+          </Box>
+        </Box>
+        <Box key="status" flexDirection="column" marginBottom={1}>
+          <Text bold>Estado</Text>
+          {lines.map((l, i) => (
+            <Text key={`s${i}`} dimColor wrap="wrap">
+              {l}
+            </Text>
+          ))}
+        </Box>
+        <Box key="recent" flexDirection="column">
+          <Text bold>Últimas dicas</Text>
+          {Array.isArray(recent) && recent.length ? (
+            [...recent].reverse().map((r, i) => (
+              <Box key={`r${i}`} flexDirection="column">
+                {r.hits.map((hit, j) => (
+                  <Text key={`r${i}-${j}`} dimColor wrap="truncate-end">
+                    {`${j === 0 ? '•' : ' '} ${hit}`}
+                  </Text>
+                ))}
+              </Box>
+            ))
+          ) : (
+            <Text dimColor>Nenhuma ainda neste chat.</Text>
+          )}
+        </Box>
+      </Box>
+    )
+  })
+
+  // A pane button runs the same /vault subcommand, then redraws the pane.
+  on('ui.press', { plugin: 'vault' }, async ($, e, next) => {
+    if (!e.element.startsWith('do:')) return next(e)
+    const r = await run($, e.element.slice(3)).catch(err => ({ text: String(err) }))
+    await log($, `pane ${e.element}: ${oneLine(r.text, 120)}`)
+    const t = (await $.state.get(TICK)).value
+    await $.state.set(TICK, (typeof t === 'number' ? t : 0) + 1)
+    return { element: e.element }
+  })
 
   on('ui.press', { plugin: 'vault', element: 'ok' }, async ($, e) => {
     await $.state.set(BAND, null)

@@ -33,6 +33,7 @@ function engine(on: any, o: { qmd?: string | (() => string); version?: string; p
   on('command.register', () => ({ value: { command: 'vault' } }))
   on('state.get', (_: any, e: any) => ({ value: { value: store.get(`state:${e.key}`) ?? null, version: 1 } }))
   on('state.set', (_: any, e: any) => (store.set(`state:${e.key}`, e.value), { value: undefined }))
+  on('ui.open', (_: any, e: any) => (store.set('opened', e.id), { value: undefined }))
   on('store.get', (_: any, e: any) => ({ value: store.get(e.key) }))
   on('store.set', (_: any, e: any) => (store.set(e.key, e.value), { value: undefined }))
   on('fs.exists', (_: any, e: any) => ({ value: e.path in files || dirs.has(e.path) || under(e.path).length > 0 }))
@@ -284,7 +285,7 @@ test('/vault ask hands Claude the hits it found, and /vault counts hinted notes 
   await say($, 'quanto tempo o cache do prompt dura sem uso?')
   await $.tool.call({ tool: 'Read', file_path: `${VAULT}/Resources/Cache do prompt.md`, tool_use_id: 'u1' } as any)
   await $.tool.call({ tool: 'Read', file_path: `${VAULT}/Resources/Cache do prompt.md`, tool_use_id: 'u2' } as any)
-  expect((await cmd($, '')).text).toContain('Dicas: 1 notas sugeridas, 1 abertas pelo Claude desde')
+  expect((await cmd($, 'status')).text).toContain('Dicas: 1 notas sugeridas, 1 abertas pelo Claude desde')
 })
 
 test('a vault adopted as it was gets no Projects folder from a handoff; the copy keeps the link', async ($, on) => {
@@ -348,7 +349,7 @@ test('/vault corte sets the reranker cut, and /vault shows the last meaning hint
   expect(t.contexts.at(-1)?.join('\n')).toContain('(qmd 0.90)')
   answer = [row('Resources/Outra.md', 0.75 + 0.25 * 0.5)]
   await say($, 'e quanto custa reescrever o prefixo inteiro de novo?')
-  const st = (await cmd($, '')).text
+  const st = (await cmd($, 'status')).text
   expect(st).toContain('Últimas 2 dicas por significado: scores 0.50 a 0.90')
   expect(st).toContain('Corte do reranker: 0.40 (padrão)')
   expect(st).toContain('Abrir pouco não quer dizer ruído')
@@ -364,7 +365,7 @@ test('a qmd that is not 2.x leaves the hints to ripgrep, and /vault says why', a
   const t = await withQmd($, on, answer, { version: '3.0.1' })
   await say($, 'por quanto tempo a memória temporária das instruções fica guardada?')
   expect(t.contexts.at(-1)).toBeUndefined()
-  expect((await cmd($, '')).text).toContain('qmd 3.0.1 não é 2.x')
+  expect((await cmd($, 'status')).text).toContain('qmd 3.0.1 não é 2.x')
 })
 
 test('a port 8181 answered by something else is not used', async ($, on) => {
@@ -372,7 +373,7 @@ test('a port 8181 answered by something else is not used', async ($, on) => {
   await say($, 'por quanto tempo a memória temporária das instruções fica guardada?')
   expect(t.contexts.at(-1)).toBeUndefined()
   expect(t.fetches.some(u => u.endsWith('/query'))).toBe(false)
-  expect((await cmd($, '')).text).toContain('daemon parado')
+  expect((await cmd($, 'status')).text).toContain('daemon parado')
 })
 
 test('with the mod off, the daemon it started is stopped, and one it did not start is left alone', async ($, on) => {
@@ -415,4 +416,38 @@ test('/vault in a chat that never set up does the setup in the band', async ($, 
   expect(t.store.get('state:choice')).toBe(true)
   expect(String(t.store.get('state:band'))).toContain('~/Documents/Vault')
   expect(r.text).toContain('Vault: ~/Documents/Vault')
+})
+
+const ABOVE = { plugin: 'vault', component: 'AbovePrompt', surface: 'desktop', props: { hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 20, bodyColumns: 100, scroll: { offset: 0, bodyRows: 20 } } }
+const PANE = { plugin: 'vault', component: 'Pane', requestId: 'vault', surface: 'desktop', props: { title: 'Vault', isFocused: false, bodyColumns: 48, placement: 'dock', scroll: { offset: 0, bodyRows: 80 }, view: {} } }
+
+test('a prompt qmd searched shows one low purple line above the chat; one it did not search shows none', async ($, on) => {
+  const t = await withQmd($, on, () => [{ docid: '#1', score: 0.75 + 0.25 * 0.9, file: 'qmd://vault/Resources/Cache%20do%20prompt.md', title: 't', snippet: '' }])
+  t.write(`${VAULT}/Resources/Cache do prompt.md`, '# Prompt cache\nexpira em cinco minutos')
+  await say($, 'por quanto tempo a memória temporária das instruções fica guardada?')
+  expect(String(t.store.get('state:search'))).toMatch(/^Vault · qmd buscou em \d+ ms · 1 nota sugerida \(qmd 0\.90\)$/)
+  expect(await (await $.ui.mount(ABOVE as any)).find({ type: 'Text', text: /qmd buscou/ })).toBeDefined()
+  await say($, 'ok')
+  expect(t.store.get('state:search')).toBe(null)
+})
+
+test('/vault opens the side pane; its buttons run the commands and it lists the last hints', async ($, on) => {
+  const t = engine(on)
+  await start($)
+  await cmd($, 'use ~/Vault')
+  await cmd($, 'setup para')
+  expect((await cmd($, '')).text).toContain('painel do vault está aberto')
+  expect(t.store.get('opened')).toBe('vault')
+  t.write(`${VAULT}/Resources/Cache do prompt.md`, 'prompt cache expira em cinco minutos sem uso')
+  await say($, 'quanto tempo o prompt cache expira sem uso?')
+  const ui = await $.ui.mount(PANE as any)
+  expect(await ui.find({ type: 'Text', text: /Resources\/Cache do prompt\.md/ })).toBeDefined()
+  await ui.press({ key: 'do:inbox' })
+  await settle()
+  expect(t.submitted.at(-1)).toContain('Inbox/')
+  await ui.press({ key: 'do:reads on' })
+  expect((t.store.get('config') as any).reads).toBe(true)
+  // The fake state store does not redraw a mounted pane by itself: mount it again.
+  await ui.unmount()
+  expect(await (await $.ui.mount(PANE as any)).find({ key: 'do:reads off' })).toBeDefined()
 })

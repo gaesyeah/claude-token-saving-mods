@@ -8,6 +8,12 @@ declare module 'claude-code' {
       band: Band | null
       /** True while an empty vault waits for the PARA or Zettelkasten pick in the band. */
       choice: boolean | null
+      /** The low line above the chat: what qmd did for the last prompt; null hides it. */
+      search: string | null
+      /** The last hints, newest last, for the pane. */
+      recent: { at: number; hits: string[] }[] | null
+      /** Bumped by a pane button so the pane redraws. */
+      tick: number | null
     }
   }
 }
