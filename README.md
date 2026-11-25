@@ -89,8 +89,30 @@ Everything the mods write goes to `~/.claude/mods-logs/`. If a mod misbehaves, t
 - Linux port and Coding Kit by [gaesyeah](https://github.com/gaesyeah).
 
 
-## Optional ClaudeRipple model resolution
+## Optional ClaudeRipple integration
 
-`mods-core` can read ClaudeRipple's loopback admin API (`/api/mod-options` and `/api/mod-settings`). It uses `adminPort` when configured, otherwise the admin port immediately after `listen.port`. The integration is optional: if ClaudeRipple is absent, stopped, unreadable, or returns an unexpected catalogue, each mod keeps its existing model fallback. It never guesses a provider or ranks models by their names. Judge resolution prefers the configured Zen model, then a unique usable `judgeOnly` model. Worker roles follow the ordered entries in `settings.rules.general.rungs`, resolve each exact `target.agent` through `/api/mod-options`'s `agents` catalogue, and verify the mapped model against a usable provider and non-judge model entry. Unavailable or ambiguous entries are skipped in order; if none resolves, the old per-plugin model remains in force.
+The `mods-core` model resolver optionally integrates with ClaudeRipple so compatible mods can use explicitly configured external models for their helper calls. It does not replace the model used by the main Claude Code conversation, and it does not provide authentication or usage credits for any provider.
 
-Plugins resolve a configured helper model through `$.mods.modelResolve`, call `$.model.complete` directly, and report usage through `$.mods.spent`. Token counts are recorded for every model; USD estimates are available only for model IDs covered by `mods-core`'s local price table. Existing local QMD judges remain first in the decision path; the resolver only selects a target; each plugin keeps its own existing retry/fallback behavior, and the main conversation model is never changed.
+### How it works
+
+- The resolver reads ClaudeRipple's loopback admin API: `/api/mod-options` for the model, agent and provider catalogue, and `/api/mod-settings` for the worker ladder.
+- It uses `adminPort` from `~/.clauderipple/config.json` when present; otherwise it derives the admin port as `listen.port + 1`.
+- Worker roles map to ClaudeRipple's general ladder rungs: Low → `light`, Medium → `standard`, High → `hard`, and Max/Plan → `plan`. Entries are considered in their configured order.
+- Each `target.agent` must match exactly one entry in the catalogue's `agents` array. The resolver then checks the agent's mapped model and provider against the catalogue, requiring a usable provider and a model that is not marked `judgeOnly`.
+- Missing, unavailable, malformed or ambiguous entries are skipped. If no valid target is found, the calling mod retains its existing model fallback.
+- Judge resolution prefers the configured Zen model when available; otherwise it can use a unique usable `judgeOnly` model.
+
+The integration is deliberately optional and fail-safe. If ClaudeRipple is not installed, is stopped, cannot be read, or returns an unsupported catalogue/settings shape, the existing per-mod behavior remains in place. The resolver does not infer providers from model names, rank models heuristically, or silently choose an arbitrary catalogue entry.
+
+### Plugin behavior and accounting
+
+Mods request a helper model through `$.mods.modelResolve`, then make their own model calls with `$.model.complete` and report usage through `$.mods.spent`. The resolver chooses a target; it does not perform the model call or centralize retries. Each mod retains its own retry and fallback behavior, and existing local QMD judges remain earlier in their decision paths.
+
+Token usage is recorded for helper calls across models. USD estimates are available only when a model ID is covered by `mods-core`'s local price table. The main conversation model is never changed by this integration.
+
+### Requirements and limitations
+
+- ClaudeRipple must be running locally, with its admin API reachable on loopback.
+- The desired provider and model must already be configured and reported as usable by ClaudeRipple. This resolver does not connect accounts, configure providers, or create model availability.
+- A configured worker entry is not proof that its model is available; unavailable entries are skipped and the existing fallback is used.
+- This integration has automated resolver tests, but a successful end-to-end run still depends on the provider being connected and the selected model being available.
