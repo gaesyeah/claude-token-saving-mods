@@ -12,6 +12,8 @@ declare module 'claude-code' {
       search: string | null
       /** The last hints, newest last, for the pane. */
       recent: { at: number; hits: string[] }[] | null
+      /** True while the weekly review offer shows in the band. */
+      review: boolean | null
       /** Bumped by a pane button so the pane redraws. */
       tick: number | null
     }

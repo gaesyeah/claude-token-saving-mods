@@ -30,6 +30,11 @@ const SEARCH = { plugin: 'vault', key: 'search' } as const
 const RECENT = { plugin: 'vault', key: 'recent' } as const
 const TICK = { plugin: 'vault', key: 'tick' } as const
 const PANE = 'vault'
+// The weekly review offer in the band; true while it shows.
+const REVIEW = { plugin: 'vault', key: 'review' } as const
+const WEEK = 7 * 86_400_000
+// The model that reads each exchange for something worth keeping: cheap, outside the chat's context.
+const CAPTURE_MODEL = 'claude-haiku-5-5'
 // qmd's default embedding model is tuned for English; this one covers 119 languages.
 const EMBED = 'hf:Qwen/Qwen3-Embedding-0.6B-GGUF/Qwen3-Embedding-0.6B-Q8_0.gguf'
 const HINTS = 3
@@ -65,7 +70,7 @@ const STOP = new Set(
 )
 
 type Model = 'para' | 'zettel' | 'existing'
-type Config = { path?: string; model?: Model; reads?: boolean; daily?: boolean; cut?: number }
+type Config = { path?: string; model?: Model; reads?: boolean; daily?: boolean; cut?: number; capture?: boolean }
 type Hit = { path: string; why: string; line?: string; score?: number }
 type Stats = { hints: number; read: number; since: number }
 type Source = { kind: string; dir: string; to: string; skip?: RegExp }
@@ -85,6 +90,8 @@ const rerankOk = () => /^2\./.test(qmdVersion)
 let qmdLive = false
 // What qmd did for the last prompt: null when it was not asked or failed.
 let lastSearch: { ms: number } | null = null
+// The prompt the person typed last, for the capture at the end of its turn.
+let lastTyped = ''
 let section = ''
 let logged = false
 let indexedAt = 0
@@ -632,6 +639,58 @@ async function askFacts($: EngineInterface, question: string) {
   return hits.length ? `A busca do hook já achou estas candidatas (a mais relevante primeiro); comece por elas e busque de novo só se não bastarem:\n${hits.join('\n')}` : 'A busca do hook não achou nenhuma nota parecida; busque você mesmo uma vez antes de concluir que o vault não tem.'
 }
 
+
+// ---- capture: Haiku keeps what an exchange decided or taught ----
+
+// One Haiku call per answer, in the background: it reads the last exchange and writes one short note of
+// one idea into Inbox/ when there is a decision, a cause found, a preference or a command worth keeping;
+// otherwise nothing. /vault capture off stops it.
+function capturePrompt(asked: string, answer: string) {
+  return [
+    'Você guarda o segundo cérebro (vault do Obsidian) de uma pessoa. Leia a troca abaixo entre ela e o Claude.',
+    'Se houver algo que valha guardar para depois (uma decisão tomada, a causa de um problema, uma preferência dela, um comando ou caminho útil, um aprendizado), escreva UMA nota de uma ideia só.',
+    'Se for só conversa, pergunta simples, andamento de tarefa ou nada novo, não escreva nada.',
+    'Responda só JSON: {"save": false} ou {"save": true, "title": "<título que diz a ideia, até 70 caracteres>", "body": "<2 a 6 linhas em Markdown, com as palavras dela e o porquê>", "tags": ["<1 a 3 tags curtas>"]}.',
+    '',
+    `<pedido>\n${asked.slice(0, 4000)}\n</pedido>`,
+    `<resposta>\n${answer.slice(0, 8000)}\n</resposta>`,
+  ].join('\n')
+}
+
+async function capture($: EngineInterface, asked: string, answer: string) {
+  if (off || !vault() || cfg.capture === false || !asked.trim() || !answer.trim()) return
+  const r = await $.model.complete({ model: CAPTURE_MODEL, prompt: capturePrompt(asked, answer), maxTokens: 400, effort: 'low', timeoutMs: 30_000 })
+  if (!r.isAnswered) return
+  const json = r.text.match(/\{[\s\S]*\}/)?.[0]
+  if (!json) return
+  const n = JSON.parse(json) as { save?: boolean; title?: string; body?: string; tags?: unknown }
+  const title = trim(n.title)
+  if (!n.save || !title || !trim(n.body)) return
+  const now = await $.clock.now()
+  const project = projectOf(cwd)
+  const tags = ['claude', 'captured', ...(Array.isArray(n.tags) ? n.tags.map(t => String(t).replace(/[^\p{L}\p{N}_-]+/gu, '-').toLowerCase()).filter(Boolean).slice(0, 3) : [])]
+  const name = safeName(title).slice(0, 90)
+  const note = ['---', 'type: note', `date: ${ymd(now)}`, ...(project ? [`project: "[[${safeName(project)}]]"`] : []), `tags: [${[...new Set(tags)].join(', ')}]`, 'source: "capturada pelo Haiku no fim de uma resposta"', '---', '', `# ${title}`, '', trim(n.body), ''].join('\n')
+  if (!(await createNew($, `${vault()}/Inbox/${name}.md`, note))) return
+  if (project) await ensureProject($, project, cwd)
+  await daily($, now, `[[${name}]] (capturada${project ? `, [[${safeName(project)}]]` : ''})`)
+  await log($, `captured: Inbox/${name}.md`)
+}
+
+// ---- the weekly review offer ----
+
+// Seven days after the last review (or after the vault was first seen), the band offers one; the person
+// clicks it. "Depois" hides it in this chat only.
+async function reviewDue($: EngineInterface) {
+  const now = await $.clock.now()
+  const last = await $.store.get('reviewedAt').catch(() => undefined)
+  if (typeof last !== 'number') {
+    await $.store.set('reviewedAt', now).catch(() => undefined)
+    return false
+  }
+  return now - last >= WEEK
+}
+
 // ---- the prompts /vault hands Claude ----
 
 function promptFor(sub: string, arg: string, facts = '') {
@@ -681,12 +740,13 @@ async function status($: EngineInterface) {
     const prev = await $.store.get('mirrored').catch(() => undefined)
     lines.push(`Copiadas para Claude/: ${Array.isArray(prev) ? prev.length : 0} notas (handoffs, pesquisas${cfg.reads ? ', leituras' : ''})`)
     lines.push(`Leituras do Input Router: ${cfg.reads ? 'copiadas' : 'não copiadas (/vault reads on)'} · Nota diária: ${cfg.daily === false ? 'desligada (/vault daily on)' : 'ligada'}`)
+    lines.push(`Captura pelo Haiku: ${cfg.capture === false ? 'desligada (/vault capture on)' : 'ligada: no fim de cada resposta, o que valer guardar vira uma nota na Inbox/ (/vault capture off)'}`)
     const sync = await syncNotes($, vault())
     if (sync.length) lines.push(`Atenção: o vault ${sync.join('; ')}.`)
   }
   lines.push(
     '',
-    'Comandos: /vault save [assunto] · /vault ask <pergunta> · /vault inbox · /vault review · /vault index · /vault use <pasta> · /vault setup para|zettel|existing · /vault reads on|off · /vault daily on|off · /vault corte <0 a 1>',
+    'Comandos: /vault save [assunto] · /vault ask <pergunta> · /vault inbox · /vault review · /vault index · /vault use <pasta> · /vault setup para|zettel|existing · /vault reads on|off · /vault daily on|off · /vault capture on|off · /vault corte <0 a 1>',
   )
   return lines.join('\n')
 }
@@ -761,6 +821,12 @@ async function run($: EngineInterface, args: string): Promise<{ text: string; co
     return { text: await applyModel($, model, true) }
   }
 
+  if (sub === 'capture') {
+    if (arg !== 'on' && arg !== 'off') return { text: '/vault capture on ou /vault capture off' }
+    await saveConfig($, { ...cfg, capture: arg === 'on' })
+    return { text: `Captura pelo Haiku: ${arg === 'on' ? 'ligada' : 'desligada'}.` }
+  }
+
   if (sub === 'reads' || sub === 'daily') {
     const on = arg === 'on'
     if (arg !== 'on' && arg !== 'off') return { text: `/vault ${sub} on ou /vault ${sub} off` }
@@ -797,6 +863,10 @@ async function run($: EngineInterface, args: string): Promise<{ text: string; co
   if (sub === 'ask' && !arg) return { text: 'Diga a pergunta: /vault ask o que decidi sobre o cache?' }
   // A survey that fails leaves Claude to look for itself.
   const facts = await (sub === 'ask' ? askFacts($, arg) : sub === 'review' ? reviewFacts($) : sub === 'inbox' ? inboxFacts($) : Promise.resolve('')).catch(async err => (await log($, `${sub} facts: ${String(err)}`), ''))
+  if (sub === 'review') {
+    await $.store.set('reviewedAt', await $.clock.now()).catch(() => undefined)
+    await $.state.set(REVIEW, null).catch(() => undefined)
+  }
   later($, promptFor(sub, arg, facts))
   return { text: `Pedi ao Claude: /vault ${sub}${arg ? ` ${oneLine(arg, 60)}` : ''}` }
 }
@@ -812,6 +882,7 @@ export const register: Register = on => {
       if (!cfg.path || !cfg.model) await autoSetup($).catch(err => log($, `auto setup: ${String(err)}`))
       // Frozen for the chat: a change mid-chat would rewrite the prompt cache.
       section = vault() ? systemSection() : ''
+      if (vault() && cfg.model && (await reviewDue($))) await $.state.set(REVIEW, true).catch(() => undefined)
       void mirror($).catch(err => log($, `mirror: ${String(err)}`))
       // Notes written in Obsidian since the last chat; qmd update only reads what changed.
       void reindex($)
@@ -839,6 +910,7 @@ export const register: Register = on => {
     if (off || !vault() || e.command || e.isMeta || e.origin?.kind === 'plugin' || e.origin?.kind === 'task-notification') return next(e)
     const typed = e.text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, ' ').trim()
     if (!typed) return next(e)
+    lastTyped = typed
     if (!logged) {
       logged = true
       const project = projectOf(cwd)
@@ -869,6 +941,11 @@ export const register: Register = on => {
   // Handoffs and research briefs land during a turn; copy them when it ends.
   on('turn.complete', async ($, e, next) => {
     if (!off && !e.agentId) await mirror($).catch(err => log($, `mirror: ${String(err)}`))
+    if (!off && !e.agentId && !e.isAborted && lastTyped) {
+      const asked = lastTyped
+      lastTyped = ''
+      void capture($, asked, e.answer ?? '').catch(err => log($, `capture: ${String(err)}`))
+    }
     return next(e)
   })
 
@@ -880,7 +957,8 @@ export const register: Register = on => {
     const { value } = await $.state.get(BAND)
     const band = typeof value === 'string' && value ? value : ''
     const search = (await $.state.get(SEARCH)).value
-    if (!band && !search) return next(e)
+    const review = (await $.state.get(REVIEW)).value === true
+    if (!band && !search && !review) return next(e)
     const choose = (await $.state.get(CHOICE)).value === true
     const rest = await next(e)
     const { Box, Text, Button } = $.ui.resolve(e)
@@ -890,10 +968,24 @@ export const register: Register = on => {
         <Text color={PURPLE}>●</Text> {search}
       </Text>
     ) : null
+    const offer = review ? (
+      <Box flexDirection="column">
+        <Text>
+          <Text color={PURPLE}>●</Text>
+          <Text bold> Revisão semanal do vault: </Text>
+          <Text>o que entrou, projetos parados, notas soltas e a Inbox, num relatório em Reviews/. Nada é movido sem o seu ok.</Text>
+        </Text>
+        <Box flexDirection="row" gap={1}>
+          <Button key="review-now" label="Revisar agora" variant="primary" onPress={() => undefined} />
+          <Button key="review-later" label="Depois" role="dismiss" onPress={() => undefined} />
+        </Box>
+      </Box>
+    ) : null
     if (!band)
       return (
         <Box flexDirection="column">
           {rest}
+          {offer}
           {line}
         </Box>
       )
@@ -901,6 +993,7 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         {rest}
+        {offer}
         {line}
         <Box flexDirection="column">
           <Text>
@@ -983,6 +1076,7 @@ export const register: Register = on => {
             {button('do:index', 'Reindexar')}
             {button(`do:reads ${cfg.reads ? 'off' : 'on'}`, cfg.reads ? '☑ Leituras' : '☐ Leituras')}
             {button(`do:daily ${cfg.daily === false ? 'on' : 'off'}`, cfg.daily === false ? '☐ Nota diária' : '☑ Nota diária')}
+            {button(`do:capture ${cfg.capture === false ? 'on' : 'off'}`, cfg.capture === false ? '☐ Captura pelo Haiku' : '☑ Captura pelo Haiku')}
           </Box>
         </Box>
         <Box key="status" flexDirection="column" marginBottom={1}>
@@ -1020,6 +1114,16 @@ export const register: Register = on => {
     await log($, `pane ${e.element}: ${oneLine(r.text, 120)}`)
     const t = (await $.state.get(TICK)).value
     await $.state.set(TICK, (typeof t === 'number' ? t : 0) + 1)
+    return { element: e.element }
+  })
+
+  on('ui.press', { plugin: 'vault', element: 'review-now' }, async ($, e) => {
+    await run($, 'review').catch(err => log($, `review: ${String(err)}`))
+    return { element: e.element }
+  })
+
+  on('ui.press', { plugin: 'vault', element: 'review-later' }, async ($, e) => {
+    await $.state.set(REVIEW, null)
     return { element: e.element }
   })
 
