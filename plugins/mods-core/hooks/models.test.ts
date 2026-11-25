@@ -174,6 +174,43 @@ test('catalogue loader handles absent config, invalid ports, HTTP errors, malfor
   expect(await createModelCatalogLoader(timeout.deps)()).toBe(null)
 })
 
+test('catalogue loader keeps the in-flight request visible until the cache is populated', async () => {
+  let releaseResponse!: (value: { ok: boolean; text: string }) => void
+  let markStarted!: () => void
+  let markCacheClock!: () => void
+  let releaseCacheClock!: (value: number) => void
+  const started = new Promise<void>(resolve => { markStarted = resolve })
+  const cacheClockStarted = new Promise<void>(resolve => { markCacheClock = resolve })
+  const pendingResponse = new Promise<{ ok: boolean; text: string }>(resolve => { releaseResponse = resolve })
+  const pendingCacheClock = new Promise<number>(resolve => { releaseCacheClock = resolve })
+  let nowCalls = 0
+  const setup = loaderDeps({
+    now: async () => {
+      nowCalls++
+      if (nowCalls === 2) {
+        markCacheClock()
+        return pendingCacheClock
+      }
+      return 1_000
+    },
+    fetch: async () => { markStarted(); return pendingResponse },
+  })
+  const load = createModelCatalogLoader(setup.deps)
+  const first = load()
+  await started
+  releaseResponse({ ok: true, text: JSON.stringify({
+    providers: [{ name: 'p', usable: true }],
+    models: [{ model: 'worker', provider: 'p' }],
+  }) })
+  await cacheClockStarted
+  const arrivingDuringCache = load()
+  releaseCacheClock(1_000)
+  const [a, b] = await Promise.all([first, arrivingDuringCache])
+  expect(a?.models[0]?.model).toBe('worker')
+  expect(b?.models[0]?.model).toBe('worker')
+  expect(setup.fetchCount()).toBe(1)
+})
+
 test('catalogue loader shares concurrent requests and caches success for 15 seconds', async () => {
   let release!: (value: { ok: boolean; text: string }) => void
   let markStarted!: () => void
