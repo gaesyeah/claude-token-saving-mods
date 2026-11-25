@@ -1,4 +1,5 @@
 import type { EngineInterface, ModelUsage, Register, SessionMessage } from 'claude-code'
+import { effortOptions } from './effort-options'
 
 import type { Card, CardPart, CardTool } from '../types'
 
@@ -283,11 +284,7 @@ async function ask($: EngineInterface, system: string, prompt: string, maxTokens
     const resolved = await $.mods.modelResolve({ role: 'light', fallback: MODEL })
     const r = (await $.model.complete({
       model: resolved.model,
-      ...(resolved.effort
-        ? { effort: resolved.effort }
-        : resolved.source === 'fallback'
-          ? { effort: 'low' }
-          : {}),
+      ...effortOptions(resolved),
       ...request,
     }, opts)) as Asked
     if (r.usage) void $.mods.spent({ mod: NAME, model: resolved.model, usage: r.usage }).catch(() => undefined)
