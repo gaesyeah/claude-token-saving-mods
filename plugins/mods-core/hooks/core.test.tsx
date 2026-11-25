@@ -1,29 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 import { afterSample, decide, freshStats, isQmdHealth, judgeLine, rerankOf } from './qmd'
 
-const row = (plugin: string, text: string) => ({ plugin, tree: { type: 'Text', children: [text] } })
-const LIST = (rows: unknown[]) => ({
-  plugin: 'mods-core',
-  component: 'AbovePromptList',
-  surface: 'desktop',
-  props: { rows, hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 20, bodyColumns: 40, scroll: { offset: 0, bodyRows: 20 }, view: {} },
-})
-
-for (const surface of ['terminal', 'desktop'] as const)
-  test(`the band's rows get a subtle rule between them, none above the first (${surface})`, async $ => {
-    const ui = await $.ui.mount({ ...LIST([row('a', 'first row'), row('b', 'second row'), row('c', 'third row')]), surface } as any)
-    const rules = await ui.findAll({ type: 'Text', text: /^─+$/ })
-    expect(rules.length).toBe(2)
-    expect(rules[0]!.text.length).toBe(39)
-    expect(await ui.find({ type: 'Text', text: 'first row' })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: 'third row' })).toBeDefined()
-    await ui.unmount()
-    const one = await $.ui.mount({ ...LIST([row('a', 'alone')]), surface } as any)
-    expect(await one.find({ type: 'Text', text: /^─+$/ })).toBeUndefined()
-  })
-
-
-
 test('qmd: the reranker read back from the blend, and only qmd counts as up', async () => {
   expect(Math.round(rerankOf(0.75 + 0.25 * 0.9) * 100) / 100).toBe(0.9)
   expect(Math.round(rerankOf(0.375 + 0.25 * 0.7) * 100) / 100).toBe(0.7)

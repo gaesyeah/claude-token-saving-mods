@@ -2,17 +2,12 @@ import type { Register } from 'claude-code'
 import { afterSample, decide, EMBED, freshStats, hash, isQmdHealth, judgeLine, MIN_EXAMPLES, QMD_URL, rerankOf, SAMPLE_EVERY } from './qmd'
 
 // Mods Core: what the token-saving mods share.
-// 1. The band above the prompt: each mod draws its own row, and this stacks them with a subtle rule
-//    between two rows (never above the first) and nothing else between them, so the rows read as
-//    separate and evenly spaced.
-// 2. $.mods: the helpers every mod used to copy (paths, the /mods switches, logs, shell, the savings
+// 1. $.mods: the helpers every mod used to copy (paths, the /mods switches, logs, shell, the savings
 //    ledger, opening a file). A mod lists "mods-core" under dependencies to get it.
-// 3. $.mods.qmd*: qmd and its daemon (localhost:8181), for the vault's search and Local Models.
+// 2. $.mods.qmd*: qmd and its daemon (localhost:8181), for the vault's search and Local Models.
 //    $.mods.judge*: the local judge of Effort Optimizer and Model Router: it answers like the paid judge
 //    did for prompts much like this one, from examples kept in a qmd collection, and samples itself.
 
-// Dark enough to stay quiet on a dark theme, light enough to show on a light one.
-const RULE = '#3f3f46'
 // Opens a file or link: xdg-open (most Linux desktops), gio (GNOME), open (macOS).
 const OPEN_SH = 'for c in xdg-open gio open; do command -v "$c" >/dev/null 2>&1 || continue; if [ "$c" = gio ]; then gio open "$1"; else "$c" "$1"; fi </dev/null >/dev/null 2>&1; exit $?; done; echo "no opener (xdg-open, gio or open)" >&2; exit 3'
 const APPEND_SH = 'mkdir -p "$(dirname "$1")" && cat >> "$1"'
@@ -173,27 +168,5 @@ export const register: Register = on => {
         judgeLine: async ({ collection, dir, paid }: { collection: string; dir: string; paid: string }) => judgeLine(await stats(collection), await examples(dir), paid),
       },
     }
-  })
-
-  on('ui.render', { component: 'AbovePromptList' }, async ($, e, next) => {
-    const rows = e.props.rows
-    if (rows.length < 2) return next(e)
-    const { Box, Text } = $.ui.resolve(e)
-    // One cell short of the box: a rule its full width wraps or ends in an ellipsis.
-    const rule = '─'.repeat(Math.max(8, e.props.bodyColumns - 1))
-    return (
-      <Box flexDirection="column">
-        {rows.map((r, i) => (
-          <Box key={`row-${r.plugin}`} flexDirection="column">
-            {i > 0 ? (
-              <Text color={RULE} wrap="truncate">
-                {rule}
-              </Text>
-            ) : null}
-            {r.tree}
-          </Box>
-        ))}
-      </Box>
-    )
   })
 }
