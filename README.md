@@ -87,8 +87,3 @@ Everything the mods write goes to `~/.claude/mods-logs/`. If a mod misbehaves, t
   [obra/superpowers](https://github.com/obra/superpowers) (both MIT) and
   [anthropics/skills](https://github.com/anthropics/skills) (Apache 2.0).
 - Linux port and Coding Kit by [gaesyeah](https://github.com/gaesyeah).
-
-
-## Optional ClaudeRipple integration
-
-The `mods-co
