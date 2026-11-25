@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { createModelCatalogLoader, normalizeModelCatalog, resolveModelFromCatalog } from './models'
+import { adminPortFromConfig, createModelCatalogLoader, normalizeModelCatalog, resolveModelFromCatalog } from './models'
 
 const fixture = (overrides: Record<string, unknown> = {}) => normalizeModelCatalog({
   providers: [{ name: 'openai', type: 'openai', usable: true }, { name: 'offline', usable: false }],
@@ -26,9 +26,9 @@ test('judge resolves configured Zen or a unique usable judgeOnly model only', ()
   expect(resolveModelFromCatalog(zen, 'judge', 'legacy-judge').model).toBe('b')
 })
 
-test('worker resolves only the active explicit ladder rung and returns its effort', () => {
+test('worker resolves only the active explicit ladder rung and leaves undeclared effort unset', () => {
   const resolved = resolveModelFromCatalog(fixture(), 'light', 'legacy-light')
-  expect(resolved).toEqual({ model: 'worker-model', provider: 'openai', effort: 'low', source: 'clauderipple' })
+  expect(resolved).toEqual({ model: 'worker-model', provider: 'openai', effort: undefined, source: 'clauderipple' })
   expect(resolveModelFromCatalog(fixture(), 'hard', 'legacy-deep').model).toBe('legacy-deep')
   const noSettings = normalizeModelCatalog({ providers: [{ name: 'p', usable: true }], models: [{ model: 'worker-model', provider: 'p' }], presets: { coding: { rungs: { light: { target: 'worker-model' } } } } })
   expect(resolveModelFromCatalog(noSettings, 'light', 'legacy-light').model).toBe('legacy-light')
@@ -51,16 +51,16 @@ test('current ClaudeRipple ladder resolves exact agent IDs and tries ordered ent
     revision: 0,
     stored: false,
   })
-  expect(catalog?.agents).toEqual([{ name: 'qwen2-5-3b', model: 'qwen2.5:3b', provider: 'ollama-local' }])
+  expect(catalog?.agents).toEqual([{ name: 'qwen2-5-3b', model: 'qwen2.5:3b', provider: 'ollama-local', efforts: [] }])
   expect(resolveModelFromCatalog(catalog, 'light', 'legacy-light')).toEqual({
-    model: 'qwen2.5:3b', provider: 'ollama-local', effort: 'medium', source: 'clauderipple',
+    model: 'qwen2.5:3b', provider: 'ollama-local', effort: undefined, source: 'clauderipple',
   })
 })
 
 test('agent IDs must resolve uniquely to a usable non-judge model', () => {
   const catalog = normalizeModelCatalog({
     agents: [
-      { name: 'worker', model: 'worker-model', provider: 'p' },
+      { name: 'worker', model: 'worker-model', provider: 'p', efforts: ['max'] },
       { name: 'ambiguous', model: 'worker-model', provider: 'p' },
       { name: 'ambiguous', model: 'other-worker-model', provider: 'p' },
       { name: 'judge-agent', model: 'judge-model', provider: 'p' },
@@ -102,7 +102,7 @@ test('unavailable primary target uses only a valid configured backup', () => {
     } } },
   })
   expect(resolveModelFromCatalog(catalog, 'hard', 'legacy-hard')).toEqual({
-    model: 'backup-worker', provider: 'p', effort: 'max', source: 'clauderipple',
+    model: 'backup-worker', provider: 'p', effort: undefined, source: 'clauderipple',
   })
 })
 
@@ -157,11 +157,12 @@ test('invalid configured effort is omitted so callers retain their safe default'
       model: 'worker', provider: 'p', effort: undefined, source: 'clauderipple',
     })
   }
-  for (const effort of ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']) {
+  for (const effort of ['low', 'medium', 'high', 'xhigh', 'max']) {
     const catalog = normalizeModelCatalog({
+      agents: [{ name: 'worker-agent', model: 'worker', provider: 'p', efforts: ['low', 'medium', 'high', 'xhigh', 'max'] }],
       providers: [{ name: 'p', usable: true }],
       models: [{ model: 'worker', provider: 'p' }],
-      settings: { mode: 'ladder', rungs: { light: { target: 'worker', effort } } },
+      settings: { rules: { general: { mode: 'ladder', rungs: { light: [{ target: { agent: 'worker-agent' }, effort }] } } } },
     })
     expect(resolveModelFromCatalog(catalog, 'light', 'legacy-light').effort).toBe(effort)
   }
@@ -174,7 +175,7 @@ const loaderDeps = (overrides: Record<string, any> = {}) => {
   const rest = { ...overrides }; delete rest.fetch
   const deps = {
     now: async () => time,
-    readConfig: async () => ({ adminPort: 4312 }),
+    readConfig: async () => ({ admin: { port: 4312 } }),
     within: async <T,>(promise: Promise<T>, _ms: number, _what: string): Promise<T> => promise,
     ...rest,
     fetch: async (port: number, endpoint: string) => {
@@ -194,7 +195,7 @@ test('catalogue loader handles absent config, invalid ports, HTTP errors, malfor
   expect(await createModelCatalogLoader(absent.deps)()).toBe(null)
 
   for (const adminPort of [0, -1, 65536, 1.5, 'not-a-port']) {
-    const invalid = loaderDeps({ readConfig: async () => ({ adminPort }) })
+    const invalid = loaderDeps({ readConfig: async () => ({ admin: { port: adminPort } }) })
     expect(await createModelCatalogLoader(invalid.deps)()).toBe(null)
     expect(invalid.fetchCount()).toBe(0)
   }
@@ -274,11 +275,11 @@ test('catalogue loader shares concurrent requests and caches success for 15 seco
 test('loader derives the admin port from listen.port and reads the real mod-settings API shape', async () => {
   const calls: string[] = []
   const setup = loaderDeps({
-    readConfig: async () => ({ listen: { port: 8790 } }),
+    readConfig: async () => ({ admin: { port: 8792 }, listen: { port: 8790 } }),
     fetch: async (port: number, endpoint: string) => {
       calls.push(`${port}${endpoint}`)
       if (endpoint === '/api/mod-options') return { ok: true, text: JSON.stringify({
-        agents: [{ name: 'qwen2-5-3b', model: 'qwen2.5:3b', provider: 'ollama-local' }],
+        agents: [{ name: 'qwen2-5-3b', model: 'qwen2.5:3b', provider: 'ollama-local', efforts: ['medium'] }],
         providers: [{ name: 'ollama-local', usable: true }],
         models: [{ model: 'qwen2.5:3b', provider: 'ollama-local' }],
       }) }
@@ -288,8 +289,94 @@ test('loader derives the admin port from listen.port and reads the real mod-sett
     },
   })
   const catalog = await createModelCatalogLoader(setup.deps)()
-  expect(calls).toEqual(['8791/api/mod-options', '8791/api/mod-settings'])
+  expect(calls).toEqual(['8792/api/mod-options', '8792/api/mod-settings'])
   expect(resolveModelFromCatalog(catalog, 'light', 'legacy-light')).toEqual({
     model: 'qwen2.5:3b', provider: 'ollama-local', effort: 'medium', source: 'clauderipple',
   })
+})
+
+
+test('admin port follows config.admin.port, then listen.port + 1', () => {
+  expect(adminPortFromConfig({ admin: { port: 8792 }, listen: { port: 8790 } })).toBe(8792)
+  expect(adminPortFromConfig({ listen: { port: 8790 } })).toBe(8791)
+  expect(adminPortFromConfig({ adminPort: 4312 })).toBe(null)
+  expect(adminPortFromConfig({ admin: { port: 65536 } })).toBe(null)
+})
+
+test('active operating mode replaces the base general ladder', () => {
+  const catalog = normalizeModelCatalog({
+    agents: [
+      { name: 'base-agent', model: 'base', provider: 'p', efforts: ['low'] },
+      { name: 'mode-agent', model: 'mode', provider: 'p', efforts: ['high'] },
+    ],
+    providers: [{ name: 'p', usable: true }],
+    models: [{ model: 'base', provider: 'p' }, { model: 'mode', provider: 'p' }],
+  }, { settings: {
+    rules: { general: { mode: 'ladder', rungs: { light: [{ target: { agent: 'base-agent' }, effort: 'low' }] } } },
+    modes: [{ id: 'work', name: 'Work', rungs: { light: [{ target: { agent: 'mode-agent' }, effort: 'high' }] } }],
+    activeMode: 'work',
+  } })
+  expect(resolveModelFromCatalog(catalog, 'light', 'legacy').model).toBe('mode')
+})
+
+test('provider switches, allow and allowKnown are respected', () => {
+  const base = {
+    agents: [
+      { name: 'worker', model: 'worker-model', provider: 'p', efforts: ['low'] },
+      { name: 'other', model: 'other-model', provider: 'p', efforts: ['low'] },
+    ],
+    providers: [{ name: 'p', usable: true }],
+    models: [{ model: 'worker-model', provider: 'p' }, { model: 'other-model', provider: 'p' }],
+  }
+  const disabled = normalizeModelCatalog(base, { settings: {
+    providers: { p: false },
+    rules: { general: { mode: 'ladder', rungs: { light: [{ target: { agent: 'worker' }, effort: 'low' }] } } },
+  } })
+  expect(resolveModelFromCatalog(disabled, 'light', 'legacy').model).toBe('legacy')
+  const denied = normalizeModelCatalog(base, { settings: {
+    allow: ['other'],
+    allowKnown: ['worker', 'other'],
+    rules: { general: { mode: 'ladder', rungs: { light: [{ target: { agent: 'worker' }, effort: 'low' }] } } },
+  } })
+  expect(resolveModelFromCatalog(denied, 'light', 'legacy').model).toBe('legacy')
+  const newlyAdded = normalizeModelCatalog(base, { settings: {
+    allow: ['other'],
+    allowKnown: ['other'],
+    rules: { general: { mode: 'ladder', rungs: { light: [{ target: { agent: 'worker' }, effort: 'low' }] } } },
+  } })
+  expect(resolveModelFromCatalog(newlyAdded, 'light', 'legacy').model).toBe('worker-model')
+})
+
+test('native general-purpose workers resolve through ClaudeRipple claudeLatest and allow-list key', () => {
+  const catalog = normalizeModelCatalog({
+    providers: [{ name: 'anthropic', usable: true }],
+    models: [],
+    claudeLatest: { opus: 'claude-opus-5-5' },
+    claudeEfforts: ['low', 'medium', 'high'],
+  }, { settings: {
+    allow: ['general-purpose:opus'],
+    allowKnown: ['general-purpose:opus'],
+    rules: { general: { mode: 'ladder', rungs: { plan: [{ target: { agent: 'general-purpose', model: 'opus' }, effort: 'high' }] } } },
+  } })
+  expect(resolveModelFromCatalog(catalog, 'plan', 'legacy')).toEqual({
+    model: 'claude-opus-5-5', provider: 'anthropic', effort: 'high', source: 'clauderipple',
+  })
+})
+
+test('unknown effort capabilities do not forward an unverified effort', () => {
+  const catalog = normalizeModelCatalog({
+    agents: [{ name: 'worker', model: 'm', provider: 'p', efforts: [] }],
+    providers: [{ name: 'p', usable: true }],
+    models: [{ model: 'm', provider: 'p' }],
+  }, { settings: { rules: { general: { mode: 'ladder', rungs: { light: [{ target: { agent: 'worker' }, effort: 'medium' }] } } } } })
+  expect(resolveModelFromCatalog(catalog, 'light', 'legacy').effort).toBeUndefined()
+})
+
+test('provider-specific model exhaustion skips the agent', () => {
+  const catalog = normalizeModelCatalog({
+    agents: [{ name: 'worker', model: 'm', provider: 'p', efforts: ['low'] }],
+    providers: [{ name: 'p', usable: true, models: { m: { reason: 'quota_exhausted' } } }],
+    models: [{ model: 'm', provider: 'p' }],
+  }, { settings: { rules: { general: { mode: 'ladder', rungs: { light: [{ target: { agent: 'worker' }, effort: 'low' }] } } } } })
+  expect(resolveModelFromCatalog(catalog, 'light', 'legacy').model).toBe('legacy')
 })
