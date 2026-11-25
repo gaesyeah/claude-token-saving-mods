@@ -4,7 +4,7 @@ export type CatalogModel = { model: string; provider: string; name?: string; jud
 export type ModelCatalog = { models: CatalogModel[]; providers: { name: string; type?: string; usable: boolean }[]; presets: unknown; settings: unknown; zen: { configured: boolean; model: string } }
 export type ResolvedModel = { model: string; provider: string | null; effort?: string; source: 'clauderipple' | 'fallback' }
 
-const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max'])
+const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max', 'ultra'])
 
 export function normalizeModelCatalog(value: unknown, settings: unknown = null): ModelCatalog | null {
   if (!value || typeof value !== 'object') return null
@@ -34,7 +34,7 @@ export function createModelCatalogLoader(deps: ModelCatalogLoaderDeps): () => Pr
     const now = await deps.now()
     if (cache && now - cache.at < 15_000) return cache.value
     if (pending) return pending
-    pending = (async () => {
+    const request = (async () => {
       try {
         const config = await deps.readConfig()
         if (!config || typeof config !== 'object' || Array.isArray(config)) return null
@@ -46,13 +46,18 @@ export function createModelCatalogLoader(deps: ModelCatalogLoaderDeps): () => Pr
         return normalizeModelCatalog(JSON.parse(response.text), settings)
       } catch {
         return null
-      } finally {
-        pending = null
       }
     })()
-    const value = await pending
-    cache = { at: await deps.now(), value }
-    return value
+    pending = request
+    try {
+      const value = await request
+      cache = { at: await deps.now(), value }
+      return value
+    } finally {
+      // Keep the in-flight promise visible until its result is cached. Otherwise a
+      // caller arriving in this small gap can start a duplicate HTTP request.
+      if (pending === request) pending = null
+    }
   }
 }
 
