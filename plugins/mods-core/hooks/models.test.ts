@@ -34,6 +34,54 @@ test('worker resolves only the active explicit ladder rung and returns its effor
   expect(resolveModelFromCatalog(noSettings, 'light', 'legacy-light').model).toBe('legacy-light')
 })
 
+test('current ClaudeRipple ladder resolves exact agent IDs and tries ordered entries', () => {
+  const catalog = normalizeModelCatalog({
+    agents: [{ name: 'qwen2-5-3b', model: 'qwen2.5:3b', provider: 'ollama-local', efforts: [], billing: 'free' }],
+    providers: [{ name: 'ollama-local', type: 'openai-compatible', usable: true }],
+    models: [{ model: 'qwen2.5:3b', provider: 'ollama-local', name: 'qwen2.5:3b', judgeOnly: false }],
+  }, {
+    settings: {
+      rules: { general: { mode: 'ladder', rungs: {
+        light: [
+          { target: { agent: 'deepseek-v4-1-flash' }, effort: 'max' },
+          { target: { agent: 'qwen2-5-3b' }, effort: 'medium' },
+        ],
+      } } },
+    },
+    revision: 0,
+    stored: false,
+  })
+  expect(catalog?.agents).toEqual([{ name: 'qwen2-5-3b', model: 'qwen2.5:3b', provider: 'ollama-local' }])
+  expect(resolveModelFromCatalog(catalog, 'light', 'legacy-light')).toEqual({
+    model: 'qwen2.5:3b', provider: 'ollama-local', effort: 'medium', source: 'clauderipple',
+  })
+})
+
+test('agent IDs must resolve uniquely to a usable non-judge model', () => {
+  const catalog = normalizeModelCatalog({
+    agents: [
+      { name: 'worker', model: 'worker-model', provider: 'p' },
+      { name: 'ambiguous', model: 'worker-model', provider: 'p' },
+      { name: 'judge-agent', model: 'judge-model', provider: 'p' },
+    ],
+    providers: [{ name: 'p', usable: true }],
+    models: [
+      { model: 'worker-model', provider: 'p', judgeOnly: false },
+      { model: 'judge-model', provider: 'p', judgeOnly: true },
+    ],
+  }, { settings: { rules: { general: { mode: 'ladder', rungs: {
+    light: [
+      { target: { agent: 'missing' }, effort: 'low' },
+      { target: { agent: 'ambiguous' }, effort: 'medium' },
+      { target: { agent: 'judge-agent' }, effort: 'high' },
+      { target: { agent: 'worker' }, effort: 'max' },
+    ],
+  } } } } })
+  expect(resolveModelFromCatalog(catalog, 'light', 'legacy-light')).toEqual({
+    model: 'worker-model', provider: 'p', effort: 'max', source: 'clauderipple',
+  })
+})
+
 test('unknown, malformed and ambiguous configuration fails open to the existing model', () => {
   expect(normalizeModelCatalog(null)).toBe(null)
   expect(resolveModelFromCatalog(null, 'light', 'legacy-light').model).toBe('legacy-light')
@@ -125,13 +173,12 @@ const loaderDeps = (overrides: Record<string, any> = {}) => {
   const deps = {
     now: async () => time,
     readConfig: async () => ({ adminPort: 4312 }),
-    readSettings: async () => null,
     within: async <T,>(promise: Promise<T>, _ms: number, _what: string): Promise<T> => promise,
     ...rest,
-    fetch: async (port: number) => {
+    fetch: async (port: number, endpoint: string) => {
       fetches++
-      if (customFetch) return customFetch(port)
-      return { ok: true, text: JSON.stringify({
+      if (customFetch) return customFetch(port, endpoint)
+      return { ok: true, text: JSON.stringify(endpoint === '/api/mod-settings' ? { settings: null } : {
         providers: [{ name: 'p', usable: true }],
         models: [{ model: 'worker', provider: 'p' }],
       }) }
@@ -194,7 +241,7 @@ test('catalogue loader keeps the in-flight request visible until the cache is po
   const [a, b] = await Promise.all([first, arrivingDuringCache])
   expect(a?.models[0]?.model).toBe('worker')
   expect(b?.models[0]?.model).toBe('worker')
-  expect(setup.fetchCount()).toBe(1)
+  expect(setup.fetchCount()).toBe(4)
 })
 
 test('catalogue loader shares concurrent requests and caches success for 15 seconds', async () => {
