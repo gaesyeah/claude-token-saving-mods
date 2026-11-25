@@ -106,7 +106,12 @@ export type ModsPrice = { pattern: string; name: string; small: ModsCard; large?
 export type ModsModelRole = 'judge' | 'light' | 'standard' | 'hard' | 'plan'
 export type ModsResolvedModel = { model: string; provider: string | null; effort?: string; source: 'clauderipple' | 'fallback' }
 export type ModsModelCatalog = {
+  agents: { name: string; model: string; provider: string; efforts: string[] }[]
   models: { model: string; provider: string; name?: string; judgeOnly: boolean }[]
-  providers: { name: string; type?: string; usable: boolean }[]
+  providers: { name: string; type?: string; usable: boolean; models: Record<string, unknown> }[]
   presets: unknown
+  settings: unknown
+  zen: { configured: boolean; model: string }
+  claudeEfforts: string[]
+  claudeLatest: Record<string, string>
 }
