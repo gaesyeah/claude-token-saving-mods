@@ -183,12 +183,12 @@ def proxy_request(proxy: str, ca_file: Path, provider: str, model: str) -> dict[
     return body
 
 
-def check_request_log(home: Path, provider: str, model: str) -> bool:
+def check_request_log(home: Path, provider: str, model: str, previous_mtime_ns: int) -> bool:
     path = home / "requests.jsonl"
     deadline = time.time() + 8
     while time.time() < deadline:
         try:
-            if path.is_file():
+            if path.is_file() and path.stat().st_mtime_ns > previous_mtime_ns:
                 rows = []
                 for line in path.read_text(encoding="utf-8", errors="replace").splitlines()[-300:]:
                     try:
@@ -198,8 +198,7 @@ def check_request_log(home: Path, provider: str, model: str) -> bool:
                     if isinstance(item, dict):
                         rows.append(item)
                 for item in reversed(rows):
-                    at = item.get("at", item.get("timestamp", item.get("time")))
-                    # Log timestamps vary by release; require provider/model match and inspect only recent tail.
+                    # Only inspect a log file that changed during this smoke test.
                     logged_provider = item.get("provider")
                     logged_model = item.get("model", item.get("requestedModel"))
                     if logged_provider == provider and logged_model in {model, f"{provider}:{model}"}:
@@ -218,10 +217,15 @@ def main() -> None:
     print(f"ClaudeRipple CA: {ca_file}")
     print(f"Active light target: {provider} / {model}")
     print("Sending one harmless Anthropic Messages request through the HTTPS proxy…")
+    log_path = home / "requests.jsonl"
+    try:
+        previous_log_mtime = log_path.stat().st_mtime_ns if log_path.is_file() else 0
+    except OSError:
+        previous_log_mtime = 0
     response = proxy_request(proxy, ca_file, provider, model)
     print(f"Proxy generation: OK (response model={response.get('model', 'not reported')})")
     print("Model response: CLAUDERIPPLE_PROXY_E2E_OK")
-    if check_request_log(home, provider, model):
+    if check_request_log(home, provider, model, previous_log_mtime):
         print(f"Router request log: confirmed provider={provider}, model={model}")
     else:
         print("Router request log: matching row not found (response still succeeded through the configured proxy)")
