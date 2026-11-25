@@ -96,8 +96,12 @@ export const register: Register = on => {
     const modelCatalog = createModelCatalogLoader({
       now: () => beneath.clock.now(),
       readConfig: async () => {
-        const { home } = await paths()
-        const path = `${home}/.clauderipple/config.json`
+        // ClaudeRipple supports a separate home directory; use the same inherited environment
+        // as the local service rather than assuming it always lives under Claude's HOME.
+        const location = await sh('printf "%s" "${CLAUDERIPPLE_HOME:-$HOME/.clauderipple}"').catch(() => undefined)
+        const rippleHome = location?.exitCode === 0 ? location.stdout.trim() : ''
+        if (!rippleHome || !rippleHome.startsWith('/')) return null
+        const path = `${rippleHome}/config.json`
         if (!(await beneath.fs.exists(path).catch(() => false))) return null
         return JSON.parse(String(await beneath.fs.read(path)))
       },
