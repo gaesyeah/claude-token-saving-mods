@@ -19,10 +19,10 @@ A **flow** is a path through the skills. Most paths run along one **main flow**,
 The route most work travels. You have an idea and want it built.
 
 1. **`/coding-kit:grill-with-docs`** sharpens the idea by interview. Start here whenever you are **working in a working directory**: it's stateful, retaining what it learns in `GLOSSARY.md` and ADRs. (No working directory? Use `/coding-kit:grill-me` instead, covered under Standalone. Both run the same `/coding-kit:grilling` primitive; `grill-with-docs` is the one that leaves a paper trail, which makes it the better of the two whenever a repo is there to leave it in.)
-2. **Branch: can you settle every question in conversation?** If a question needs a runnable answer (state, business logic, a UI you have to see), detour through a prototype, bridged by **`/coding-kit:handoff`** in both directions (a prototype lives in its own directory, which is exactly what `/coding-kit:handoff` is for; see Phase boundaries):
-   - **`/coding-kit:handoff`** out, then open a fresh session against that file,
+2. **Branch: can you settle every question in conversation?** If a question needs a runnable answer (state, business logic, a UI you have to see), detour through a prototype, bridged by **`/coding-kit:handoff-doc`** in both directions (a prototype lives in its own directory, which is exactly what `/coding-kit:handoff-doc` is for; see Phase boundaries):
+   - **`/coding-kit:handoff-doc`** out, then open a fresh session against that file,
    - **`/coding-kit:prototype`** to answer the question with throwaway code,
-   - **`/coding-kit:handoff`** back what you learned, and reference it from the original idea thread.
+   - **`/coding-kit:handoff-doc`** back what you learned, and reference it from the original idea thread.
 3. **Branch: is this a multi-session build?**
    - **Yes** → **`/coding-kit:to-spec`** (turn the thread into a spec), then **`/coding-kit:to-tickets`** to split it into tracer-bullet tickets, each declaring its **blocking edges**. Then work the tickets one of two ways:
      - **`/coding-kit:implement`** per ticket, **`/clear`ing context between each one**. On a local tracker that's one file per ticket under `.scratch/<feature>/issues/`, worked blockers-first by hand; on a real tracker the edges become native blocking links, so any ticket whose blockers are done can be grabbed. Each ticket is self-contained, so the last one's context is disposable.
@@ -74,7 +74,7 @@ A **phase** is a chunk of work inside a session: the grilling, the implementatio
 
 - **Continue**: stay put. Costs nothing, loses nothing.
 - **`/clear`**: empty the window, when nothing here matters to what's next.
-- **`/coding-kit:handoff`** writes a portable markdown file. Narrow: only for a **new harness**, a **new directory**, a **colleague**, or forking a side task **mid-phase**. What it buys is portability.
+- **`/coding-kit:handoff-doc`** writes a portable markdown file. Narrow: only for a **new harness**, a **new directory**, a **colleague**, or forking a side task **mid-phase**. What it buys is portability.
 - **Subagent**: send a tightly-scoped task to its own window and get a report back.
 - **`/compact`** compresses this context and seeds a fresh session with it. The **default**, at the bottom of the tree rather than the first reach.
 

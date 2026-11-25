@@ -352,13 +352,13 @@
       "source": "mattpocock/skills (MIT)"
     },
     {
-      "id": "handoff",
+      "id": "handoff-doc",
       "kind": "skill",
       "group": "matt",
       "sub": "Produtividade",
       "label": "Passar para outro agente",
-      "description": "Compacta a conversa num documento de passagem para outro agente continuar. Diferente do mod handoff, que abre um chat novo.",
-      "command": "/coding-kit:handoff",
+      "description": "Compacta a conversa num documento de passagem para outro agente continuar. Diferente do mod Handoff (/handoff), que abre um chat novo.",
+      "command": "/coding-kit:handoff-doc",
       "repo": "https://github.com/mattpocock/skills/tree/HEAD/skills/productivity/handoff",
       "source": "mattpocock/skills (MIT)"
     },
@@ -1034,8 +1034,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1058,8 +1063,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1082,8 +1092,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1106,8 +1121,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1130,8 +1150,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1154,8 +1179,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1178,8 +1208,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1202,8 +1237,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1226,8 +1266,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1250,8 +1295,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1274,8 +1324,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1298,8 +1353,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1322,8 +1382,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1346,8 +1411,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1370,8 +1440,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1394,8 +1469,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1418,8 +1498,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1442,8 +1527,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1466,8 +1556,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1490,8 +1585,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1514,8 +1614,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1538,14 +1643,19 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
     },
     {
-      "dir": "handoff",
+      "dir": "handoff-doc",
       "repo": "mattpocock/skills",
       "path": "skills/productivity/handoff",
       "credit": "MIT License, Copyright (c) 2026 Matt Pocock",
@@ -1562,8 +1672,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1586,8 +1701,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1610,8 +1730,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1634,8 +1759,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1658,8 +1788,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1682,8 +1817,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1706,8 +1846,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1730,8 +1875,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
@@ -1754,8 +1904,13 @@
           "regex": true
         },
         {
-          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|handoff|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
+          "find": "([\\s(`'\"*\\[])/(improve-codebase-architecture|git-guardrails-claude-code|setup-matt-pocock-skills|migrate-to-shoehorn|writing-for-agents|scaffold-exercises|to-questionnaire|setup-pre-commit|grill-with-docs|diagnosing-bugs|codebase-design|domain-modeling|implement-spec|code-review|to-tickets|implement|wayfinder|prototype|wait-what|ask-matt|research|grill-me|grilling|to-spec|triage|wizard|retro|teach|tdd|pr)(?![\\w-])",
           "replace": "$1/coding-kit:$2",
+          "regex": true
+        },
+        {
+          "find": "([\\s(`'\"*\\[])/handoff(?![\\w-])",
+          "replace": "$1/coding-kit:handoff-doc",
           "regex": true
         }
       ]
