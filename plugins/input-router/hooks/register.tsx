@@ -281,7 +281,15 @@ async function ask($: EngineInterface, system: string, prompt: string, maxTokens
   const opts = signal ? { signal } : undefined
   try {
     const resolved = await $.mods.modelResolve({ role: 'light', fallback: MODEL })
-    const r = (await $.model.complete({ model: resolved.model, effort: resolved.effort ?? 'low', ...request }, opts)) as Asked
+    const r = (await $.model.complete({
+      model: resolved.model,
+      ...(resolved.effort
+        ? { effort: resolved.effort }
+        : resolved.source === 'fallback'
+          ? { effort: 'low' }
+          : {}),
+      ...request,
+    }, opts)) as Asked
     if (r.usage) void $.mods.spent({ mod: NAME, model: resolved.model, usage: r.usage }).catch(() => undefined)
     if (r.isAnswered || r.reason !== 'api-error') return { model: resolved.model, r }
   } catch {
