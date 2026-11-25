@@ -1,38 +1,11 @@
 import { expect, test } from 'claude-code/testing'
-import { normalizeModelCatalog, resolveModelFromCatalog } from '../../mods-core/hooks/models'
 import { completeWithResolvedModel } from './model-completion'
 
-const qwenCatalog = () => normalizeModelCatalog({
-  agents: [
-    { name: 'qwen2-5-3b', model: 'qwen2.5:3b', provider: 'ollama-local', efforts: [] },
-  ],
-  providers: [
-    { name: 'ollama-local', type: 'openai-compatible', usable: true },
-  ],
-  models: [
-    { model: 'qwen2.5:3b', provider: 'ollama-local', name: 'qwen2.5:3b', judgeOnly: false },
-  ],
-}, {
-  settings: {
-    rules: {
-      general: {
-        mode: 'ladder',
-        rungs: {
-          light: [
-            { target: { agent: 'deepseek-v4-1-flash' }, effort: 'max' },
-            { target: { agent: 'qwen2-5-3b' }, effort: 'medium' },
-          ],
-        },
-      },
-    },
-  },
-})
-
 test('input-router sends the resolved ClaudeRipple model without an undeclared effort', async () => {
-  const catalog = qwenCatalog()
   const calls: Array<{ request: Record<string, unknown>; options: unknown }> = []
   const result = await completeWithResolvedModel({
-    resolve: async () => resolveModelFromCatalog(catalog, 'light', 'claude-haiku-5-5'),
+    // This is the resolver output covered independently by mods-core's catalog tests.
+    resolve: async () => ({ model: 'qwen2.5:3b', source: 'clauderipple' }),
     complete: async (request, options) => {
       calls.push({ request, options })
       return { isAnswered: true, reason: 'answered' }
