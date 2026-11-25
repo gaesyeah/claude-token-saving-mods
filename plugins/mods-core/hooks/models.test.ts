@@ -241,7 +241,7 @@ test('catalogue loader keeps the in-flight request visible until the cache is po
   const [a, b] = await Promise.all([first, arrivingDuringCache])
   expect(a?.models[0]?.model).toBe('worker')
   expect(b?.models[0]?.model).toBe('worker')
-  expect(setup.fetchCount()).toBe(4)
+  expect(setup.fetchCount()).toBe(2)
 })
 
 test('catalogue loader shares concurrent requests and caches success for 15 seconds', async () => {
@@ -261,10 +261,33 @@ test('catalogue loader shares concurrent requests and caches success for 15 seco
   const [a, b] = await Promise.all([first, second])
   expect(a?.models[0]?.model).toBe('worker')
   expect(b?.models[0]?.model).toBe('worker')
-  expect(setup.fetchCount()).toBe(1)
+  expect(setup.fetchCount()).toBe(2)
   expect((await load())?.models[0]?.model).toBe('worker')
   expect(setup.fetchCount()).toBe(1)
   setup.setTime(16_001)
   expect((await load())?.models[0]?.model).toBe('worker')
-  expect(setup.fetchCount()).toBe(2)
+  expect(setup.fetchCount()).toBe(4)
+})
+
+test('loader derives the admin port from listen.port and reads the real mod-settings API shape', async () => {
+  const calls: string[] = []
+  const setup = loaderDeps({
+    readConfig: async () => ({ listen: { port: 8790 } }),
+    fetch: async (port: number, endpoint: string) => {
+      calls.push(`${port}${endpoint}`)
+      if (endpoint === '/api/mod-options') return { ok: true, text: JSON.stringify({
+        agents: [{ name: 'qwen2-5-3b', model: 'qwen2.5:3b', provider: 'ollama-local' }],
+        providers: [{ name: 'ollama-local', usable: true }],
+        models: [{ model: 'qwen2.5:3b', provider: 'ollama-local' }],
+      }) }
+      return { ok: true, text: JSON.stringify({ settings: { rules: { general: { mode: 'ladder', rungs: {
+        light: [{ target: { agent: 'qwen2-5-3b' }, effort: 'medium' }],
+      } } } } }) }
+    },
+  })
+  const catalog = await createModelCatalogLoader(setup.deps)()
+  expect(calls).toEqual(['8791/api/mod-options', '8791/api/mod-settings'])
+  expect(resolveModelFromCatalog(catalog, 'light', 'legacy-light')).toEqual({
+    model: 'qwen2.5:3b', provider: 'ollama-local', effort: 'medium', source: 'clauderipple',
+  })
 })
