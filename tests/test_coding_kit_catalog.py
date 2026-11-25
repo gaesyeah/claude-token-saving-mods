@@ -192,10 +192,11 @@ MATT = {
     "Engenharia": ["ask-matt", "codebase-design", "code-review", "diagnosing-bugs", "domain-modeling", "grill-with-docs", "implement", "implement-spec",
                    "improve-codebase-architecture", "pr", "prototype", "research", "retro", "setup-matt-pocock-skills", "tdd", "to-spec", "to-tickets",
                    "triage", "wayfinder", "wizard"],
-    "Produtividade": ["grilling", "grill-me", "handoff", "teach", "to-questionnaire", "wait-what", "writing-for-agents"],
+    "Produtividade": ["grilling", "grill-me", "handoff-doc", "teach", "to-questionnaire", "wait-what", "writing-for-agents"],
     "Outras": ["git-guardrails-claude-code", "migrate-to-shoehorn", "scaffold-exercises", "setup-pre-commit"],
 }
 BUCKET = {"Engenharia": "engineering", "Produtividade": "productivity", "Outras": "misc"}
+UPSTREAM_DIR = {"handoff-doc": "handoff"}  # Card id differs from Matt Pocock's upstream folder.
 # Called by other skills through the Skill tool: the model must be able to load them.
 CHAIN = {"codebase-design", "research", "grilling", "tdd", "prototype", "domain-modeling", "code-review"}
 NEEDS_SETUP = {"to-spec", "to-tickets", "triage", "wayfinder", "implement-spec"}
@@ -229,7 +230,7 @@ class MattPocock(unittest.TestCase):
         for sub, names in MATT.items():
             for n in names:
                 src = SOURCES[n]
-                self.assertEqual((src["repo"], src["path"]), ("mattpocock/skills", f"skills/{BUCKET[sub]}/{n}"), n)
+                self.assertEqual((src["repo"], src["path"]), ("mattpocock/skills", f"skills/{BUCKET[sub]}/{UPSTREAM_DIR.get(n, n)}"), n)
                 self.assertEqual(src["exclude"], ["agents"], n)
                 self.assertEqual(src["frontmatter"]["disable-model-invocation"], "false" if n in CHAIN else "true", n)
                 self.assertEqual(len(LOCK[n]["sha"]), 40, n)

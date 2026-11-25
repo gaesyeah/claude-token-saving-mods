@@ -2,6 +2,7 @@ import type { Register } from 'claude-code'
 import { afterSample, decide, EMBED, freshStats, hash, isQmdHealth, judgeLine, MIN_EXAMPLES, QMD_URL, rerankOf, SAMPLE_EVERY } from './qmd'
 import { addCall, type Day, dayKey, rowsOf, type Usage } from './spend'
 import { PRICES } from './prices'
+import { createModelCatalogLoader, resolveModelFromCatalog, type ModelRole } from './models'
 
 // Mods Core: what the token-saving mods share.
 // 1. $.mods: the helpers every mod used to copy (paths, the /mods switches, logs, shell, the savings
@@ -90,6 +91,22 @@ export const register: Register = on => {
       }))
     }
     const env = { QMD_EMBED_MODEL: EMBED }
+    // ClaudeRipple's admin API is optional. The loader owns its short cache and
+    // concurrent-request sharing; failures return null so every mod keeps its fallback.
+    const modelCatalog = createModelCatalogLoader({
+      now: () => beneath.clock.now(),
+      readConfig: async () => {
+        const { home } = await paths()
+        const path = `${home}/.clauderipple/config.json`
+        if (!(await beneath.fs.exists(path).catch(() => false))) return null
+        return JSON.parse(String(await beneath.fs.read(path)))
+      },
+      fetch: (port, endpoint) => beneath.http.fetch(`http://127.0.0.1:${port}${endpoint}`),
+      within,
+    })
+    const modelResolve = async ({ role, fallback }: { role: ModelRole; fallback: string }) =>
+      resolveModelFromCatalog(await modelCatalog(), role, fallback)
+
     // Judges: a collection's examples counted once, its index refreshed at most once a minute.
     const counts = new Map<string, number>()
     const ready = new Set<string>()
@@ -107,6 +124,8 @@ export const register: Register = on => {
       ...beneath,
       mods: {
         paths,
+        modelCatalog,
+        modelResolve,
         // The /mods switchboard's switches.json: {} when there is none; throws when it is there but
         // unreadable, so a mod can keep what it had.
         readSwitches: async () => {

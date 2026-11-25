@@ -41,3 +41,5 @@ test('the mods\' spend: list prices per family, summed per mod and model, the de
   expect(rows[1]!.mod).toBe('vault')
   expect(rows[1]!.calls).toBe(4)
 })
+
+// Provider-aware model selection is covered in models.test.ts; these tests remain focused on QMD and spend.
