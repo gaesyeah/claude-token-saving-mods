@@ -1,6 +1,6 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ModelUsage, Register, TurnUsage } from 'claude-code'
-import { completeWithEffort } from './model-completion'
+import { completeWithEffort, completeWithModel } from './model-completion'
 import type { AgentView, AutoView, FoundView, RunView, SourceView, ToolUse } from '../types'
 import { explorerSvg } from './mascot.ts'
 
@@ -386,14 +386,17 @@ function countUsage(u: ModelUsage | undefined) {
 
 async function ask($: EngineInterface, job: Job, prompt: string, maxTokens: number, timeoutMs: number) {
   const usedModel = job.helperModel
-  const r = await $.model.complete({
-    model: usedModel,
-    system: SYSTEM,
-    prompt,
-    maxTokens,
-    timeoutMs,
-    ...(job.helperEffort ? { effort: job.helperEffort } : {}),
-  })
+  const r = await completeWithModel(
+    request => $.model.complete(request as Parameters<EngineInterface['model']['complete']>[0]),
+    usedModel,
+    {
+      system: SYSTEM,
+      prompt,
+      maxTokens,
+      timeoutMs,
+    },
+    job.helperEffort,
+  )
   if (r.usage) void $.mods.spent({ mod: NAME, model: usedModel, usage: r.usage }).catch(() => undefined)
   const u = countUsage(r.usage)
   job.helperIn += u.input
