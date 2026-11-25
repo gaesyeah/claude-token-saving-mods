@@ -6,14 +6,14 @@ test('forwards the ClaudeRipple model and omits an undeclared effort', async () 
   await completeWithEffort(async request => {
     calls.push(request)
     return { isAnswered: true }
-  }, { model: 'qwen2.5:3b', source: 'clauderipple' }, {
+  }, { model: 'qwen2.5:3b', provider: 'ollama-local', source: 'clauderipple' }, {
     prompt: 'test prompt',
     maxTokens: 400,
     timeoutMs: 30_000,
   })
 
   expect(calls).toEqual([{
-    model: 'qwen2.5:3b',
+    model: 'ollama-local:qwen2.5:3b',
     prompt: 'test prompt',
     maxTokens: 400,
     timeoutMs: 30_000,

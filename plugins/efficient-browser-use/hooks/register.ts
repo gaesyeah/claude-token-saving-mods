@@ -1,4 +1,5 @@
 import type { EngineInterface, Register } from 'claude-code'
+import { modelForRequest } from './model-request'
 import { addShots, closePane, loadTotals, openPane, registerPane, resetPane, restoreShots, setBusy, setOff, setSwitchHidden, setThumb, setTotals } from './pane.tsx'
 import type { ShotCard } from '../types'
 
@@ -379,7 +380,7 @@ async function registerDescriber($: EngineInterface) {
   }
 }
 
-async function describe($: EngineInterface, file: string): Promise<{ text: string; tokens: number | null }> {
+async function describe($: EngineInterface, file: string): Promise<{ text: string; tokens: number | null; model: string }> {
   const helper = await $.mods.modelResolve({ role: 'light', fallback: 'haiku' })
   const r = await $.tool.call({
     tool: 'Agent',
@@ -395,7 +396,7 @@ async function describe($: EngineInterface, file: string): Promise<{ text: strin
     .replace(/<usage>[\s\S]*?<\/usage>/g, '')
     .replace(/^agentId:.*$/gm, '')
     .trim()
-  return { text, tokens: used ? Number(used[1]) : null }
+  return { text, tokens: used ? Number(used[1]) : null, model: helper.model }
 }
 
 // ---- the ledger ----
@@ -621,7 +622,7 @@ export const register: Register = on => {
               action: `described ${e.tool} picture ${s.w}x${s.h} in words`,
               before,
               after,
-              helper: { model: 'claude-haiku-5-5', in: d.tokens, out: null, ...(d.tokens === null ? { note: 'subagent usage not reported' } : { note: 'in is the subagent total_tokens' }) },
+              helper: { model: d.model, in: d.tokens, out: null, ...(d.tokens === null ? { note: 'subagent usage not reported' } : { note: 'in is the subagent total_tokens' }) },
             }).catch(err => log($, `ledger: ${String(err)}`))
             void log($, `${e.tool}: described ${s.w}x${s.h} (${before} -> ${after} tokens)`)
             $.process.run(['/bin/rm', '-f', s.file]).catch(() => undefined)

@@ -169,6 +169,12 @@ type Pick = {
 
 
 // Set once by register from the plugin's options.
+export function modelForRequest(resolved: { model: string; provider: string | null; source: 'clauderipple' | 'fallback' }): string {
+  if (resolved.source !== 'clauderipple' || !resolved.provider) return resolved.model
+  const prefix = `${resolved.provider}:`
+  return resolved.model.startsWith(prefix) ? resolved.model : `${prefix}${resolved.model}`
+}
+
 type Config = {
   timeoutMs: number
   routeSubagentModel: boolean
@@ -216,11 +222,11 @@ async function classify(
     const resolved = await $.mods.modelResolve({ role: 'judge', fallback: JUDGE_MODEL })
     judgeModel = resolved.model
     const result = await $.model.complete({
-      model: resolved.model,
+      model: modelForRequest(resolved),
       system: JUDGE_SYSTEM,
       prompt: judgePrompt(state),
       maxTokens: JUDGE_MAX_TOKENS,
-      effort: 'low',
+      ...(resolved.source === 'fallback' ? { effort: 'low' } : {}),
       timeoutMs: cfg.timeoutMs,
     })
     if (result.usage) void $.mods.spent({ mod: NAME, model: resolved.model, usage: result.usage }).catch(() => undefined)
@@ -300,7 +306,11 @@ async function policyFor($: EngineInterface): Promise<PolicyConfig> {
     $.mods.modelResolve({ role: 'standard', fallback: cfg.policy.tiers.balanced }),
     $.mods.modelResolve({ role: 'hard', fallback: cfg.policy.tiers.deep }),
   ])
-  return { ...cfg.policy, tiers: { fast: fast.model, balanced: balanced.model, deep: deep.model } }
+  return {
+    ...cfg.policy,
+    tiers: { fast: fast.model, balanced: balanced.model, deep: deep.model },
+    requestTiers: { fast: modelForRequest(fast), balanced: modelForRequest(balanced), deep: modelForRequest(deep) },
+  }
 }
 
 // Main-loop effort, only when routeMainEffort is on.
@@ -632,7 +642,7 @@ export const register: Register = (on, options) => {
     // a change and hide the "kept, wanted" reason in the log.
     const modelOnly = decision ? { ...decision, effort: null, effortConfidence: null } : null
     const activePolicy = await policyFor($)
-    const { model, reason } = route(modelOnly, { model: current }, activePolicy)
+    const { model, requestModel, reason } = route(modelOnly, { model: current }, activePolicy)
     const ran = model ?? current
     const { outcome, why } = explain(decision, current, model, activePolicy)
     if (cardId) {
@@ -650,7 +660,7 @@ export const register: Register = (on, options) => {
         judgeMs: Math.round(ms),
       }).catch(() => undefined)
     }
-    const result = await next(model ? { ...e, model } : e)
+    const result = await next(requestModel ? { ...e, model: requestModel } : e)
 
     await log($, `${e.subagentType}${task}: ${model ? `${current} -> ${model}` : `kept ${current}`}: ${reason}`)
     if (logDecisions) {

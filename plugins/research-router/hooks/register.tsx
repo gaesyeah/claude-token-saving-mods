@@ -388,7 +388,7 @@ async function ask($: EngineInterface, job: Job, prompt: string, maxTokens: numb
   const usedModel = job.helperModel
   const r = await completeWithModel(
     request => $.model.complete(request as Parameters<EngineInterface['model']['complete']>[0]),
-    usedModel,
+    requestModel,
     {
       system: SYSTEM,
       prompt,

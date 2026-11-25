@@ -3,9 +3,9 @@ import { test } from './mods-stub'
 
 // The local judge lives in mods-core ($.mods.judge*), which tests its rules; here, how Effort Optimizer
 // uses it: a local answer skips Sonnet, a sample asks Sonnet too and reports back, a paid answer is kept.
-type J = { guess: string | null; sample: boolean; paid: string; asked: number; sampled: boolean[]; kept: string[] }
+type J = { guess: string | null; sample: boolean; paid: string; asked: number; sampled: boolean[]; kept: string[]; requests: Record<string, unknown>[] }
 
-function engine(on: any, j: J) {
+function engine(on: any, j: J, resolved?: { model: string; provider: string; source: 'clauderipple' }) {
   on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))
   on('env.get', (_: any, e: any) => ({ value: e.name === 'HOME' ? '/home/u' : undefined }))
   on('command.register', () => ({ value: { command: 'effort-optimizer' } }))
@@ -20,7 +20,8 @@ function engine(on: any, j: J) {
   on('fs.write', () => ({ value: undefined }))
   on('process.run', () => ({ value: { exitCode: 0, stdout: '', stderr: '' } }))
   on('session.messages', () => ({ value: [] }))
-  on('model.complete', () => ((j.asked += 1), { value: { isAnswered: true, text: JSON.stringify({ level: j.paid, why: 'x' }) } }))
+  on('model.complete', (_: any, e: any) => (j.asked += 1, j.requests.push(e), { value: { isAnswered: true, text: JSON.stringify({ level: j.paid, why: 'x' }) } }))
+  if (resolved) on('mods.modelResolve', () => ({ value: { ...resolved, effort: undefined } }))
   on('prompt.submit', (_: any, e: any) => ({ text: e.text }))
   on('turn.step', async function* (_: any, e: any) {
     yield { kind: 'stop', ref: 's', stopReason: 'end_turn', usage: { input_tokens: 10, output_tokens: 10, cache_read_input_tokens: 60_000, cache_creation_input_tokens: 500 } }
@@ -45,7 +46,7 @@ async function prompt($: any, text: string) {
 const start = ($: any) => $.session.start({ cwd: '/w', surface: 'desktop', isInteractive: true } as any)
 
 test('a local answer skips Sonnet; a sampled one asks Sonnet too, reports whether they agree and keeps its answer', async ($, on) => {
-  const j: J = { guess: 'high', sample: false, paid: 'high', asked: 0, sampled: [], kept: [] }
+  const j: J = { guess: 'high', sample: false, paid: 'high', asked: 0, sampled: [], kept: [], requests: [] }
   engine(on, j)
   await start($)
   await prompt($, 'refatore o parser')
@@ -61,10 +62,20 @@ test('a local answer skips Sonnet; a sampled one asks Sonnet too, reports whethe
 })
 
 test('no local answer: Sonnet picks, and its answer becomes an example', async ($, on) => {
-  const j: J = { guess: null, sample: false, paid: 'medium', asked: 0, sampled: [], kept: [] }
+  const j: J = { guess: null, sample: false, paid: 'medium', asked: 0, sampled: [], kept: [], requests: [] }
   engine(on, j)
   await start($)
   await prompt($, 'migre o banco')
   expect(j.asked).toBe(1)
   expect(j.kept).toEqual(['effort-examples:medium'])
+})
+
+test('a Ripple judge uses the provider-qualified model and does not send unsupported effort', async ($, on) => {
+  const j: J = { guess: null, sample: false, paid: 'medium', asked: 0, sampled: [], kept: [], requests: [] }
+  engine(on, j, { model: 'qwen2.5:3b', provider: 'ollama-local', source: 'clauderipple' })
+  await start($)
+  await prompt($, 'migre o banco')
+  expect(j.asked).toBe(1)
+  expect(j.requests[0]).toMatchObject({ model: 'ollama-local:qwen2.5:3b' })
+  expect(j.requests[0]).not.toHaveProperty('effort')
 })
