@@ -1,4 +1,5 @@
 import type { EngineInterface, Register } from 'claude-code'
+import { effortOptions } from './effort-options'
 
 // Vault: a second brain in an Obsidian vault, run as plain Markdown files. Obsidian never has
 // to be open: Claude reads and writes the notes with its own file tools, and Obsidian shows
@@ -666,11 +667,7 @@ async function capture($: EngineInterface, asked: string, answer: string) {
     model: resolved.model,
     prompt: capturePrompt(asked, answer),
     maxTokens: 400,
-    ...(resolved.effort
-      ? { effort: resolved.effort }
-      : resolved.source === 'fallback'
-        ? { effort: 'low' }
-        : {}),
+    ...effortOptions(resolved),
     timeoutMs: 30_000,
   })
   if (r.usage) void $.mods.spent({ mod: NAME, model: resolved.model, usage: r.usage }).catch(() => undefined)
