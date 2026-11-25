@@ -935,6 +935,7 @@ export const register: Register = on => {
       return (
         <Box flexDirection="column">
           {rest}
+          <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(8, e.props.bodyColumns))}</Text>
           {line}
         </Box>
       )
@@ -942,6 +943,7 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         {rest}
+        <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(8, e.props.bodyColumns))}</Text>
         {line}
         <Box flexDirection="column">
           <Text>

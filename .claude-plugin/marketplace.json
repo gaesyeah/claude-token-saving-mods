@@ -15,7 +15,7 @@
       "name": "effort-optimizer",
       "source": "./plugins/effort-optimizer",
       "description": "Reads each prompt, picks the effort level it needs with Ben's four-question framework, and offers Switch to that level, or sets it by itself in auto mode",
-      "version": "0.4.1"
+      "version": "0.4.2"
     },
     {
       "name": "model-router",
@@ -27,13 +27,13 @@
       "name": "cache-clock",
       "source": "./plugins/cache-clock",
       "description": "Counts down until the chat's prompt cache goes cold, above the prompt, minimized to one line with an Expand button. When a big chat goes cold, offers a handoff to a fresh chat. Keep warm pings the cache in the background so it does not go cold",
-      "version": "0.3.2"
+      "version": "0.3.3"
     },
     {
       "name": "handoff",
       "source": "./plugins/handoff",
       "description": "At 250k tokens, offers Refresh: writes a handoff of the whole chat, shows the steps with progress bars, then copies it or starts a new chat with it. Logs every run to ~/.claude/handoffs/handoff.log and saves a draft first",
-      "version": "0.1.1"
+      "version": "0.1.2"
     },
     {
       "name": "research-router",
@@ -63,7 +63,7 @@
       "name": "coding-kit",
       "source": "./plugins/coding-kit",
       "description": "Ponytail always on in code projects (in the system prompt, cached, no per-message skill calls) and a side pane of coding skills and tools, each one click away: grill-me, writing plans, TDD, frontend design, systematic debugging, verification, architecture, reviews, Context7, Serena, codebase-memory, Graphify",
-      "version": "0.3.18"
+      "version": "0.3.19"
     },
     {
       "name": "quota-meter",
@@ -81,13 +81,13 @@
       "name": "vault",
       "source": "./plugins/vault",
       "description": "A second brain in an Obsidian vault, as plain Markdown that works with Obsidian closed: /vault sets up a PARA or Zettelkasten vault (or adopts yours), copies handoffs and research briefs in with links to their project, keeps a daily note, hints notes that match each prompt (qmd vectors and reranker through its daemon, or ripgrep), and has save, ask, inbox and review",
-      "version": "0.5.0"
+      "version": "0.5.1"
     },
     {
       "name": "local-models",
       "source": "./plugins/local-models",
       "description": "Installs qmd (and Node 22 through Volta when needed) from an orange band, and keeps its local models running for vault, Effort Optimizer and Model Router: search and judging on your CPU, no tokens",
-      "version": "0.1.0"
+      "version": "0.1.1"
     }
   ]
 }

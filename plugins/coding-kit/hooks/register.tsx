@@ -1017,6 +1017,7 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         {rest}
+        <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(8, e.props.bodyColumns))}</Text>
         <Box flexDirection="row" alignItems="center" justifyContent="space-between" gap={1} width={width}>
           <Text wrap="truncate-end">
             <Text color={ACCENT}>{`◆ ${label}`}</Text>
@@ -1059,6 +1060,7 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         {rest}
+        <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(8, e.props.bodyColumns))}</Text>
         <Box flexDirection="row" alignItems="center" justifyContent="space-between" gap={1}>
           <Text>
             <Text color={ACCENT}>Serena ativo neste projeto.</Text>

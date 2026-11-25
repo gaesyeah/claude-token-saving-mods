@@ -462,6 +462,7 @@ export const register: Register = on => {
         return (
           <Box flexDirection="column">
             {rest}
+            <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(8, e.props.bodyColumns))}</Text>
             <Box flexDirection="row" alignItems="center" justifyContent="space-between" gap={1}>
               <Text>
                 <Text color={color}>◷ Cache warm </Text>
@@ -481,6 +482,7 @@ export const register: Register = on => {
       return (
         <Box flexDirection="column">
           {rest}
+          <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(8, e.props.bodyColumns))}</Text>
           <Box flexDirection="row" alignItems="center" justifyContent="space-between" gap={1}>
             <Text>
               <Text color={color}>◷ Cache warm </Text>
@@ -510,6 +512,7 @@ export const register: Register = on => {
       return (
         <Box flexDirection="column">
           {rest}
+          <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(8, e.props.bodyColumns))}</Text>
           <Box flexDirection="row" alignItems="center" justifyContent="space-between" gap={1}>
             <Text>
               <Text color={COLD}>❄ Cache cold</Text>
@@ -527,6 +530,7 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         {rest}
+        <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(8, e.props.bodyColumns))}</Text>
         <Box flexDirection="row" alignItems="center" justifyContent="space-between" gap={1}>
           <Text>
             <Text color={COLD}>❄ Cache cold</Text>

@@ -426,7 +426,11 @@ test('a prompt qmd searched shows one low purple line above the chat; one it did
   t.write(`${VAULT}/Resources/Cache do prompt.md`, '# Prompt cache\nexpira em cinco minutos')
   await say($, 'por quanto tempo a memória temporária das instruções fica guardada?')
   expect(String(t.store.get('state:search'))).toMatch(/^Vault · qmd buscou em \d+ ms · 1 nota sugerida \(qmd 0\.90\)$/)
-  expect(await (await $.ui.mount(ABOVE as any)).find({ type: 'Text', text: /qmd buscou/ })).toBeDefined()
+  const above = await $.ui.mount(ABOVE as any)
+  expect(await above.find({ type: 'Text', text: /qmd buscou/ })).toBeDefined()
+  // A thin rule on top of its block keeps it apart from the other mods' blocks.
+  expect(await above.find({ type: 'Text', text: /^─+$/ })).toBeDefined()
+  await above.unmount()
   await say($, 'ok')
   expect(t.store.get('state:search')).toBe(null)
 })
