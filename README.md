@@ -9,8 +9,8 @@ desktop app for Linux and Claude Code 2.1.325.
 | Mod | What it does | Command |
 | --- | --- | --- |
 | **input-router** | Big files, PDFs and connector results are read by Haiku first; Claude gets short notes and a path to the full thing. | `/input-router` |
-| **effort-optimizer** | Reads each prompt and picks the reasoning effort it needs (low for simple questions; bug diagnosis and diff review at least medium, architecture, security and migrations high). If a level change ever rewrites the prompt cache, it stops changing levels in that chat. | `/effort-optimizer` |
-| **model-router** | Haiku judges each **subagent** task and moves it to Haiku, Sonnet or Opus. Never changes the main chat's model. | `/model-router` |
+| **effort-optimizer** | Reads each prompt and picks the reasoning effort it needs (low for simple questions; bug diagnosis and diff review at least medium, architecture, security and migrations high). If a level change ever rewrites the prompt cache, it stops changing levels in that chat. With qmd up (from vault), a local judge answers prompts much like ones Sonnet already judged, without calling it; 1 in 5 of those is still asked of Sonnet and compared, and too little agreement stops the local judge (status in `/effort-optimizer`). | `/effort-optimizer` |
+| **model-router** | Haiku judges each **subagent** task and moves it to Haiku, Sonnet or Opus. Never changes the main chat's model. With qmd up (from vault), a local judge answers prompts much like ones Haiku already judged, without calling it; 1 in 5 of those is still asked of Haiku and compared, and too little agreement stops the local judge (status in `/model-router`). | `/model-router` |
 | **cache-clock** | Countdown until the prompt cache goes cold, minimized to one line with an Expand button. Optional *Keep warm* pings. | `/cacheclock`, `/keepwarm` |
 | **handoff** | At 250k tokens, offers *Refresh*: writes a handoff of the chat and starts a fresh chat with it. | `/handoff`, `/fresh` |
 | **research-router** | Keeps web research out of the main chat: Haiku shortens big search results; a cheap worker reads pages and returns a brief. | `/research-router` |

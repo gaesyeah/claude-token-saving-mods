@@ -1,6 +1,7 @@
 import type { ConfigRow, EngineInterface, Register, SessionMessage } from 'claude-code'
 
 import type { Band, Level } from '../types'
+import { type Judge, judgeGuess, judgeLine, judgeRemember, judgeReset, judgeSampled, judgeUsed } from './local-judge'
 
 const BAND = { plugin: 'effort-optimizer', key: 'band' } as const
 const OVERRIDE = { plugin: 'effort-optimizer', key: 'override' } as const
@@ -265,7 +266,30 @@ function parsePick(text: string): Pick | null {
   }
 }
 
+// The local judge answers like Sonnet did for prompts much like this one (see local-judge.ts).
+const judge = (): Judge => ({ collection: 'effort-examples', dir: `${claudeDir}/mods-logs/${NAME}/examples`, labels: LEVELS })
+
 async function pick($: EngineInterface, text: string, now: Level | ''): Promise<Pick | null> {
+  const local = await judgeGuess($, judge(), text).catch(err => (void log($, 'local judge', err), null))
+  if (local) {
+    const level = local.label as Level
+    // A sample: Sonnet answers too, in the background, and the two are compared.
+    if (await judgeUsed($))
+      void (async () => {
+        const paid = await pickPaid($, text, now)
+        if (!paid) return
+        const stopped = await judgeSampled($, paid.level === level)
+        await judgeRemember($, judge(), text, paid.level)
+        void log($, 'local sample', `local ${level}, Sonnet ${paid.level}${stopped ? '; local judge stopped' : ''}`)
+      })().catch(err => log($, 'local sample', err))
+    return { level, why: `like ${local.n} past prompts (local, no Sonnet call)` }
+  }
+  const p = await pickPaid($, text, now)
+  if (p) void judgeRemember($, judge(), text, p.level).catch(err => log($, 'local remember', err))
+  return p
+}
+
+async function pickPaid($: EngineInterface, text: string, now: Level | ''): Promise<Pick | null> {
   const messages = await $.session.messages()
   const lastReply = lastAssistantText(messages).slice(0, 1200)
   const r = await $.model.complete({
@@ -487,14 +511,19 @@ export const register: Register = on => {
       }
       return { text: enabled ? `Effort Optimizer is on (${mode}).` : 'Effort Optimizer is off. Type /effort-optimizer on to turn it back on.' }
     }
+    if (arg === 'reset-local') {
+      await judgeReset($)
+      return { text: 'Effort Optimizer: the local judge answers again, with its samples counted from zero.' }
+    }
     const now = await currentLevel($)
     const { value } = await $.state.get(OVERRIDE)
     return {
       text: [
         `Effort Optimizer is ${enabled ? 'on' : 'off'}, mode: ${mode}.`,
+        await judgeLine($, judge(), 'Sonnet'),
         `This chat runs at: ${now ? NAMES[now] : 'unknown yet'}${value ? ` (held by the mod: ${NAMES[value]})` : ''}.`,
         `Effort setting: ${rowKey || 'not found, the mod sets the level on each request'}.`,
-        'Type /effort-optimizer auto, suggest, off or on.',
+        'Type /effort-optimizer auto, suggest, off, on or reset-local.',
       ].join('\n'),
     }
   })

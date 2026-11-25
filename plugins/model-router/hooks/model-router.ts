@@ -48,6 +48,7 @@ import {
 } from './policy.ts'
 import type { Decision, Effort, JudgeState, PolicyConfig, StepUsage } from './policy.ts'
 import { rankOf, TIER_ORDER } from './policy.ts'
+import { type Judge, judgeGuess, judgeLine, judgeRemember, judgeReset, judgeSampled, judgeUsed } from './local-judge.ts'
 import { addCard, closePane, family, openPane, registerPane, resetPane, setBusy, setCard, setOff, setSwitchHidden } from './pane.tsx'
 import type { Outcome } from '../types'
 
@@ -294,6 +295,39 @@ async function classify(
   return { decision, helper, router: 'haiku', ms, text }
 }
 
+// The local judge answers like Haiku did for tasks much like this one (see local-judge.ts); each
+// example keeps Haiku's whole answer beside it, so a local answer is a real Decision.
+const judge = (): Judge => ({ collection: 'router-examples', dir: `${claudeDir}/mods-logs/${NAME}/examples`, labels: TIER_ORDER })
+const taskText = (s: JudgeState) => `${s.agentType}: ${s.description ?? ''}\n${s.prompt}`
+
+async function judgeTask($: EngineInterface, state: JudgeState, cardId: string | null): Promise<Awaited<ReturnType<typeof classify>>> {
+  const text = taskText(state)
+  const startedAt = await $.clock.now()
+  const local = await judgeGuess($, judge(), text).catch(async err => (await log($, `local judge: ${String(err)}`), null))
+  if (local) {
+    const saved = String(await $.fs.read(local.file.replace(/[^/]*--([^/]+)\.md$/, '$1.json')).catch(() => ''))
+    const decision = readJudgement(saved)
+    if (decision && decision.tier === local.label) {
+      const said = `Local: like ${local.n} past tasks Haiku judged ${local.label} (no Haiku call).`
+      // A sample: Haiku judges too, in the background; the card's answer says whether they agree.
+      if (await judgeUsed($))
+        void (async () => {
+          const paid = await classify($, state)
+          if (!paid.decision) return
+          const agreed = paid.decision.tier === local.label
+          const stopped = await judgeSampled($, agreed)
+          await judgeRemember($, judge(), text, paid.decision.tier, paid.text)
+          await log($, `local sample: local ${local.label}, Haiku ${paid.decision.tier}${stopped ? '; local judge stopped' : ''}`)
+          if (cardId) await setCard($, cardId, { judge: `${said}\n\nSample: Haiku ${agreed ? 'agrees' : `says ${paid.decision.tier}`}.\n${paid.text}`.slice(0, 2000) })
+        })().catch(err => log($, `local sample: ${String(err)}`))
+      return { decision, helper: null, router: 'local', ms: (await $.clock.now()) - startedAt, text: `${said}\n${saved}` }
+    }
+  }
+  const judged = await classify($, state)
+  if (judged.decision) void judgeRemember($, judge(), text, judged.decision.tier, judged.text).catch(err => log($, `local remember: ${String(err)}`))
+  return judged
+}
+
 // Said once per hook, so the log shows which hooks fire in this app.
 const heard = new Set<string>()
 async function first($: EngineInterface, hook: string, where: string) {
@@ -496,6 +530,10 @@ export const register: Register = (on, options) => {
   on('command.run', { command: NAME }, async ($, e) => {
     await ready($)
     if (off) return { text: `${TITLE} is off. Turn it on with /mods.` }
+    if (e.args.trim().toLowerCase() === 'reset-local') {
+      await judgeReset($)
+      return { text: `${TITLE}: the local judge answers again, with its samples counted from zero.` }
+    }
     await openPane($, true)
     if (e.args.trim().toLowerCase() === 'pane') {
       return { text: `${TITLE}: pane open. This chat: ${sessionPicks} picks logged, about $${usd(sessionSaved).toFixed(4)} saved.` }
@@ -505,6 +543,7 @@ export const register: Register = (on, options) => {
       `Judge: ${JUDGE_MODEL_ID} (JSON tier and confidence). Moves down only at confidence ${policy.minDowngradeConfidence} or more, up at ${policy.minUpgradeConfidence} or more. Time limit ${cfg.timeoutMs}ms.`,
       `Subagent model routing: ${routeSubagentModel ? 'on' : 'off'}. Main chat effort routing: ${routeMainEffort ? 'on' : 'off'}. Main chat model: never changed.`,
       `Tiers: ${policy.tiers.fast} / ${policy.tiers.balanced} / ${policy.tiers.deep}.`,
+      await judgeLine($, judge(), 'Haiku'),
       `This chat: ${sessionPicks} picks logged, about $${usd(sessionSaved).toFixed(4)} saved at list price (${PRICE_DATE}).`,
       ...(recent.length > 0 ? ['Last picks:', ...recent.slice(-5).map(r => `  ${r}`)] : []),
       `Ledger: ${ledgerPath()}`,
@@ -599,11 +638,15 @@ export const register: Register = (on, options) => {
     void openPane($)
     let judged: Awaited<ReturnType<typeof classify>>
     try {
-      judged = await classify($, {
-        prompt: e.prompt,
-        description: e.description,
-        agentType: e.subagentType,
-      })
+      judged = await judgeTask(
+        $,
+        {
+          prompt: e.prompt,
+          description: e.description,
+          agentType: e.subagentType,
+        },
+        cardId,
+      )
     } finally {
       await setBusy($, false).catch(() => undefined)
     }
