@@ -14,7 +14,7 @@ Auto mode works on every WebSearch that Claude itself runs in the main chat.
 4. If Haiku fails or gives no answer in 25 seconds, Claude gets the original result. A search is never blocked and never runs twice.
 5. If Haiku's answer is not shorter, Claude gets the original result ("no saving").
 
-The Haiku call asks for `effort: "low"`. The engine has no switch to turn thinking off, so low effort is the closest setting.
+The helper forwards an effort only when the selected model declares one. If the resolver uses the legacy fallback, the call keeps `effort: "low"`; otherwise, an undeclared effort is omitted.
 
 What auto mode does not touch:
 
