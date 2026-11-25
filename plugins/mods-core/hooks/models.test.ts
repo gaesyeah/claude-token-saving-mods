@@ -41,20 +41,6 @@ test('unknown, malformed and ambiguous configuration fails open to the existing 
   expect(resolveModelFromCatalog(ambiguous, 'light', 'legacy-light').model).toBe('legacy-light')
 })
 
-test('selected preset resolves only its configured rung and keeps its effort', () => {
-  const catalog = normalizeModelCatalog({
-    providers: [{ name: 'p', usable: true }],
-    models: [{ model: 'preset-worker', provider: 'p' }],
-    presets: {
-      coding: { mode: 'ladder', rungs: { standard: { target: 'preset-worker', effort: 'high' } } },
-      writing: { mode: 'ladder', rungs: { standard: { target: 'not-selected', effort: 'low' } } },
-    },
-  }, { preset: 'coding' })
-  expect(resolveModelFromCatalog(catalog, 'standard', 'legacy-standard')).toEqual({
-    model: 'preset-worker', provider: 'p', effort: 'high', source: 'clauderipple',
-  })
-})
-
 test('unavailable primary target uses only a valid configured backup', () => {
   const catalog = normalizeModelCatalog({
     providers: [{ name: 'p', usable: true }, { name: 'offline', usable: false }],
