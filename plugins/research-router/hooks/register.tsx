@@ -1281,7 +1281,7 @@ async function shorten($: EngineInterface, query: string, toolUseId: string | un
         '',
         'Commentary:',
         commentary.slice(0, ALL_CHARS),
-      ].join('\\n'),
+      ].join('\n'),
       maxTokens: 700,
       timeoutMs: AUTO_MS,
     },
