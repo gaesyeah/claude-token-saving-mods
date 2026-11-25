@@ -183,30 +183,55 @@ def proxy_request(proxy: str, ca_file: Path, provider: str, model: str) -> dict[
     return body
 
 
-def check_request_log(home: Path, provider: str, model: str, previous_mtime_ns: int) -> bool:
+def request_log_ids(home: Path) -> set[str]:
+    """Snapshot request IDs so the smoke test can identify its own new log row."""
+    path = home / "requests.jsonl"
+    try:
+        if not path.is_file():
+            return set()
+        rows = path.read_text(encoding="utf-8", errors="replace").splitlines()[-500:]
+    except OSError:
+        return set()
+    ids: set[str] = set()
+    for line in rows:
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(item, dict) and isinstance(item.get("id"), (str, int)):
+            ids.add(str(item["id"]))
+    return ids
+
+
+def check_request_log(home: Path, provider: str, previous_ids: set[str]) -> dict[str, Any] | None:
+    """Wait for this test's own successful Anthropic Messages request to be logged."""
     path = home / "requests.jsonl"
     deadline = time.time() + 8
     while time.time() < deadline:
         try:
-            if path.is_file() and path.stat().st_mtime_ns > previous_mtime_ns:
-                rows = []
-                for line in path.read_text(encoding="utf-8", errors="replace").splitlines()[-300:]:
+            if path.is_file():
+                rows = path.read_text(encoding="utf-8", errors="replace").splitlines()[-500:]
+                for line in reversed(rows):
                     try:
                         item = json.loads(line)
                     except json.JSONDecodeError:
                         continue
-                    if isinstance(item, dict):
-                        rows.append(item)
-                for item in reversed(rows):
-                    # Only inspect a log file that changed during this smoke test.
-                    logged_provider = item.get("provider")
-                    logged_model = item.get("model", item.get("requestedModel"))
-                    if logged_provider == provider and logged_model in {model, f"{provider}:{model}"}:
-                        return True
+                    if not isinstance(item, dict):
+                        continue
+                    request_id = item.get("id")
+                    if request_id is None or str(request_id) in previous_ids:
+                        continue
+                    status = item.get("status")
+                    if (
+                        item.get("provider") == provider
+                        and item.get("kind") == "messages"
+                        and status in (200, "200")
+                    ):
+                        return item
         except OSError:
             pass
         time.sleep(0.25)
-    return False
+    return None
 
 
 def main() -> None:
@@ -217,19 +242,24 @@ def main() -> None:
     print(f"ClaudeRipple CA: {ca_file}")
     print(f"Active light target: {provider} / {model}")
     print("Sending one harmless Anthropic Messages request through the HTTPS proxy…")
-    log_path = home / "requests.jsonl"
-    try:
-        previous_log_mtime = log_path.stat().st_mtime_ns if log_path.is_file() else 0
-    except OSError:
-        previous_log_mtime = 0
+    previous_ids = request_log_ids(home)
     response = proxy_request(proxy, ca_file, provider, model)
     print(f"Proxy generation: OK (response model={response.get('model', 'not reported')})")
     print("Model response: CLAUDERIPPLE_PROXY_E2E_OK")
-    if check_request_log(home, provider, model, previous_log_mtime):
-        print(f"Router request log: confirmed provider={provider}, model={model}")
-    else:
-        print("Router request log: matching row not found (response still succeeded through the configured proxy)")
-    print("PASS: the configured HTTPS proxy accepted an Anthropic Messages request and returned the Ollama marker.")
+    logged = check_request_log(home, provider, previous_ids)
+    if logged is None:
+        fail(
+            "proxy generation succeeded, but requests.jsonl did not receive a new "
+            f"successful Messages row for provider={provider}"
+        )
+    target = logged.get("target")
+    target_text = f", target={target}" if isinstance(target, (str, int, float)) else ""
+    print(
+        "Router request log: confirmed "
+        f"id={logged.get('id')}, provider={provider}, "
+        f"kind={logged.get('kind')}, status={logged.get('status')}{target_text}"
+    )
+    print("PASS: HTTPS proxy generation and its matching successful router log entry were verified.")
     print("Note: this exercises ClaudeRipple's proxy + Ollama adapter, but not the Claude Code plugin engine's $.model.complete hook.")
 
 
