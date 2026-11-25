@@ -13,6 +13,10 @@ export type ModsPaths = {
 export type Mods = {
   /** The home folder and Claude's config folder, read from the environment. */
   paths(): Promise<ModsPaths>
+  /** ClaudeRipple's optional local model catalogue. Returns null when it is not installed/running. */
+  modelCatalog(): Promise<ModsModelCatalog | null>
+  /** Resolve a role from ClaudeRipple's configured presets/catalogue; fallback is returned unchanged when unavailable. */
+  modelResolve(input: { role: ModsModelRole; fallback: string }): Promise<ModsResolvedModel>
   /** switches.json, `{}` when there is none; throws when it is there but unreadable, so a mod can keep its last state. */
   readSwitches(): Promise<Record<string, unknown>>
   /** Sets keys in switches.json (`null` removes one), keeping the rest; throws when it cannot. */
@@ -97,3 +101,12 @@ export type ModsCard = { input: number; output: number; cacheRead: number; cache
 
 /** A model's prices: which ids it covers (`pattern`), its family name, and its card (`large` for a prompt over 100K tokens). */
 export type ModsPrice = { pattern: string; name: string; small: ModsCard; large?: ModsCard }
+
+
+export type ModsModelRole = 'judge' | 'light' | 'standard' | 'hard' | 'plan'
+export type ModsResolvedModel = { model: string; provider: string | null; effort?: string; source: 'clauderipple' | 'fallback' }
+export type ModsModelCatalog = {
+  models: { model: string; provider: string; name?: string; judgeOnly: boolean }[]
+  providers: { name: string; type?: string; usable: boolean }[]
+  presets: unknown
+}

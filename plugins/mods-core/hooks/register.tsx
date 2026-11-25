@@ -2,6 +2,7 @@ import type { Register } from 'claude-code'
 import { afterSample, decide, EMBED, freshStats, hash, isQmdHealth, judgeLine, MIN_EXAMPLES, QMD_URL, rerankOf, SAMPLE_EVERY } from './qmd'
 import { addCall, type Day, dayKey, rowsOf, type Usage } from './spend'
 import { PRICES } from './prices'
+import { normalizeModelCatalog, resolveModelFromCatalog, type ModelRole } from './models'
 
 // Mods Core: what the token-saving mods share.
 // 1. $.mods: the helpers every mod used to copy (paths, the /mods switches, logs, shell, the savings
@@ -90,6 +91,44 @@ export const register: Register = on => {
       }))
     }
     const env = { QMD_EMBED_MODEL: EMBED }
+    // ClaudeRipple's admin API is optional. Read its configured port from its own config;
+    // never guess a remote host or expose credentials. A short cache avoids one HTTP call per mod.
+    let modelCatalogCache: { at: number; value: any } | null = null
+    let modelCatalogPending: Promise<any> | null = null
+    const modelCatalog = async () => {
+      const now = await beneath.clock.now()
+      if (modelCatalogCache && now - modelCatalogCache.at < 15_000) return modelCatalogCache.value
+      if (modelCatalogPending) return modelCatalogPending
+      modelCatalogPending = (async () => {
+        try {
+          const { home } = await paths()
+          const configPath = `${home}/.clauderipple/config.json`
+          if (!(await beneath.fs.exists(configPath).catch(() => false))) return null
+          const config = JSON.parse(String(await beneath.fs.read(configPath))) as Record<string, unknown>
+          const port = Number(config.adminPort)
+          if (!Number.isInteger(port) || port < 1 || port > 65535) return null
+          const response = await within(beneath.http.fetch(`http://127.0.0.1:${port}/api/mod-options`), 1500, 'ClaudeRipple model catalogue')
+          if (!response.ok) return null
+          const settingsPath = `${home}/mod-settings.json`
+          let settings: unknown = null
+          if (await beneath.fs.exists(settingsPath).catch(() => false)) {
+            try { settings = JSON.parse(String(await beneath.fs.read(settingsPath))) } catch { settings = null }
+          }
+          return normalizeModelCatalog(JSON.parse(response.text), settings)
+
+        } catch {
+          return null
+        } finally {
+          modelCatalogPending = null
+        }
+      })()
+      const value = await modelCatalogPending
+      modelCatalogCache = { at: await beneath.clock.now(), value }
+      return value
+    }
+    const modelResolve = async ({ role, fallback }: { role: ModelRole; fallback: string }) =>
+      resolveModelFromCatalog(await modelCatalog(), role, fallback)
+
     // Judges: a collection's examples counted once, its index refreshed at most once a minute.
     const counts = new Map<string, number>()
     const ready = new Set<string>()
@@ -107,6 +146,8 @@ export const register: Register = on => {
       ...beneath,
       mods: {
         paths,
+        modelCatalog,
+        modelResolve,
         // The /mods switchboard's switches.json: {} when there is none; throws when it is there but
         // unreadable, so a mod can keep what it had.
         readSwitches: async () => {

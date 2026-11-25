@@ -661,8 +661,9 @@ function capturePrompt(asked: string, answer: string) {
 
 async function capture($: EngineInterface, asked: string, answer: string) {
   if (off || !vault() || cfg.capture === false || !asked.trim() || !answer.trim()) return
-  const r = await $.model.complete({ model: CAPTURE_MODEL, prompt: capturePrompt(asked, answer), maxTokens: 400, effort: 'low', timeoutMs: 30_000 })
-  if (r.usage) void $.mods.spent({ mod: NAME, model: CAPTURE_MODEL, usage: r.usage }).catch(() => undefined)
+  const resolved = await $.mods.modelResolve({ role: 'light', fallback: CAPTURE_MODEL })
+  const r = await $.model.complete({ model: resolved.model, prompt: capturePrompt(asked, answer), maxTokens: 400, effort: resolved.effort ?? 'low', timeoutMs: 30_000 })
+  if (r.usage) void $.mods.spent({ mod: NAME, model: resolved.model, usage: r.usage }).catch(() => undefined)
   if (!r.isAnswered) return
   const json = r.text.match(/\{[\s\S]*\}/)?.[0]
   if (!json) return

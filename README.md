@@ -87,3 +87,10 @@ Everything the mods write goes to `~/.claude/mods-logs/`. If a mod misbehaves, t
   [obra/superpowers](https://github.com/obra/superpowers) (both MIT) and
   [anthropics/skills](https://github.com/anthropics/skills) (Apache 2.0).
 - Linux port and Coding Kit by [gaesyeah](https://github.com/gaesyeah).
+
+
+## Optional ClaudeRipple model resolution
+
+`mods-core` can read ClaudeRipple's loopback admin catalogue (`/api/mod-options`) when `~/.clauderipple/config.json` supplies a valid `adminPort`; the active global ladder is read from ClaudeRipple's documented `mod-settings.json`. The integration is optional: if ClaudeRipple is absent, stopped, unreadable, or returns an unexpected catalogue, each mod keeps its existing model fallback. It never guesses a provider or ranks models by their names. Judge resolution prefers the configured Zen model, then a unique usable `judgeOnly` model. Worker roles use only explicit model targets in the active global ladder (or a named preset explicitly selected in settings). If settings are absent, use domain-specific rules, or are ambiguous, the old per-plugin model remains in force.
+
+Plugins resolve a configured helper model through `$.mods.modelResolve`, call `$.model.complete` directly, and report usage through `$.mods.spent`. Existing local QMD judges remain first in the decision path; the resolver only selects a target; each plugin keeps its own existing retry/fallback behavior, and the main conversation model is never changed.

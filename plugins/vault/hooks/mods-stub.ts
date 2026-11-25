@@ -14,7 +14,7 @@ function core(on: any) {
     const none = async () => {
       throw new Error('answered by the test hooks')
     }
-    const names = ['paths', 'switches', 'readSwitches', 'writeSwitches', 'log', 'append', 'sh', 'ledger', 'open', 'openAsked', 'paneAllowed', 'paneClosed', 'prices', 'spent', 'spend', 'qmdFind', 'qmdUp', 'qmdQuery', 'qmdStart', 'qmdStop', 'judgeGuess', 'judgeRemember', 'judgeUsed', 'judgeSampled', 'judgeReset', 'judgeLine']
+    const names = ['paths', 'switches', 'readSwitches', 'writeSwitches', 'log', 'append', 'sh', 'ledger', 'open', 'openAsked', 'paneAllowed', 'paneClosed', 'prices', 'spent', 'spend', 'qmdFind', 'qmdUp', 'qmdQuery', 'qmdStart', 'qmdStop', 'judgeGuess', 'judgeRemember', 'judgeUsed', 'judgeSampled', 'judgeReset', 'judgeLine', 'modelCatalog', 'modelResolve']
     return { ...beneath, mods: Object.fromEntries(names.map(n => [n, none])) }
   })
   on('mods.paths', () => ({ value: { home: '/home/u', claudeDir: '/home/u/.claude' } }))
@@ -37,6 +37,8 @@ function core(on: any) {
   on('mods.open', (_: any, e: any) => (calls.push({ method: 'open', args: e }), { value: true }))
   on('mods.sh', (_: any, e: any) => (calls.push({ method: 'sh', args: e }), { value: { exitCode: 0, stdout: '', stderr: '' } }))
   on('mods.spent', (_: any, e: any) => (calls.push({ method: 'spent', args: e }), { value: undefined }))
+  on('mods.modelCatalog', () => ({ value: null }))
+  on('mods.modelResolve', (_: any, e: any) => ({ value: { model: e.fallback, provider: null, source: 'fallback' } }))
   on('mods.openAsked', () => ({ value: false }))
   on('mods.prices', () => ({ value: [] }))
   on('mods.paneAllowed', () => ({ value: true }))

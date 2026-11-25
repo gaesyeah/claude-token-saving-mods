@@ -1,17 +1,17 @@
 /**
  * model-router: Claude Mod
  *
- * Picks the model each subagent runs on. Haiku reads the task and answers in
+ * Picks the model each subagent runs on. The configured judge reads the task and answers in
  * JSON: a tier (fast, balanced or deep), its confidence in that tier from 0
  * to 1, an effort score and a risk score.
  *
  * This copy is BenAI's, from davila7/claude-code-templates (MIT). The
- * original asked TypeSafe's Jev; this one asks Haiku through `$.model.complete`
+ * original asked TypeSafe's Jev; this version uses the provider-aware judge resolved by `mods-core`
  * and makes no other network call. What it changes is listed in README.md
  * under "Changes in this copy". In short:
  *
- *   - the judge is Haiku, and its JSON confidence feeds the downgrade bar, so
- *     an easy task can move down from Opus when Haiku is sure enough;
+ *   - the configured judge's JSON confidence feeds the downgrade bar, so
+ *     an easy task can move down from Opus when the judge is sure enough;
  *   - the tiers are full ids, the deep one `claude-opus-5-5`;
  *   - main-chat effort routing is off by default, and it leaves effort alone
  *     while Stably's `~/.claude/mods-logs/.stably-<session id>` file says active;
@@ -29,7 +29,6 @@
 import type { EngineInterface, Register } from 'claude-code'
 import {
   JUDGE_MODEL,
-  JUDGE_MODEL_ID,
   JUDGE_SYSTEM,
   PRICE_DATE,
   setPrices,
@@ -180,7 +179,7 @@ type Config = {
 let cfg: Config
 
 /**
- * How long a judge call may take. Haiku answered in 1.2 to 1.3 s in the live
+ * How long a judge call may take. The previous Haiku judge answered in 1.2 to 1.3 s in the live
  * test; the old 800 ms budget was sized for Jev and would end every call.
  */
 const DEFAULT_TIMEOUT_MS = 8000
@@ -192,7 +191,7 @@ const JUDGE_MAX_TOKENS = 200
 let announced = false
 
 /**
- * Asks Haiku which tier a task needs. Returns the decision (null when none
+ * Asks the configured judge which tier a task needs. Returns the decision (null when none
  * came back or it could not be read) and what the judge call used.
  */
 async function classify(
@@ -211,23 +210,26 @@ async function classify(
   const startedAt = await $.clock.now()
   let decision: Decision | null = null
   let helper: Pick['helper'] = null
+  let judgeModel = JUDGE_MODEL
   let text = ''
   try {
+    const resolved = await $.mods.modelResolve({ role: 'judge', fallback: JUDGE_MODEL })
+    judgeModel = resolved.model
     const result = await $.model.complete({
-      model: JUDGE_MODEL,
+      model: resolved.model,
       system: JUDGE_SYSTEM,
       prompt: judgePrompt(state),
       maxTokens: JUDGE_MAX_TOKENS,
       effort: 'low',
       timeoutMs: cfg.timeoutMs,
     })
-    if (result.usage) void $.mods.spent({ mod: NAME, model: JUDGE_MODEL, usage: result.usage }).catch(() => undefined)
+    if (result.usage) void $.mods.spent({ mod: NAME, model: resolved.model, usage: result.usage }).catch(() => undefined)
     // No usd here: Savings Proof reads a helper's usd as a billed amount, and
     // this is list price. It prices the helper itself from the model id.
     const used = result.usage
     if (used) {
       helper = {
-        model: JUDGE_MODEL_ID,
+        model: resolved.model,
         in: used.input_tokens + used.cache_read_input_tokens + used.cache_creation_input_tokens,
         out: used.output_tokens,
       }
@@ -244,11 +246,11 @@ async function classify(
     await log($, `judge call refused, model kept: ${String(error)}`)
   }
   const ms = (await $.clock.now()) - startedAt
-  return { decision, helper, router: 'haiku', ms, text }
+  return { decision, helper, router: judgeModel, ms, text }
 }
 
 // The local judge answers like Haiku did for tasks much like this one (see local-judge.ts); each
-// example keeps Haiku's whole answer beside it, so a local answer is a real Decision.
+// example keeps the remote judge's whole answer beside it, so a local answer is a real Decision.
 // The local judge, in mods-core: its qmd collection, its examples' folder and its labels.
 const judge = () => ({ collection: 'router-examples', dir: `${claudeDir}/mods-logs/${NAME}/examples`, labels: [...TIER_ORDER] })
 const taskText = (s: JudgeState) => `${s.agentType}: ${s.description ?? ''}\n${s.prompt}`
@@ -261,8 +263,8 @@ async function judgeTask($: EngineInterface, state: JudgeState, cardId: string |
     const saved = String(await $.fs.read(local.file.replace(/[^/]*--([^/]+)\.md$/, '$1.json')).catch(() => ''))
     const decision = readJudgement(saved)
     if (decision && decision.tier === local.label) {
-      const said = `Local: like ${local.n} past tasks Haiku judged ${local.label} (no Haiku call).`
-      // A sample: Haiku judges too, in the background; the card's answer says whether they agree.
+      const said = `Local: like ${local.n} past tasks the remote judge judged ${local.label} (no remote call).`
+      // A sample: The remote judge also samples in the background; the card's answer says whether they agree.
       if (await $.mods.judgeUsed({ collection: judge().collection }))
         void (async () => {
           const paid = await classify($, state)
@@ -270,8 +272,8 @@ async function judgeTask($: EngineInterface, state: JudgeState, cardId: string |
           const agreed = paid.decision.tier === local.label
           const stopped = await $.mods.judgeSampled({ collection: judge().collection, agreed })
           await $.mods.judgeRemember({ ...judge(), text, label: paid.decision.tier, extra: paid.text })
-          await log($, `local sample: local ${local.label}, Haiku ${paid.decision.tier}${stopped ? '; local judge stopped' : ''}`)
-          if (cardId) await setCard($, cardId, { judge: `${said}\n\nSample: Haiku ${agreed ? 'agrees' : `says ${paid.decision.tier}`}.\n${paid.text}`.slice(0, 2000) })
+          await log($, `local sample: local ${local.label}, remote judge ${paid.decision.tier}${stopped ? '; local judge stopped' : ''}`)
+          if (cardId) await setCard($, cardId, { judge: `${said}\n\nSample: remote judge ${agreed ? 'agrees' : `says ${paid.decision.tier}`}.\n${paid.text}`.slice(0, 2000) })
         })().catch(err => log($, `local sample: ${String(err)}`))
       return { decision, helper: null, router: 'local', ms: (await $.clock.now()) - startedAt, text: `${said}\n${saved}` }
     }
@@ -287,6 +289,18 @@ async function first($: EngineInterface, hook: string, where: string) {
   if (heard.has(hook)) return
   heard.add(hook)
   await log($, `first ${hook} (${where})`)
+}
+
+
+// Use ClaudeRipple's explicitly configured ladder when available. A missing or ambiguous rung
+// keeps the exact tier id configured by this plugin; the main conversation model is never changed.
+async function policyFor($: EngineInterface): Promise<PolicyConfig> {
+  const [fast, balanced, deep] = await Promise.all([
+    $.mods.modelResolve({ role: 'light', fallback: cfg.policy.tiers.fast }),
+    $.mods.modelResolve({ role: 'standard', fallback: cfg.policy.tiers.balanced }),
+    $.mods.modelResolve({ role: 'hard', fallback: cfg.policy.tiers.deep }),
+  ])
+  return { ...cfg.policy, tiers: { fast: fast.model, balanced: balanced.model, deep: deep.model } }
 }
 
 // Main-loop effort, only when routeMainEffort is on.
@@ -394,19 +408,19 @@ export function explain(
   model: string | null,
   policy: PolicyConfig,
 ): { outcome: Outcome; why: string } {
-  if (!decision) return { outcome: 'no-answer', why: `Haiku gave no answer, so it kept ${BAR_NAME(current)}.` }
+  if (!decision) return { outcome: 'no-answer', why: `The judge gave no answer, so it kept ${BAR_NAME(current)}.` }
   const c = decision.confidence
   const sure = c === null ? 'no confidence given' : `confidence ${c.toFixed(2)}`
   if (decision.risky !== null && decision.risky > 0.7) {
     return model
-      ? { outcome: 'forced', why: `Haiku saw risk (${decision.risky.toFixed(2)}), so it went to ${BAR_NAME(model)}.` }
-      : { outcome: 'agreed', why: `Haiku saw risk, and ${BAR_NAME(current)} is already the top model.` }
+      ? { outcome: 'forced', why: `The judge saw risk (${decision.risky.toFixed(2)}), so it went to ${BAR_NAME(model)}.` }
+      : { outcome: 'agreed', why: `The judge saw risk, and ${BAR_NAME(current)} is already the top model.` }
   }
   if (model) return { outcome: 'moved', why: `Moved to ${BAR_NAME(model)}: ${sure}, over the bar.` }
   const wanted = TIER_ORDER.indexOf(decision.tier)
   const have = rankOf(current, policy.tiers)
   if (have === null || have === wanted || policy.tiers[decision.tier] === current) {
-    return { outcome: 'agreed', why: `Kept ${BAR_NAME(current)}: Haiku agrees it fits (${sure}).` }
+    return { outcome: 'agreed', why: `Kept ${BAR_NAME(current)}: The judge agrees it fits (${sure}).` }
   }
   const down = wanted < have
   const bar = down ? policy.minDowngradeConfidence : policy.minUpgradeConfidence
@@ -414,7 +428,7 @@ export function explain(
     outcome: 'under-bar',
     why:
       c === null
-        ? `Kept ${BAR_NAME(current)}: Haiku wanted ${BAR_NAME(policy.tiers[decision.tier])} but gave no confidence.`
+        ? `Kept ${BAR_NAME(current)}: The judge wanted ${BAR_NAME(policy.tiers[decision.tier])} but gave no confidence.`
         : `Kept ${BAR_NAME(current)}: confidence ${c.toFixed(2)} under the ${bar} bar${down ? '' : ' to move up'}.`,
   }
 }
@@ -473,7 +487,7 @@ export const register: Register = (on, options) => {
     await ready($)
     await $.command.register({
       name: NAME,
-      description: 'Model Router: Haiku picks each subagent model. Shows what it picked and the saving. pane: open the pane',
+      description: 'Model Router: the configured judge picks each subagent model. Shows what it picked and the saving. pane: open the pane',
       argumentHint: '[pane]',
     })
     return next(e)
@@ -490,12 +504,14 @@ export const register: Register = (on, options) => {
     if (e.args.trim().toLowerCase() === 'pane') {
       return { text: `${TITLE}: pane open. This chat: ${sessionPicks} picks logged, about $${usd(sessionSaved).toFixed(4)} saved.` }
     }
+    const activePolicy = await policyFor($)
+    const activeJudge = await $.mods.modelResolve({ role: 'judge', fallback: JUDGE_MODEL })
     const lines = [
       `${TITLE} is on.`,
-      `Judge: ${JUDGE_MODEL_ID} (JSON tier and confidence). Moves down only at confidence ${policy.minDowngradeConfidence} or more, up at ${policy.minUpgradeConfidence} or more. Time limit ${cfg.timeoutMs}ms.`,
+      `Judge: ${activeJudge.model} (JSON tier and confidence). Moves down only at confidence ${policy.minDowngradeConfidence} or more, up at ${policy.minUpgradeConfidence} or more. Time limit ${cfg.timeoutMs}ms.`,
       `Subagent model routing: ${routeSubagentModel ? 'on' : 'off'}. Main chat effort routing: ${routeMainEffort ? 'on' : 'off'}. Main chat model: never changed.`,
-      `Tiers: ${policy.tiers.fast} / ${policy.tiers.balanced} / ${policy.tiers.deep}.`,
-      await $.mods.judgeLine({ collection: judge().collection, dir: judge().dir, paid: 'Haiku' }),
+      `Tiers: ${activePolicy.tiers.fast} / ${activePolicy.tiers.balanced} / ${activePolicy.tiers.deep}.`,
+      await $.mods.judgeLine({ collection: judge().collection, dir: judge().dir, paid: activeJudge.source === 'fallback' ? 'Haiku' : activeJudge.model }),
       `This chat: ${sessionPicks} picks logged, about $${usd(sessionSaved).toFixed(4)} saved at list price (${PRICE_DATE}).`,
       ...(recent.length > 0 ? ['Last picks:', ...recent.slice(-5).map(r => `  ${r}`)] : []),
       `Ledger: ${ledgerPath()}`,
@@ -551,7 +567,8 @@ export const register: Register = (on, options) => {
     }
 
     // The model is never changed here; only effort is read from the routing.
-    const routing = route(decision, { model: e.model, effort: e.effort }, policy)
+    const activePolicy = await policyFor($)
+    const routing = route(decision, { model: e.model, effort: e.effort }, activePolicy)
     if (routing.effort) applied = { effort: routing.effort }
     if (logDecisions) $.ui.status(describeStatus(decision, applied))
     if (!applied) {
@@ -579,7 +596,7 @@ export const register: Register = (on, options) => {
     // A fork inherits its parent's model; a resume keeps its own.
     if (!routeSubagentModel || e.fork || e.resume) return next(e)
 
-    // The pane's card goes up before Haiku answers, so the judging shows.
+    // The pane's card goes up before the judge answers, so the judging shows.
     const cardId = await addCard($, {
       agentType: e.subagentType,
       task: e.description,
@@ -614,9 +631,10 @@ export const register: Register = (on, options) => {
     // Effort is dropped before routing: an effort answer alone would count as
     // a change and hide the "kept, wanted" reason in the log.
     const modelOnly = decision ? { ...decision, effort: null, effortConfidence: null } : null
-    const { model, reason } = route(modelOnly, { model: current }, policy)
+    const activePolicy = await policyFor($)
+    const { model, reason } = route(modelOnly, { model: current }, activePolicy)
     const ran = model ?? current
-    const { outcome, why } = explain(decision, current, model, policy)
+    const { outcome, why } = explain(decision, current, model, activePolicy)
     if (cardId) {
       await setCard($, cardId, {
         phase: 'running',

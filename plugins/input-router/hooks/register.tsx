@@ -274,15 +274,16 @@ function clean(text: string) {
 
 type Asked = Awaited<ReturnType<EngineInterface['model']['complete']>>
 
-// One Haiku request. The full id first; if it is refused (an allowlist, or no effort on this model), the
-// alias resolves to the session's Haiku.
+// One helper request. The configured light model is tried first; if it is refused (an allowlist, or
+// no effort on this model), the alias resolves to the session's Haiku.
 async function ask($: EngineInterface, system: string, prompt: string, maxTokens: number, signal: AbortSignal | undefined) {
   const request = { prompt, system, maxTokens, timeoutMs: CALL_MS }
   const opts = signal ? { signal } : undefined
   try {
-    const r = await $.model.complete({ model: MODEL, effort: 'low', ...request }, opts)
-    if (r.usage) void $.mods.spent({ mod: NAME, model: MODEL, usage: r.usage }).catch(() => undefined)
-    if (r.isAnswered || r.reason !== 'api-error') return { model: MODEL, r }
+    const resolved = await $.mods.modelResolve({ role: 'light', fallback: MODEL })
+    const r = (await $.model.complete({ model: resolved.model, effort: resolved.effort ?? 'low', ...request }, opts)) as Asked
+    if (r.usage) void $.mods.spent({ mod: NAME, model: resolved.model, usage: r.usage }).catch(() => undefined)
+    if (r.isAnswered || r.reason !== 'api-error') return { model: resolved.model, r }
   } catch {
     // The alias is the second try.
   }
