@@ -149,6 +149,8 @@ def main() -> None:
     agent, effort = resolve_light(options, settings)
     model = agent["model"]
     provider = agent["provider"]
+    if "ollama" not in provider.lower():
+        fail(f"active light rung resolved to provider {provider!r}, not an Ollama provider; refusing to send the prompt elsewhere")
     print(f"ClaudeRipple admin API: OK (127.0.0.1:{port})")
     print(f"Active light rung: resolved agent={agent['name']} provider={provider} model={model}")
     print(f"Effort forwarded: {effort if effort else 'no (not declared by this agent)'}")
