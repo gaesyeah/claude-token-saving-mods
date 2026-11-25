@@ -356,7 +356,7 @@ test('native general-purpose workers resolve through ClaudeRipple claudeLatest a
   }, { settings: {
     allow: ['general-purpose:opus'],
     allowKnown: ['general-purpose:opus'],
-    rules: { general: { mode: 'ladder', rungs: { plan: [{ target: { agent: 'general-purpose', model: 'opus' }, effort: 'high' }] } },
+    rules: { general: { mode: 'ladder', rungs: { plan: [{ target: { agent: 'general-purpose', model: 'opus' }, effort: 'high' }] } } },
   } })
   expect(resolveModelFromCatalog(catalog, 'plan', 'legacy')).toEqual({
     model: 'claude-opus-5-5', provider: 'anthropic', effort: 'high', source: 'clauderipple',
