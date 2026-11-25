@@ -138,8 +138,8 @@ function modelEntry(catalog: ModelCatalog, model: string, provider: string): Cat
 }
 
 function providerModelUnavailable(provider: CatalogProvider, model: string): boolean {
-  const entries = provider.models
-  return Boolean(entries[model] ?? entries[`${provider.name}:${model}`])
+  const rawModel = model.startsWith(`${provider.name}:`) ? model.slice(provider.name.length + 1) : model
+  return Boolean(provider.models[rawModel] ?? provider.models[model] ?? provider.models[`${provider.name}:${rawModel}`])
 }
 
 function effortFor(entry: any, agent: CatalogAgent | undefined, catalog: ModelCatalog, native = false): string | undefined {
@@ -196,7 +196,11 @@ export function resolveModelFromCatalog(catalog: ModelCatalog | null, role: Mode
       : []
     const zenUsable = zen.filter(x => settings.providers?.[x.provider] !== false && !providerModelUnavailable(providerFor(catalog, x.provider)!, x.model))
     if (zenUsable.length === 1) return { model: zenUsable[0]!.model, provider: zenUsable[0]!.provider, source: 'clauderipple' }
-    const candidates = catalog.models.filter(x => x.judgeOnly && settings.providers?.[x.provider] !== false)
+    const candidates = catalog.models.filter(x => {
+      if (!x.judgeOnly || settings.providers?.[x.provider] === false) return false
+      const provider = providerFor(catalog, x.provider)
+      return Boolean(provider?.usable && !providerModelUnavailable(provider, x.model))
+    })
     return candidates.length === 1 ? { model: candidates[0]!.model, provider: candidates[0]!.provider, source: 'clauderipple' } : { model: fallback, provider: null, source: 'fallback' }
   }
 

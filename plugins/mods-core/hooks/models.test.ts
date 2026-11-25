@@ -26,7 +26,7 @@ test('judge resolves configured Zen or a unique usable judgeOnly model only', ()
   expect(resolveModelFromCatalog(zen, 'judge', 'legacy-judge').model).toBe('b')
 })
 
-test('worker resolves only the active explicit ladder rung and returns its effort', () => {
+test('worker resolves only the active explicit ladder rung and leaves undeclared effort unset', () => {
   const resolved = resolveModelFromCatalog(fixture(), 'light', 'legacy-light')
   expect(resolved).toEqual({ model: 'worker-model', provider: 'openai', effort: undefined, source: 'clauderipple' })
   expect(resolveModelFromCatalog(fixture(), 'hard', 'legacy-deep').model).toBe('legacy-deep')

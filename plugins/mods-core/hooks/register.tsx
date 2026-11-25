@@ -96,11 +96,13 @@ export const register: Register = on => {
     const modelCatalog = createModelCatalogLoader({
       now: () => beneath.clock.now(),
       readConfig: async () => {
-        // ClaudeRipple supports a separate home directory; use the same inherited environment
-        // as the local service rather than assuming it always lives under Claude's HOME.
-        const location = await sh('printf "%s" "${CLAUDERIPPLE_HOME:-$HOME/.clauderipple}"').catch(() => undefined)
-        const rippleHome = location?.exitCode === 0 ? location.stdout.trim() : ''
-        if (!rippleHome || !rippleHome.startsWith('/')) return null
+        // ClaudeRipple supports a separate home directory; honor it before the default.
+        const { home } = await paths()
+        const configuredHome = clean(await beneath.env.get('CLAUDERIPPLE_HOME').catch(() => undefined))
+        const rippleHome = configuredHome
+          ? configuredHome === '~' ? home : configuredHome.startsWith('~/') ? `${home}${configuredHome.slice(1)}` : fwd(configuredHome, false)
+          : `${home}/.clauderipple`
+        if (!rippleHome.startsWith('/') && !/^[A-Za-z]:\\//.test(rippleHome)) return null
         const path = `${rippleHome}/config.json`
         if (!(await beneath.fs.exists(path).catch(() => false))) return null
         return JSON.parse(String(await beneath.fs.read(path)))
