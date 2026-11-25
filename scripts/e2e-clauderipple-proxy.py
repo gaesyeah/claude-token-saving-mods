@@ -185,7 +185,7 @@ def proxy_request(proxy: str, ca_file: Path, provider: str, model: str) -> dict[
 
 def request_log_ids(home: Path) -> set[str]:
     """Snapshot request IDs so the smoke test can identify its own new log row."""
-    path = home / "requests.jsonl"
+    path = home / "logs" / "requests.jsonl"
     try:
         if not path.is_file():
             return set()
@@ -205,7 +205,7 @@ def request_log_ids(home: Path) -> set[str]:
 
 def check_request_log(home: Path, provider: str, previous_ids: set[str]) -> dict[str, Any] | None:
     """Wait for this test's own successful Anthropic Messages request to be logged."""
-    path = home / "requests.jsonl"
+    path = home / "logs" / "requests.jsonl"
     deadline = time.time() + 8
     while time.time() < deadline:
         try:
