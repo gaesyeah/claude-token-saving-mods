@@ -1,9 +1,12 @@
 {
   "name": "quota-meter",
-  "version": "0.2.0",
-  "description": "Shows how much of the 5-hour and weekly limits each turn spends, averaged over recent turns; /quota gives the details",
-  "dependencies": ["mods-core"],
+  "version": "0.3.0",
+  "description": "A side pane with how much of the 5-hour and weekly limits each turn spends, averaged over recent turns, and what the mods spend on their own Haiku and Sonnet calls; /quota opens it, and it opens by itself once a chat when a limit passes 80%",
+  "dependencies": [
+    "mods-core"
+  ],
   "author": {
     "name": "Ben AI"
-  }
+  },
+  "types": "./types/index.d.ts"
 }

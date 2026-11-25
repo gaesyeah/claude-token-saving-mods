@@ -280,6 +280,8 @@ async function pickPaid($: EngineInterface, text: string, now: Level | ''): Prom
     effort: 'low',
     timeoutMs: 20_000,
   })
+  // Quota Meter's pane shows what the mods spend on their own model calls.
+  if (r.usage) void $.mods.spent({ mod: NAME, model: 'claude-sonnet-5-5', usage: r.usage }).catch(() => undefined)
   if (!r.isAnswered) throw new Error(`pick failed: ${r.reason}`)
   return parsePick(r.text)
 }

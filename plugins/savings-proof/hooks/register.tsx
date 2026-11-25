@@ -901,10 +901,8 @@ async function openPane($: EngineInterface) {
 // The /mods switchboard asks for this pane by leaving an empty file for this chat.
 async function checkOpen($: EngineInterface) {
   if (!sid) return
-  const path = `${claudeDirOf($)}/mods/.open-${NAME}-${sid}`
   try {
-    if (!(await $.fs.exists(path))) return
-    await $.process.run(['rm', '-f', path])
+    if (!(await $.mods.openAsked({ mod: NAME }))) return
     if (!off) await openPane($)
   } catch (err) {
     await log($, `open request failed: ${String(err instanceof Error ? err.message : err)}`)

@@ -1,5 +1,6 @@
 import type { Register } from 'claude-code'
 import { afterSample, decide, EMBED, freshStats, hash, isQmdHealth, judgeLine, MIN_EXAMPLES, QMD_URL, rerankOf, SAMPLE_EVERY } from './qmd'
+import { addCall, type Day, dayKey, rowsOf, type Usage } from './spend'
 
 // Mods Core: what the token-saving mods share.
 // 1. $.mods: the helpers every mod used to copy (paths, the /mods switches, logs, shell, the savings
@@ -7,6 +8,8 @@ import { afterSample, decide, EMBED, freshStats, hash, isQmdHealth, judgeLine, M
 // 2. $.mods.qmd*: qmd and its daemon (localhost:8181), for the vault's search and Local Models.
 //    $.mods.judge*: the local judge of Effort Optimizer and Model Router: it answers like the paid judge
 //    did for prompts much like this one, from examples kept in a qmd collection, and samples itself.
+// 3. $.mods.spent / $.mods.spend: what each mod spends on its own model calls (Haiku, Sonnet), kept per
+//    day for 14 days, for Quota Meter's pane.
 
 // Opens a file or link: xdg-open (most Linux desktops), gio (GNOME), open (macOS).
 const OPEN_SH = 'for c in xdg-open gio open; do command -v "$c" >/dev/null 2>&1 || continue; if [ "$c" = gio ]; then gio open "$1"; else "$c" "$1"; fi </dev/null >/dev/null 2>&1; exit $?; done; echo "no opener (xdg-open, gio or open)" >&2; exit 3'
@@ -107,6 +110,31 @@ export const register: Register = on => {
         sh: ({ script, args, timeoutMs }: { script: string; args?: string[]; timeoutMs?: number }) => sh(script, args, timeoutMs),
         ledger: async ({ row }: { row: Record<string, unknown> }) => append(`${(await paths()).claudeDir}/mods-logs/savings.jsonl`, `${JSON.stringify(row)}\n`),
         open: async ({ target }: { target: string }) => (await sh(OPEN_SH, [target], 10_000).catch(() => ({ exitCode: 1 }))).exitCode === 0,
+        // The /mods pane's Open button leaves ~/.claude/mods/.open-<mod>-<chat id>: true (and the file gone)
+        // when it asked this chat for that mod's pane. Each mod opens its own pane; a mod can open only its own.
+        openAsked: async ({ mod }: { mod: string }) => {
+          const sid = await beneath.session.id().catch(() => '')
+          if (!sid) return false
+          const ask = `${(await paths()).claudeDir}/mods/.open-${mod}-${sid}`
+          if (!(await beneath.fs.exists(ask).catch(() => false))) return false
+          await beneath.process.run(['rm', '-f', ask]).catch(() => undefined)
+          return true
+        },
+        // A mod reports each model call it made; kept per calendar day, the last 14.
+        spent: async ({ mod, model, usage }: { mod: string; model: string; usage: Usage }) => {
+          const now = await beneath.clock.now()
+          const all = ((await beneath.store.get('spend').catch(() => undefined)) ?? {}) as Record<string, Day>
+          const key = dayKey(now)
+          const kept = Object.fromEntries(Object.entries(all).filter(([d]) => d >= dayKey(now - 13 * 86_400_000)))
+          await beneath.store.set('spend', { ...kept, [key]: addCall(kept[key] ?? {}, mod, model, usage ?? {}) }).catch(() => undefined)
+        },
+        // Today's and the last 7 days' spend, one row per mod and model, the dearest first.
+        spend: async () => {
+          const now = await beneath.clock.now()
+          const all = ((await beneath.store.get('spend').catch(() => undefined)) ?? {}) as Record<string, Day>
+          const week = Object.entries(all).filter(([d]) => d >= dayKey(now - 6 * 86_400_000)).map(([, day]) => day)
+          return { today: rowsOf([all[dayKey(now)] ?? {}]), week: rowsOf(week) }
+        },
         qmdFind,
         qmdUp: () => qmdUp(),
         qmdQuery,

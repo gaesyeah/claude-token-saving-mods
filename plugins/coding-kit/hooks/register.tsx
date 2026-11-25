@@ -296,9 +296,7 @@ async function readSwitch($: EngineInterface) {
     // A broken file changes nothing.
   }
   // The /mods pane's Open button leaves this file.
-  const ask = `${claudeDir}/mods/.open-${NAME}-${sid}`
-  if (sid && (await $.fs.exists(ask).catch(() => false))) {
-    await $.process.run(['rm', '-f', ask]).catch(() => undefined)
+  if (sid && (await $.mods.openAsked({ mod: NAME }))) {
     if (!off) await openPane($)
   }
 }

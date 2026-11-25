@@ -83,9 +83,7 @@ async function readSwitch($: EngineInterface) {
 // Open in /mods writes an empty file named for this mod and this chat: open the pane, remove the file.
 async function checkOpen($: EngineInterface) {
   if (!session || !home) return
-  const path = `${claudeDir}/mods/.open-${NAME}-${session}`
-  if (!(await $.fs.exists(path).catch(() => false))) return
-  await $.process.run(['/bin/rm', '-f', path])
+  if (!(await $.mods.openAsked({ mod: NAME }))) return
   if (!off) await showPane($)
 }
 

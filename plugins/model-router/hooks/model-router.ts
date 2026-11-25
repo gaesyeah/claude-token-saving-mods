@@ -103,9 +103,7 @@ async function readSwitch($: EngineInterface) {
 // Open in /mods writes an empty file named for this mod and this chat: open the pane, remove the file.
 async function checkOpen($: EngineInterface) {
   if (!session || !home) return
-  const path = `${claudeDir}/mods/.open-${NAME}-${session}`
-  if (!(await $.fs.exists(path).catch(() => false))) return
-  await $.process.run(['/bin/rm', '-f', path])
+  if (!(await $.mods.openAsked({ mod: NAME }))) return
   if (!off) await openPane($, true)
 }
 
@@ -249,6 +247,7 @@ async function classify(
       effort: 'low',
       timeoutMs: cfg.timeoutMs,
     })
+    if (result.usage) void $.mods.spent({ mod: NAME, model: JUDGE_MODEL, usage: result.usage }).catch(() => undefined)
     // No usd here: Savings Proof reads a helper's usd as a billed amount, and
     // this is list price. It prices the helper itself from the model id.
     const used = result.usage

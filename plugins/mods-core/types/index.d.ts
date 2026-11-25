@@ -26,6 +26,14 @@ export type Mods = {
   /** Opens a file or link with xdg-open, gio or open; false when none could. */
   open(input: { target: string }): Promise<boolean>
 
+  /** True (and the request removed) when the /mods pane's Open button asked this chat for that mod's pane. */
+  openAsked(input: { mod: string }): Promise<boolean>
+
+  /** A mod reports one model call it made (the call's `usage` as the engine answered it). */
+  spent(input: { mod: string; model: string; usage: ModsUsage }): Promise<void>
+  /** Today's and the last 7 days' spend on the mods' own model calls, one row per mod and model, the dearest first. */
+  spend(): Promise<{ today: ModsSpendRow[]; week: ModsSpendRow[] }>
+
   /** qmd's path, '' when it is not installed; `fresh` looks again (after an install). */
   qmdFind(input?: { fresh?: boolean }): Promise<string>
   /** Whether qmd's own daemon answers on localhost:8181. */
@@ -65,3 +73,9 @@ declare module 'claude-code' {
     mods: Mods
   }
 }
+
+/** A model call's token counts, as `$.model.complete` answers them. */
+export type ModsUsage = { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number }
+
+/** One mod's spend on one model family: calls, tokens in (cache included) and out, and the list-price estimate in US$. */
+export type ModsSpendRow = { mod: string; model: string; calls: number; in: number; out: number; usd: number }

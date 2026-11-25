@@ -130,9 +130,7 @@ async function showOffer($: EngineInterface) {
 // The /mods switchboard asks for the offer by leaving an empty file for this chat.
 async function checkOpen($: EngineInterface) {
   if (!sid) return
-  const path = `${claudeDir}/mods/.open-${NAME}-${sid}`
-  if (!(await $.fs.exists(path).catch(() => false))) return
-  await $.process.run(['rm', '-f', path])
+  if (!(await $.mods.openAsked({ mod: NAME }))) return
   if (!off) await showOffer($)
 }
 

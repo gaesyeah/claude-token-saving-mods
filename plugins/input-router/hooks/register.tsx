@@ -191,9 +191,7 @@ async function readSwitch($: EngineInterface) {
 async function checkOpen($: EngineInterface) {
   const sid = currentSid || (await sessionId($))
   if (!sid || !home) return
-  const path = `${claudeDir}/mods/.open-${NAME}-${sid}`
-  if (!(await $.fs.exists(path).catch(() => false))) return
-  await $.process.run(['rm', '-f', path])
+  if (!(await $.mods.openAsked({ mod: NAME }))) return
   hiddenIn.delete(sid)
   if (off || globalHidden) return
   const opened = await showPane($, '/mods Open')
@@ -304,11 +302,14 @@ async function ask($: EngineInterface, system: string, prompt: string, maxTokens
   const opts = signal ? { signal } : undefined
   try {
     const r = await $.model.complete({ model: MODEL, effort: 'low', ...request }, opts)
+    if (r.usage) void $.mods.spent({ mod: NAME, model: MODEL, usage: r.usage }).catch(() => undefined)
     if (r.isAnswered || r.reason !== 'api-error') return { model: MODEL, r }
   } catch {
     // The alias is the second try.
   }
-  return { model: MODEL_ALIAS, r: (await $.model.complete({ model: MODEL_ALIAS, ...request }, opts)) as Asked }
+  const r = (await $.model.complete({ model: MODEL_ALIAS, ...request }, opts)) as Asked
+  if (r.usage) void $.mods.spent({ mod: NAME, model: MODEL_ALIAS, usage: r.usage }).catch(() => undefined)
+  return { model: MODEL_ALIAS, r }
 }
 
 function usageOf(r: Asked): Call {

@@ -1,6 +1,6 @@
 {
   "name": "mods",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A Mods pane that finds every mod on this computer by itself, turns each one on or off in every chat, and opens the side-pane ones",
   "dependencies": [
     "mods-core"

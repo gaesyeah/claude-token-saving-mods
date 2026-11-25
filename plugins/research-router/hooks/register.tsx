@@ -176,9 +176,7 @@ async function readSwitch($: EngineInterface) {
 // Open in /mods writes an empty file named for this mod and this chat: open the pane, remove the file.
 async function checkOpen($: EngineInterface) {
   if (!session || !home) return
-  const path = `${claudeDir}/mods/.open-${NAME}-${session}`
-  if (!(await exists($, path))) return
-  await $.process.run(['/bin/rm', '-f', path], { timeoutMs: 10_000 })
+  if (!(await $.mods.openAsked({ mod: NAME }))) return
   if (!off) await openPane($, true)
 }
 
@@ -404,6 +402,7 @@ function countUsage(u: ModelUsage | undefined) {
 
 async function ask($: EngineInterface, job: Job, prompt: string, maxTokens: number, timeoutMs: number) {
   const r = await $.model.complete({ model: MODEL, system: SYSTEM, prompt, maxTokens, timeoutMs })
+  if (r.usage) void $.mods.spent({ mod: NAME, model: MODEL, usage: r.usage }).catch(() => undefined)
   const u = countUsage(r.usage)
   job.helperIn += u.input
   job.helperOut += u.output
@@ -1291,6 +1290,7 @@ async function shorten($: EngineInterface, query: string, toolUseId: string | un
     timeoutMs: AUTO_MS,
   })
     .finally(() => update($, busyAtom, n => Math.max(0, (n ?? 0) - 1)))
+  if (m.usage) void $.mods.spent({ mod: NAME, model: MODEL, usage: m.usage }).catch(() => undefined)
   const u = countUsage(m.usage)
   const cost = dollars(u.input, u.output)
   if (!m.isAnswered || !m.text.trim()) {
