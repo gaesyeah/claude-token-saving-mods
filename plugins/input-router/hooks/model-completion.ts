@@ -1,3 +1,4 @@
+import type { ModelUsage } from 'claude-code'
 import { effortOptions } from './effort-options'
 
 export type ModelResolution = {
@@ -6,7 +7,7 @@ export type ModelResolution = {
   source: 'clauderipple' | 'fallback'
 }
 
-type CompletionResult = { isAnswered?: boolean; reason?: string }
+type CompletionResult = { isAnswered?: boolean; reason?: string; usage?: ModelUsage }
 
 type CompleteDeps<T extends CompletionResult> = {
   resolve(): Promise<ModelResolution>
