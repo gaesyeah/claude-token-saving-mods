@@ -263,7 +263,7 @@ test('catalogue loader shares concurrent requests and caches success for 15 seco
   expect(b?.models[0]?.model).toBe('worker')
   expect(setup.fetchCount()).toBe(2)
   expect((await load())?.models[0]?.model).toBe('worker')
-  expect(setup.fetchCount()).toBe(1)
+  expect(setup.fetchCount()).toBe(2)
   setup.setTime(16_001)
   expect((await load())?.models[0]?.model).toBe('worker')
   expect(setup.fetchCount()).toBe(4)
