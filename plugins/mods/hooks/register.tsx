@@ -117,6 +117,8 @@ const KNOWN: Record<string, Known> = {
   'cache-clock': { title: 'Cache Clock', what: 'Counts down until the cache goes cold', group: 'save', hide: true, tip: '/cacheclock to show or hide' },
   'savings-proof': { title: 'Savings Proof', what: 'Shows what each mod really saved', group: 'save', pane: true, hide: true, ask: true, tip: '/savings to open' },
   'quota-meter': { title: 'Quota Meter', what: 'Status line with the 5h and weekly limits and the points each turn spends', group: 'save', tip: '/quota for details' },
+  vault: { title: 'Vault', what: 'Second brain in an Obsidian vault, with hints of the notes each prompt needs', group: 'save', tip: '/vault for its state' },
+  'local-models': { title: 'Local Models', what: 'Installs qmd and keeps its local models up for vault and the local judges', group: 'save', tip: '/local-models for its state' },
   'tool-diet': { title: 'Tool Diet', what: 'Big tools a project does not use move behind ToolSearch', group: 'save', tip: '/tool-diet for the numbers' },
 
   'brain-dump': { title: 'Brain-Dump Shaper', what: 'Turns long rambling prompts into clear briefs', group: 'chat' },

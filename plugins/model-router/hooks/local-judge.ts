@@ -1,5 +1,5 @@
 // Local judge: answers like the paid judge did for prompts much like this one, through the qmd daemon
-// the vault mod runs (localhost:8181). No Claude call, no tokens.
+// the Local Models mod keeps running (localhost:8181). No Claude call, no tokens.
 //
 // Every paid answer is kept as an example: one Markdown file `<label>--<hash>.md` holding the prompt,
 // in its own qmd collection, outside the vault. A new prompt asks the daemon for its 3 nearest examples,
@@ -156,6 +156,6 @@ export async function judgeLine($: EngineInterface, j: Judge, paid: string) {
   const n = await examples($, j)
   const recent = s.recent.length ? `${s.recent.filter(Boolean).length}/${s.recent.length}` : 'none yet'
   if (s.stopped) return `Local judge: stopped, the last samples agreed with ${paid} only ${recent}. Type reset-local to try again.`
-  if (n < MIN_EXAMPLES) return `Local judge: learning, ${n}/${MIN_EXAMPLES} examples from ${paid}'s answers (needs qmd from the vault mod).`
+  if (n < MIN_EXAMPLES) return `Local judge: learning, ${n}/${MIN_EXAMPLES} examples from ${paid}'s answers (needs qmd: the Local Models mod installs it).`
   return `Local judge: ${s.local} answers without ${paid}; 1 in ${SAMPLE_EVERY} also asked ${paid}: agreed ${s.agreed}/${s.sampled} (last ${WINDOW}: ${recent}).`
 }

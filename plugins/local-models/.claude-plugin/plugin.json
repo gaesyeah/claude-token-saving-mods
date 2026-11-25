@@ -1,0 +1,12 @@
+{
+  "name": "local-models",
+  "version": "0.1.0",
+  "description": "Installs qmd (and Node 22 through Volta when needed) from an orange band, and keeps its local models running for vault, Effort Optimizer and Model Router: search and judging on your CPU, no tokens",
+  "author": {
+    "name": "gaesyeah",
+    "url": "https://github.com/gaesyeah"
+  },
+  "license": "MIT",
+  "keywords": ["mod", "function-hooks", "qmd", "local-models"],
+  "types": "./types/index.d.ts"
+}

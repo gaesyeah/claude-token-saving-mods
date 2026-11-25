@@ -8,8 +8,6 @@ declare module 'claude-code' {
       band: Band | null
       /** True while an empty vault waits for the PARA or Zettelkasten pick in the band. */
       choice: boolean | null
-      /** The qmd install row: 'offer', 'installing', or the install's result; null hides it. */
-      qmd: string | null
     }
   }
 }

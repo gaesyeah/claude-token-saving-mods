@@ -408,49 +408,11 @@ test('a folder that already has notes keeps its structure and gets no prompt sen
   expect(t.submitted.length).toBe(0)
 })
 
-const BAND = { plugin: 'vault', component: 'AbovePrompt', surface: 'desktop', props: { hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 20, bodyColumns: 100, scroll: { offset: 0, bodyRows: 20 } } }
-
-test('with no qmd the band offers to install it; the install indexes and starts the daemon, and its Entendi closes the row', async ($, on) => {
-  const o: { qmd?: string } = {}
-  const t = engine(on, o)
-  await start($)
-  await cmd($, 'use ~/Vault')
-  await start($)
-  expect(t.store.get('state:qmd')).toBe('offer')
-  const ui = await $.ui.mount(BAND as any)
-  expect(await ui.find({ key: 'qmd-install' })).toBeDefined()
-  o.qmd = '{"results":[]}'
-  await ui.press({ key: 'qmd-install' })
-  await settle()
-  expect(String(t.store.get('state:qmd'))).toContain('qmd instalado')
-  expect(t.qmdRuns.some(a => a[1] === 'collection' && a[2] === 'add')).toBe(true)
-  await (await $.ui.mount(BAND as any)).press({ key: 'qmd-ok' })
-  expect(t.store.get('state:qmd')).toBe(null)
-})
-
-test('a failed qmd install says why in the band, and "Agora não" is remembered across chats', async ($, on) => {
-  const t = engine(on)
-  await start($)
-  await cmd($, 'use ~/Vault')
-  await start($)
-  const ui = await $.ui.mount(BAND as any)
-  await ui.press({ key: 'qmd-install' })
-  await settle()
-  expect(String(t.store.get('state:qmd'))).toContain('Não deu para instalar o qmd')
-  await start($)
-  expect(t.store.get('state:qmd')).toBe('offer')
-  const ui2 = await $.ui.mount(BAND as any)
-  await ui2.press({ key: 'qmd-later' })
-  await start($)
-  expect(t.store.get('state:qmd')).toBe(null)
-})
-
-test('/vault in a chat that never set up does the setup and offers qmd in the band', async ($, on) => {
+test('/vault in a chat that never set up does the setup in the band', async ($, on) => {
   const t = engine(on)
   // No session.start: a chat already open when the mod was installed and reloaded.
   const r = await cmd($, '')
   expect(t.store.get('state:choice')).toBe(true)
   expect(String(t.store.get('state:band'))).toContain('~/Documents/Vault')
-  expect(t.store.get('state:qmd')).toBe('offer')
   expect(r.text).toContain('Vault: ~/Documents/Vault')
 })
