@@ -121,8 +121,10 @@ function engine(on: any, o: { qmd?: string | (() => string); version?: string; p
   on('mods.qmdStart', () => ({ value: up() ? { pid: '', out: '' } : { pid: '4242', out: 'Started (PID 4242)' } }))
   on('mods.qmdStop', (_: any, e: any) => (o.pidfile === e.pid ? (t.stops.push(e.pid), { value: 'stopped' }) : { value: 'other' }))
   on('tool.call', () => ({ result: 'ok' }))
-  on('model.complete', (_: any, e: any) => (modelRequests.push(e), { value: { isAnswered: true, text: '{"save":false}' } }))
-  if (resolved) on('mods.modelResolve', () => ({ value: resolved }))
+  if (resolved) {
+    on('model.complete', (_: any, e: any) => (modelRequests.push(e), { value: { isAnswered: true, text: '{"save":false}' } }))
+    on('mods.modelResolve', () => ({ value: resolved }))
+  }
   on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'x', scope: 'shared' }] }))
   on('prompt.submit', (_: any, e: any) => {
     if (e.origin?.kind === 'plugin') submitted.push(e.text)
