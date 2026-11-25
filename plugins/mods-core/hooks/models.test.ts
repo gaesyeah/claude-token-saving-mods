@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { normalizeModelCatalog, resolveModelFromCatalog } from './models'
+import { createModelCatalogLoader, normalizeModelCatalog, resolveModelFromCatalog } from './models'
 
 const fixture = (overrides: Record<string, unknown> = {}) => normalizeModelCatalog({
   providers: [{ name: 'openai', type: 'openai', usable: true }, { name: 'offline', usable: false }],
@@ -89,4 +89,112 @@ test('malformed catalog structures fail closed without throwing', () => {
   for (const value of [undefined, null, false, 1, 'catalog', [], {}, { models: {}, providers: [] }, { models: [], providers: {} }]) {
     expect(normalizeModelCatalog(value)).toBe(null)
   }
+})
+
+test('judgeOnly models remain judge candidates but cannot be worker targets or backups', () => {
+  const catalog = normalizeModelCatalog({
+    providers: [{ name: 'p', usable: true }],
+    models: [
+      { model: 'judge', provider: 'p', judgeOnly: true },
+      { model: 'worker', provider: 'p', judgeOnly: false },
+    ],
+    settings: { mode: 'ladder', rungs: {
+      light: { target: 'judge' },
+      standard: { target: 'missing', backup: 'judge' },
+      hard: { target: 'worker' },
+    } },
+  })
+  expect(resolveModelFromCatalog(catalog, 'judge', 'legacy-judge').model).toBe('judge')
+  expect(resolveModelFromCatalog(catalog, 'light', 'legacy-light').model).toBe('legacy-light')
+  expect(resolveModelFromCatalog(catalog, 'standard', 'legacy-standard').model).toBe('legacy-standard')
+  expect(resolveModelFromCatalog(catalog, 'hard', 'legacy-hard').model).toBe('worker')
+})
+
+test('invalid configured effort is omitted so callers retain their safe default', () => {
+  for (const effort of ['', 'turbo', 'MAX', 3, null]) {
+    const catalog = normalizeModelCatalog({
+      providers: [{ name: 'p', usable: true }],
+      models: [{ model: 'worker', provider: 'p' }],
+      settings: { mode: 'ladder', rungs: { light: { target: 'worker', effort } } },
+    })
+    expect(resolveModelFromCatalog(catalog, 'light', 'legacy-light')).toEqual({
+      model: 'worker', provider: 'p', effort: undefined, source: 'clauderipple',
+    })
+  }
+  for (const effort of ['low', 'medium', 'high', 'xhigh', 'max']) {
+    const catalog = normalizeModelCatalog({
+      providers: [{ name: 'p', usable: true }],
+      models: [{ model: 'worker', provider: 'p' }],
+      settings: { mode: 'ladder', rungs: { light: { target: 'worker', effort } } },
+    })
+    expect(resolveModelFromCatalog(catalog, 'light', 'legacy-light').effort).toBe(effort)
+  }
+})
+
+const loaderDeps = (overrides: Record<string, any> = {}) => {
+  let time = 1_000
+  let fetches = 0
+  const customFetch = overrides.fetch
+  const rest = { ...overrides }; delete rest.fetch
+  const deps = {
+    now: async () => time,
+    readConfig: async () => ({ adminPort: 4312 }),
+    readSettings: async () => null,
+    within: async <T,>(promise: Promise<T>, _ms: number, _what: string): Promise<T> => promise,
+    ...rest,
+    fetch: async (port: number) => {
+      fetches++
+      if (customFetch) return customFetch(port)
+      return { ok: true, text: JSON.stringify({
+        providers: [{ name: 'p', usable: true }],
+        models: [{ model: 'worker', provider: 'p' }],
+      }) }
+    },
+  }
+  return { deps, setTime: (n: number) => { time = n }, fetchCount: () => fetches }
+}
+
+test('catalogue loader handles absent config, invalid ports, HTTP errors, malformed JSON and timeout', async () => {
+  const absent = loaderDeps({ readConfig: async () => null })
+  expect(await createModelCatalogLoader(absent.deps)()).toBe(null)
+
+  for (const adminPort of [0, -1, 65536, 1.5, 'not-a-port']) {
+    const invalid = loaderDeps({ readConfig: async () => ({ adminPort }) })
+    expect(await createModelCatalogLoader(invalid.deps)()).toBe(null)
+    expect(invalid.fetchCount()).toBe(0)
+  }
+
+  const failedHttp = loaderDeps({ fetch: async () => ({ ok: false, text: 'server error' }) })
+  expect(await createModelCatalogLoader(failedHttp.deps)()).toBe(null)
+
+  const malformed = loaderDeps({ fetch: async () => ({ ok: true, text: '{not json' }) })
+  expect(await createModelCatalogLoader(malformed.deps)()).toBe(null)
+
+  const timeout = loaderDeps({ within: async <T,>(_promise: Promise<T>, _ms: number, _what: string): Promise<T> => { throw new Error('timeout') } })
+  expect(await createModelCatalogLoader(timeout.deps)()).toBe(null)
+})
+
+test('catalogue loader shares concurrent requests and caches success for 15 seconds', async () => {
+  let release!: (value: { ok: boolean; text: string }) => void
+  let markStarted!: () => void
+  const started = new Promise<void>(resolve => { markStarted = resolve })
+  const pendingResponse = new Promise<{ ok: boolean; text: string }>(resolve => { release = resolve })
+  const setup = loaderDeps({ fetch: async () => { markStarted(); return pendingResponse } })
+  const load = createModelCatalogLoader(setup.deps)
+  const first = load()
+  const second = load()
+  await started
+  release({ ok: true, text: JSON.stringify({
+    providers: [{ name: 'p', usable: true }],
+    models: [{ model: 'worker', provider: 'p' }],
+  }) })
+  const [a, b] = await Promise.all([first, second])
+  expect(a?.models[0]?.model).toBe('worker')
+  expect(b?.models[0]?.model).toBe('worker')
+  expect(setup.fetchCount()).toBe(1)
+  expect((await load())?.models[0]?.model).toBe('worker')
+  expect(setup.fetchCount()).toBe(1)
+  setup.setTime(16_001)
+  expect((await load())?.models[0]?.model).toBe('worker')
+  expect(setup.fetchCount()).toBe(2)
 })

@@ -2,7 +2,7 @@ import type { Register } from 'claude-code'
 import { afterSample, decide, EMBED, freshStats, hash, isQmdHealth, judgeLine, MIN_EXAMPLES, QMD_URL, rerankOf, SAMPLE_EVERY } from './qmd'
 import { addCall, type Day, dayKey, rowsOf, type Usage } from './spend'
 import { PRICES } from './prices'
-import { normalizeModelCatalog, resolveModelFromCatalog, type ModelRole } from './models'
+import { createModelCatalogLoader, resolveModelFromCatalog, type ModelRole } from './models'
 
 // Mods Core: what the token-saving mods share.
 // 1. $.mods: the helpers every mod used to copy (paths, the /mods switches, logs, shell, the savings
@@ -91,41 +91,25 @@ export const register: Register = on => {
       }))
     }
     const env = { QMD_EMBED_MODEL: EMBED }
-    // ClaudeRipple's admin API is optional. Read its configured port from its own config;
-    // never guess a remote host or expose credentials. A short cache avoids one HTTP call per mod.
-    let modelCatalogCache: { at: number; value: any } | null = null
-    let modelCatalogPending: Promise<any> | null = null
-    const modelCatalog = async () => {
-      const now = await beneath.clock.now()
-      if (modelCatalogCache && now - modelCatalogCache.at < 15_000) return modelCatalogCache.value
-      if (modelCatalogPending) return modelCatalogPending
-      modelCatalogPending = (async () => {
-        try {
-          const { home } = await paths()
-          const configPath = `${home}/.clauderipple/config.json`
-          if (!(await beneath.fs.exists(configPath).catch(() => false))) return null
-          const config = JSON.parse(String(await beneath.fs.read(configPath))) as Record<string, unknown>
-          const port = Number(config.adminPort)
-          if (!Number.isInteger(port) || port < 1 || port > 65535) return null
-          const response = await within(beneath.http.fetch(`http://127.0.0.1:${port}/api/mod-options`), 1500, 'ClaudeRipple model catalogue')
-          if (!response.ok) return null
-          const settingsPath = `${home}/mod-settings.json`
-          let settings: unknown = null
-          if (await beneath.fs.exists(settingsPath).catch(() => false)) {
-            try { settings = JSON.parse(String(await beneath.fs.read(settingsPath))) } catch { settings = null }
-          }
-          return normalizeModelCatalog(JSON.parse(response.text), settings)
-
-        } catch {
-          return null
-        } finally {
-          modelCatalogPending = null
-        }
-      })()
-      const value = await modelCatalogPending
-      modelCatalogCache = { at: await beneath.clock.now(), value }
-      return value
-    }
+    // ClaudeRipple's admin API is optional. The loader owns its short cache and
+    // concurrent-request sharing; failures return null so every mod keeps its fallback.
+    const modelCatalog = createModelCatalogLoader({
+      now: () => beneath.clock.now(),
+      readConfig: async () => {
+        const { home } = await paths()
+        const path = `${home}/.clauderipple/config.json`
+        if (!(await beneath.fs.exists(path).catch(() => false))) return null
+        return JSON.parse(String(await beneath.fs.read(path)))
+      },
+      readSettings: async () => {
+        const { home } = await paths()
+        const path = `${home}/mod-settings.json`
+        if (!(await beneath.fs.exists(path).catch(() => false))) return null
+        return JSON.parse(String(await beneath.fs.read(path)))
+      },
+      fetch: port => beneath.http.fetch(`http://127.0.0.1:${port}/api/mod-options`),
+      within,
+    })
     const modelResolve = async ({ role, fallback }: { role: ModelRole; fallback: string }) =>
       resolveModelFromCatalog(await modelCatalog(), role, fallback)
 

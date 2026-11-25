@@ -9,7 +9,7 @@
       "name": "mods-core",
       "source": "./plugins/mods-core",
       "description": "The helpers the token-saving mods used to copy, on $.mods: paths, the /mods switches, logs, the savings ledger, opening files, qmd and its daemon, and the local judge",
-      "version": "0.4.0"
+      "version": "0.4.1"
     },
     {
       "name": "input-router",
