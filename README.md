@@ -104,6 +104,17 @@ The `mods-core` model resolver optionally integrates with ClaudeRipple so compat
 - Missing, unavailable, malformed or ambiguous entries are skipped. If no valid target is found, the calling mod retains its existing model fallback.
 - Judge resolution prefers the configured Zen model when available; otherwise it can use a unique usable `judgeOnly` model, unless its provider is disabled.
 
+### Automated live smoke tests
+
+Run these from the repository root while ClaudeRipple and Ollama are running:
+
+```bash
+python3 scripts/e2e-clauderipple-ollama.py
+python3 scripts/e2e-clauderipple-proxy.py
+```
+
+The first test checks the live admin catalogue/settings, reproduces the active light-agent selection, and calls the local Ollama API directly. The second sends a harmless Anthropic Messages request through the `HTTPS_PROXY` and CA configured in `~/.claude/settings.json`, using the provider-qualified model ID to exercise ClaudeRipple's actual HTTPS proxy and Ollama adapter. It does not need an interactive Claude Code session and does not send an API key. Both tests are smoke tests; neither executes the plugin engine's `$.model.complete` hook.
+
 The integration is deliberately optional and fail-safe. If ClaudeRipple is not installed, is stopped, cannot be read, or returns an unsupported catalogue/settings shape, the existing per-mod behavior remains in place. The resolver does not infer providers from model names, rank models heuristically, or silently choose an arbitrary catalogue entry.
 
 ### Plugin behavior and accounting
