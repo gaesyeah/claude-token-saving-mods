@@ -15,10 +15,14 @@ MAX_BYTES = 2_000_000
 def main() -> None:
     if not HOME.is_dir():
         raise SystemExit(f"ClaudeRipple home not found: {HOME}")
-    candidates = [
-        p for p in HOME.rglob("*")
-        if p.is_file() and (p.suffix.lower() in {".jsonl", ".log"} or "request" in p.name.lower())
-    ]
+    log_roots = [HOME / "logs", HOME]
+    candidates = []
+    for root in log_roots:
+        if not root.is_dir():
+            continue
+        for path in root.iterdir():
+            if path.is_file() and path.suffix.lower() in {".jsonl", ".log"}:
+                candidates.append(path)
     candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
     if not candidates:
         print(f"No log-like files found under {HOME}")
