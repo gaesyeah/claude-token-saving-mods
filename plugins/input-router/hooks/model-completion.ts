@@ -23,7 +23,8 @@ export async function completeWithResolvedModel<T extends CompletionResult>({
   fallbackModel,
   request,
   options,
-}: CompleteDeps<T>): Promise<{ model: string; result: T }> {
+}: CompleteDeps<T>): Promise<{ model: string; result: T; attempts: Array<{ model: string; result: T }> }> {
+  const attempts: Array<{ model: string; result: T }> = []
   try {
     const resolved = await resolve()
     const result = await complete({
@@ -31,13 +32,15 @@ export async function completeWithResolvedModel<T extends CompletionResult>({
       ...effortOptions(resolved),
       ...request,
     }, options)
+    attempts.push({ model: resolved.model, result })
     if (result.isAnswered || result.reason !== 'api-error') {
-      return { model: resolved.model, result }
+      return { model: resolved.model, result, attempts }
     }
   } catch {
     // The alias is the second try.
   }
 
   const result = await complete({ model: fallbackModel, ...request }, options)
-  return { model: fallbackModel, result }
+  attempts.push({ model: fallbackModel, result })
+  return { model: fallbackModel, result, attempts }
 }
