@@ -121,7 +121,7 @@ test('invalid configured effort is omitted so callers retain their safe default'
       model: 'worker', provider: 'p', effort: undefined, source: 'clauderipple',
     })
   }
-  for (const effort of ['low', 'medium', 'high', 'xhigh', 'max']) {
+  for (const effort of ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']) {
     const catalog = normalizeModelCatalog({
       providers: [{ name: 'p', usable: true }],
       models: [{ model: 'worker', provider: 'p' }],
