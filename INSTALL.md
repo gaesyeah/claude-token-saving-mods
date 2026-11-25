@@ -57,13 +57,13 @@ for itself (`xdg-mime query default x-scheme-handler/claude` should print the Cl
 
 ## Steps
 
-Do not use the plugin upload button for this folder: it holds fourteen mods and the button takes one.
+Do not use the plugin upload button for this folder: it holds fifteen mods and the button takes one.
 
 From a terminal:
 
 ```bash
 claude plugin marketplace add ~/Documents/token-saving-mods
-for m in input-router effort-optimizer model-router cache-clock handoff research-router efficient-browser-use mods savings-proof coding-kit quota-meter tool-diet vault local-models; do
+for m in mods-core input-router effort-optimizer model-router cache-clock handoff research-router efficient-browser-use mods savings-proof coding-kit quota-meter tool-diet vault local-models; do
   claude plugin install "$m@token-saving-mods"
 done
 ```

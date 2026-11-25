@@ -1,4 +1,5 @@
-import { expect, test } from 'claude-code/testing'
+import { expect } from 'claude-code/testing'
+import { test } from './mods-stub'
 
 const BAND = { plugin: 'local-models', component: 'AbovePrompt', surface: 'desktop', props: { hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 20, bodyColumns: 100, scroll: { offset: 0, bodyRows: 20 } } }
 
@@ -19,6 +20,11 @@ function engine(on: any, o: { qmd: boolean; daemon: boolean; runs: string[] }) {
     if (!o.daemon) throw new Error('connection refused')
     return { value: { status: 200, ok: true, headers: {}, text: '{"status":"ok","uptime":1}' } }
   })
+  // qmd itself is mods-core's ($.mods.qmd*): answered here from o.
+  on('mods.qmdFind', () => ({ value: o.qmd ? '/home/u/.volta/bin/qmd' : '' }))
+  on('mods.qmdUp', () => ({ value: o.daemon }))
+  on('mods.qmdStart', () => (o.daemon ? { value: { pid: '', out: '' } } : (o.runs.push('mcp --http --daemon'), { value: { pid: '42', out: 'Started (PID 42)' } })))
+  on('mods.qmdStop', () => ({ value: 'stopped' }))
   on('process.run', (_: any, e: any) => {
     const script = e.argv[0] === '/bin/sh' ? String(e.argv[2]) : e.argv.join(' ')
     o.runs.push(script)

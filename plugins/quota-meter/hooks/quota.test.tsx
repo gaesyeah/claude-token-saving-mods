@@ -1,4 +1,5 @@
-import { expect, test } from 'claude-code/testing'
+import { expect } from 'claude-code/testing'
+import { switches, test } from './mods-stub'
 
 function engine(on: any, status: (string | undefined)[], switches = '') {
   on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))
@@ -64,6 +65,7 @@ test('a window that renews during a turn is not counted as a negative spend', as
 test('off in the /mods switchboard: no status line', async ($, on) => {
   const status: (string | undefined)[] = []
   engine(on, status, '{"quota-meter": false}')
+  switches['quota-meter'] = false
   await $.session.start({ cwd: '/w', surface: 'desktop', isInteractive: true } as any)
   await turn($, 't1', 11, 40)
   expect(status.length).toBe(0)

@@ -11,9 +11,6 @@ const NAME = 'local-models'
 const BAND = { plugin: 'local-models', key: 'band' } as const
 const ORANGE = '#d97757'
 const PKG = '@tobilu/qmd'
-const QMD_URL = 'http://localhost:8181'
-// The embedding model every collection in the qmd index is embedded with (vault and the local judges use it too).
-const EMBED = 'hf:Qwen/Qwen3-Embedding-0.6B-GGUF/Qwen3-Embedding-0.6B-Q8_0.gguf'
 
 let home = ''
 let claudeDir = ''
@@ -35,61 +32,24 @@ async function log($: EngineInterface, line: string) {
 }
 
 async function setup($: EngineInterface) {
-  home = trim(await $.env.get('HOME').catch(() => undefined)) || $.plugin.root.split('/.claude/')[0] || ''
-  const set = trim(await $.env.get('CLAUDE_CONFIG_DIR').catch(() => undefined))
-  claudeDir = set ? set.replace(/^~(?=\/|$)/, home) : `${home}/.claude`
-  try {
-    const path = `${claudeDir}/mods/switches.json`
-    const raw = (await $.fs.exists(path)) ? String(await $.fs.read(path)) : ''
-    off = raw ? (JSON.parse(raw) as Record<string, unknown>)[NAME] === false : false
-  } catch {
-    off = false
-  }
-  qmd = await findQmd($)
+  ;({ home, claudeDir } = await $.mods.paths())
+  off = (await $.mods.switches())[NAME] === false
+  qmd = await $.mods.qmdFind().catch(() => '')
 }
 
-// The desktop app's PATH can miss the folders npm, Volta and bun install into.
-async function findQmd($: EngineInterface) {
-  const r = await sh(
-    $,
-    'command -v qmd && exit 0; for p in "$HOME/.volta/bin/qmd" "$HOME/.bun/bin/qmd" "$HOME/.npm-global/bin/qmd" "$HOME/.local/bin/qmd" "/usr/local/bin/qmd"; do [ -x "$p" ] && echo "$p" && exit 0; done; exit 1',
-  ).catch(() => undefined)
-  return r && r.exitCode === 0 ? trim(r.stdout.split('\n')[0]) : ''
-}
-
-// The port is fixed, so the answer must be qmd's own before it counts as up.
-async function qmdUp($: EngineInterface) {
-  const box: { timer?: { cancel: () => void } } = {}
-  const late = new Promise<never>((_, reject) => {
-    box.timer = $.clock.after(1000, () => reject(new Error('no answer')))
-  })
-  try {
-    const r = await Promise.race([$.http.fetch(`${QMD_URL}/health`), late])
-    const b = r.ok ? (JSON.parse(r.text) as { status?: unknown; uptime?: unknown }) : {}
-    return b.status === 'ok' && typeof b.uptime === 'number'
-  } catch {
-    return false
-  } finally {
-    box.timer?.cancel()
-  }
-}
-
-// Started detached: it outlives the chat and serves every chat after it.
+// qmd and its daemon live in mods-core ($.mods.qmd*); the daemon's PID is kept, so the mod stops only
+// a daemon it started itself.
 async function startDaemon($: EngineInterface) {
-  if (!qmd || (await qmdUp($))) return
-  const r = await sh($, 'QMD_EMBED_MODEL="$2" "$1" mcp --http --daemon < /dev/null 2>&1', [qmd, EMBED], 20_000)
-  // Its PID, so the mod stops only a daemon it started itself.
-  const pid = r.stdout.match(/\(PID (\d+)\)/)?.[1]
-  if (pid) await $.store.set('daemon', pid).catch(() => undefined)
-  await log($, `qmd daemon: ${r.stdout.replace(/\s+/g, ' ').slice(0, 160)}`)
+  const r = await $.mods.qmdStart()
+  if (r.pid) await $.store.set('daemon', r.pid).catch(() => undefined)
+  if (r.out) await log($, `qmd daemon: ${r.out}`)
 }
 
-// Only when qmd's pidfile still names the PID this mod started.
 async function stopDaemon($: EngineInterface) {
   const pid = await $.store.get('daemon').catch(() => undefined)
-  if (!qmd || typeof pid !== 'string' || !pid) return
-  const r = await sh($, 'f="${XDG_CACHE_HOME:-$HOME/.cache}/qmd/mcp.pid"; [ "$(cat "$f" 2>/dev/null)" = "$2" ] || exit 3; "$1" mcp stop', [qmd, pid])
-  await log($, r.exitCode === 3 ? `qmd daemon ${pid}: not the mod's any more, left alone` : `qmd daemon ${pid} stopped (mod off)`)
+  if (typeof pid !== 'string' || !pid) return
+  const r = await $.mods.qmdStop({ pid })
+  await log($, r === 'other' ? `qmd daemon ${pid}: not the mod's any more, left alone` : `qmd daemon ${pid} stopped (mod off)`)
   await $.store.set('daemon', null).catch(() => undefined)
 }
 
@@ -103,7 +63,7 @@ async function install($: EngineInterface) {
     [PKG],
     600_000,
   ).catch(err => ({ exitCode: 1, stdout: String(err), stderr: '' }))
-  qmd = await findQmd($)
+  qmd = await $.mods.qmdFind({ fresh: true }).catch(() => '')
   if (!qmd) {
     const why = (trim(r.stdout).split('\n').filter(Boolean).at(-1) ?? 'erro desconhecido').slice(0, 160)
     await log($, `install failed: ${why}`)
@@ -119,7 +79,7 @@ async function install($: EngineInterface) {
 
 async function status($: EngineInterface) {
   if (!qmd) return `Local Models: qmd não instalado. ${(await $.store.get('declined').catch(() => undefined)) === true ? 'O aviso foi dispensado; /local-models install mostra de novo.' : 'O aviso laranja acima do chat oferece instalar.'}`
-  return `Local Models: qmd em ${tilde(qmd)}; daemon ${(await qmdUp($)) ? `rodando em ${QMD_URL} (~1 GB de RAM com os modelos carregados; descarrega após 5 min parado)` : 'parado (sobe no próximo chat)'}. Usado pelo vault (busca), Effort Optimizer e Model Router (juiz local).`
+  return `Local Models: qmd em ${tilde(qmd)}; daemon ${(await $.mods.qmdUp().catch(() => false)) ? `rodando em http://localhost:8181 (~1 GB de RAM com os modelos carregados; descarrega após 5 min parado)` : 'parado (sobe no próximo chat)'}. Usado pelo vault (busca), Effort Optimizer e Model Router (juiz local).`
 }
 
 export const register: Register = on => {
@@ -185,7 +145,6 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         {rest}
-        <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(8, e.props.bodyColumns))}</Text>
         {row}
       </Box>
     )

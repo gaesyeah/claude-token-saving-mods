@@ -5,8 +5,6 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 // Opens a file or link with the desktop's own opener: xdg-open (Linux), gio, or open (macOS).
-const OPEN_SH = 'for c in xdg-open gio open; do command -v "$c" >/dev/null 2>&1 || continue; if [ "$c" = gio ]; then gio open "$1"; else "$c" "$1"; fi </dev/null >/dev/null 2>&1; exit $?; done; echo "no opener (xdg-open, gio or open)" >&2; exit 3'
-const openArgv = (target: string) => ['/bin/sh', '-c', OPEN_SH, 'sh', target]
 import type { PickCard } from '../types'
 import { DOOR_COLORS, dispatcherSvg } from './mascot.ts'
 
@@ -129,7 +127,7 @@ export function registerPane(on: On) {
     if (e.element.startsWith('file-')) {
       const id = e.element.slice('file-'.length)
       const card = ((await read($, cardsAtom)) ?? []).find(c => c.id === id)
-      if (card?.detail) await $.process.run(openArgv(card.detail), { timeoutMs: 10_000 }).catch(() => undefined)
+      if (card?.detail) await $.mods.open({ target: card.detail })
       return { element: e.element }
     }
     return next(e)

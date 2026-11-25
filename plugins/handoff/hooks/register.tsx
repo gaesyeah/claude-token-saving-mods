@@ -39,25 +39,6 @@ let home = ''
 // resort: a pack installed from a local folder (say ~/Downloads) does not sit under ~/.claude.
 let claudeDir = ''
 const fromRoot = ($: EngineInterface) => $.plugin.root.replace(/\\/g, '/').split('/.claude/')[0] ?? ''
-function fwd(p: string, windows: boolean) {
-  let s = p.trim().replace(/\\/g, '/').replace(/\/+$/, '')
-  if (windows) s = s.replace(/^\/([a-zA-Z])\//, (_, d: string) => `${d.toUpperCase()}:/`).replace(/^([a-z]):\//, (_, d: string) => `${d.toUpperCase()}:/`)
-  return s
-}
-async function findHome($: EngineInterface): Promise<string> {
-  const windows = (await $.env.get('OS').catch(() => undefined)) === 'Windows_NT'
-  const profile = ((await $.env.get('USERPROFILE').catch(() => undefined)) ?? '').trim()
-  const unix = ((await $.env.get('HOME').catch(() => undefined)) ?? '').trim()
-  const pick = windows ? profile || unix : unix || profile
-  return pick ? fwd(pick, windows) : fromRoot($)
-}
-async function findClaudeDir($: EngineInterface, home: string): Promise<string> {
-  const windows = (await $.env.get('OS').catch(() => undefined)) === 'Windows_NT'
-  const set = ((await $.env.get('CLAUDE_CONFIG_DIR').catch(() => undefined)) ?? '').trim()
-  const full = set === '~' ? home : set.startsWith('~/') || set.startsWith('~\\') ? `${home}${set.slice(1)}` : set
-  claudeDir = full ? fwd(full, windows) : `${home}/.claude`
-  return claudeDir
-}
 const claudeDirOf = ($: EngineInterface) => claudeDir || `${fromRoot($)}/.claude`
 let petDir = ''
 let busy = false
@@ -483,8 +464,6 @@ async function note($: EngineInterface, text: string) {
 }
 
 // Opens a file or link with the desktop's own opener: xdg-open (Linux), gio, or open (macOS).
-const OPEN_SH = 'for c in xdg-open gio open; do command -v "$c" >/dev/null 2>&1 || continue; if [ "$c" = gio ]; then gio open "$1"; else "$c" "$1"; fi </dev/null >/dev/null 2>&1; exit $?; done; echo "no opener (xdg-open, gio or open)" >&2; exit 3'
-const openArgv = (target: string) => ['/bin/sh', '-c', OPEN_SH, 'sh', target]
 const COPY_SH = `t=$(mktemp) || exit 1; cat > "$t"
 try() { command -v "$1" >/dev/null 2>&1 || return 1; c="$1"; shift; "$c" "$@" < "$t" >/dev/null 2>&1; }
 { [ -n "$WAYLAND_DISPLAY" ] && try wl-copy; } || { [ -n "$DISPLAY" ] && { try xclip -selection clipboard || try xsel --clipboard --input; }; } || try pbcopy
@@ -535,8 +514,8 @@ async function startNew($: EngineInterface) {
     return
   }
   const url = `claude://code/new?q=${encodeURIComponent(handoffText)}`
-  const r = await $.process.run(openArgv(url), { timeoutMs: 15_000 })
-  await note($, r.exitCode === 0 ? 'A new chat is filled in with the handoff. Press Return there to start it.' : 'The new chat did not open. Use Copy handoff prompt instead.')
+  const opened = await $.mods.open({ target: url })
+  await note($, opened ? 'A new chat is filled in with the handoff. Press Return there to start it.' : 'The new chat did not open. Use Copy handoff prompt instead.')
 }
 
 async function checkOffer($: EngineInterface) {
@@ -601,8 +580,7 @@ function bar(progress: number, status: Step['status']) {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     sid = await $.session.id()
-    home = await findHome($)
-    await findClaudeDir($, home)
+    ;({ home, claudeDir } = await $.mods.paths())
     petDir = `${claudeDir}/pet`
     await poll($).catch(() => undefined)
     $.clock.every(3000, () => {
@@ -695,7 +673,7 @@ export const register: Register = on => {
     return { element: e.element }
   })
   on('ui.press', { plugin: 'handoff', element: 'open' }, async ($, e) => {
-    if (handoffPath) await $.process.run(openArgv(handoffPath), { timeoutMs: 15_000 }).catch(() => undefined)
+    if (handoffPath) await $.mods.open({ target: handoffPath })
     return { element: e.element }
   })
   on('ui.press', { plugin: 'handoff', element: 'close' }, async ($, e) => {
@@ -717,7 +695,6 @@ export const register: Register = on => {
       return (
         <Box flexDirection="column">
           {rest}
-          <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(8, e.props.bodyColumns))}</Text>
           <Box flexDirection="row" alignItems="center" justifyContent="space-between" gap={1}>
             <Text>
               <Text color={ACCENT}>●</Text>
@@ -772,7 +749,6 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         {rest}
-        <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(8, e.props.bodyColumns))}</Text>
         <Box flexDirection="column" gap={0} paddingY={0}>
           <Text bold color={p.phase === 'failed' ? BAD : p.phase === 'ready' ? GOOD : ACCENT}>
             {title}

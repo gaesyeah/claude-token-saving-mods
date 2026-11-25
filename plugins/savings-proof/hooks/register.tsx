@@ -42,25 +42,6 @@ let home = ''
 // resort: a pack installed from a local folder (say ~/Downloads) does not sit under ~/.claude.
 let claudeDir = ''
 const fromRoot = ($: EngineInterface) => $.plugin.root.replace(/\\/g, '/').split('/.claude/')[0] ?? ''
-function fwd(p: string, windows: boolean) {
-  let s = p.trim().replace(/\\/g, '/').replace(/\/+$/, '')
-  if (windows) s = s.replace(/^\/([a-zA-Z])\//, (_, d: string) => `${d.toUpperCase()}:/`).replace(/^([a-z]):\//, (_, d: string) => `${d.toUpperCase()}:/`)
-  return s
-}
-async function findHome($: EngineInterface): Promise<string> {
-  const windows = (await $.env.get('OS').catch(() => undefined)) === 'Windows_NT'
-  const profile = ((await $.env.get('USERPROFILE').catch(() => undefined)) ?? '').trim()
-  const unix = ((await $.env.get('HOME').catch(() => undefined)) ?? '').trim()
-  const pick = windows ? profile || unix : unix || profile
-  return pick ? fwd(pick, windows) : fromRoot($)
-}
-async function findClaudeDir($: EngineInterface, home: string): Promise<string> {
-  const windows = (await $.env.get('OS').catch(() => undefined)) === 'Windows_NT'
-  const set = ((await $.env.get('CLAUDE_CONFIG_DIR').catch(() => undefined)) ?? '').trim()
-  const full = set === '~' ? home : set.startsWith('~/') || set.startsWith('~\\') ? `${home}${set.slice(1)}` : set
-  claudeDir = full ? fwd(full, windows) : `${home}/.claude`
-  return claudeDir
-}
 const claudeDirOf = ($: EngineInterface) => claudeDir || `${fromRoot($)}/.claude`
 let sid = ''
 let mainModel = ''
@@ -893,8 +874,6 @@ async function toggleDetail($: EngineInterface, key: string) {
 }
 
 // Opens a file or link with the desktop's own opener: xdg-open (Linux), gio, or open (macOS).
-const OPEN_SH = 'for c in xdg-open gio open; do command -v "$c" >/dev/null 2>&1 || continue; if [ "$c" = gio ]; then gio open "$1"; else "$c" "$1"; fi </dev/null >/dev/null 2>&1; exit $?; done; echo "no opener (xdg-open, gio or open)" >&2; exit 3'
-const openArgv = (target: string) => ['/bin/sh', '-c', OPEN_SH, 'sh', target]
 
 async function openFile($: EngineInterface, key: string) {
   const row = (await read($, ledgerAtom))?.rows.find(r => r.key === key)
@@ -902,9 +881,9 @@ async function openFile($: EngineInterface, key: string) {
   let note = 'The detail file is missing.'
   if (path) {
     try {
-      const r = await $.process.run(openArgv(path), { timeoutMs: 15_000 })
-      note = r.exitCode === 0 ? `Opened ${tilde(path)}` : 'Could not open the file.'
-      if (r.exitCode !== 0) await log($, `open exited ${r.exitCode}: ${r.stderr.trim()}`)
+      const opened = await $.mods.open({ target: path })
+      note = opened ? `Opened ${tilde(path)}` : 'Could not open the file.'
+      if (!opened) await log($, `could not open ${path}`)
     } catch (err) {
       note = 'Could not open the file.'
       await log($, `open failed: ${String(err instanceof Error ? err.message : err)}`)
@@ -941,8 +920,7 @@ async function poll($: EngineInterface) {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     root = $.plugin.root.replace(/\/\.claude-plugin\/?$/, '')
-    home = await findHome($)
-    await findClaudeDir($, home)
+    ;({ home, claudeDir } = await $.mods.paths())
     prevTokens = null
     lastSig = ''
     await $.command.register({ name: 'savings', description: 'Open Savings Proof: tokens the mods saved today and in this chat', immediate: true })

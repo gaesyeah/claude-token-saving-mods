@@ -107,25 +107,6 @@ let home = ''
 // resort: a pack installed from a local folder (say ~/Downloads) does not sit under ~/.claude.
 let claudeDir = ''
 const fromRoot = ($: EngineInterface) => $.plugin.root.replace(/\\/g, '/').split('/.claude/')[0] ?? ''
-function fwd(p: string, windows: boolean) {
-  let s = p.trim().replace(/\\/g, '/').replace(/\/+$/, '')
-  if (windows) s = s.replace(/^\/([a-zA-Z])\//, (_, d: string) => `${d.toUpperCase()}:/`).replace(/^([a-z]):\//, (_, d: string) => `${d.toUpperCase()}:/`)
-  return s
-}
-async function findHome($: EngineInterface): Promise<string> {
-  const windows = (await $.env.get('OS').catch(() => undefined)) === 'Windows_NT'
-  const profile = ((await $.env.get('USERPROFILE').catch(() => undefined)) ?? '').trim()
-  const unix = ((await $.env.get('HOME').catch(() => undefined)) ?? '').trim()
-  const pick = windows ? profile || unix : unix || profile
-  return pick ? fwd(pick, windows) : fromRoot($)
-}
-async function findClaudeDir($: EngineInterface, home: string): Promise<string> {
-  const windows = (await $.env.get('OS').catch(() => undefined)) === 'Windows_NT'
-  const set = ((await $.env.get('CLAUDE_CONFIG_DIR').catch(() => undefined)) ?? '').trim()
-  const full = set === '~' ? home : set.startsWith('~/') || set.startsWith('~\\') ? `${home}${set.slice(1)}` : set
-  claudeDir = full ? fwd(full, windows) : `${home}/.claude`
-  return claudeDir
-}
 const claudeDirOf = ($: EngineInterface) => claudeDir || `${fromRoot($)}/.claude`
 let off = false
 let router = false
@@ -341,8 +322,6 @@ async function withTimeout<T>($: EngineInterface, p: Promise<T>, ms: number, wha
 }
 
 // Opens a file or link with the desktop's own opener: xdg-open (Linux), gio, or open (macOS).
-const OPEN_SH = 'for c in xdg-open gio open; do command -v "$c" >/dev/null 2>&1 || continue; if [ "$c" = gio ]; then gio open "$1"; else "$c" "$1"; fi </dev/null >/dev/null 2>&1; exit $?; done; echo "no opener (xdg-open, gio or open)" >&2; exit 3'
-const openArgv = (target: string) => ['/bin/sh', '-c', OPEN_SH, 'sh', target]
 
 // The desktop app's process may not have nvm on its PATH, so look in the usual places by hand.
 async function findFirecrawl($: EngineInterface): Promise<Firecrawl | null> {
@@ -1183,7 +1162,7 @@ async function runResearch($: EngineInterface, id: number, question: string, rep
           : 'before: search results and page text the worker read, chars/4; after: reply and brief chars/4',
       detail: notesPath,
     }
-    await append($, `${logsDir()}/savings.jsonl`, `${JSON.stringify(line)}\n`)
+    await $.mods.ledger({ row: line })
     const took = await secs()
     const view: SourceView[] = sources.map((s, i) => ({ n: i + 1, title: s.title, url: s.url }))
     await setRun($, id, r => ({
@@ -1288,7 +1267,7 @@ async function shorten($: EngineInterface, query: string, toolUseId: string | un
       measured: 'estimated',
       how: "before: the WebSearch result as the model reads it, chars/4; after: the same text with the commentary swapped for Haiku's shorter one, chars/4 (the same as before when nothing was swapped)",
     }
-    await append($, `${logsDir()}/savings.jsonl`, `${JSON.stringify(line)}\n`)
+    await $.mods.ledger({ row: line })
   }
   // Haiku is about to work on this search: show the pane, and the mascot moves until it answers.
   void openPane($)
@@ -1342,8 +1321,7 @@ function noop() {}
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    home = await findHome($)
-    await findClaudeDir($, home)
+    ;({ home, claudeDir } = await $.mods.paths())
     session = await $.session.id().catch(() => '')
     await $.command.register({
       name: COMMAND,
@@ -1458,7 +1436,7 @@ export const register: Register = on => {
     const m = /^open-(\d+)$/.exec(e.element)
     if (m) {
       const run = ((await read($, runsAtom)) ?? []).find(r => r.id === Number(m[1]))
-      if (run?.notes) await $.process.run(openArgv(run.notes), { timeoutMs: 10_000 }).catch(err => log($, 'open', err))
+      if (run?.notes && !(await $.mods.open({ target: run.notes }))) await log($, 'open', `could not open ${run.notes}`)
     }
     return { element: e.element }
   })

@@ -1,4 +1,5 @@
-import { expect, test } from 'claude-code/testing'
+import { expect } from 'claude-code/testing'
+import { switches, test } from './mods-stub'
 
 // An in-memory home: files, folders, and the few commands the mod runs (mkdir, append, find, rg).
 const HOME = '/home/u'
@@ -94,12 +95,28 @@ function engine(on: any, o: { qmd?: string | (() => string); version?: string; p
     return ok()
   })
   // qmd's HTTP daemon: up when the test gives qmd an answer; /query answers it.
-  on('http.fetch', (_: any, e: any) => {
-    t.fetches.push(e.url)
-    if (o.qmd === undefined) throw new Error('connection refused')
-    const text = e.url.endsWith('/health') ? (o.health ?? '{"status":"ok","uptime":5}') : typeof o.qmd === 'function' ? o.qmd() : o.qmd
-    return { value: { status: 200, ok: true, headers: {}, text } }
+  // qmd and its daemon are mods-core's ($.mods.qmd*): answered here from o, the way mods-core reads
+  // the daemon (only qmd's own /health counts; the reranker read back from the blended score).
+  const rerankOf = (v: number) => Math.max(0, v >= 0.75 ? (v - 0.75) / 0.25 : v >= 0.375 ? (v - 0.375) / 0.25 : (v - 0.25) / 0.25)
+  const up = () => o.qmd !== undefined && /"status":"ok"/.test(o.health ?? '{"status":"ok","uptime":5}')
+  on('mods.qmdFind', () => ({ value: o.qmd === undefined ? '' : '/x/qmd' }))
+  on('mods.qmdUp', () => (t.fetches.push('/health'), { value: up() }))
+  on('mods.qmdQuery', (_: any, e: any) => {
+    t.fetches.push('/query')
+    if (!up()) throw new Error('connection refused')
+    const json = JSON.parse(typeof o.qmd === 'function' ? o.qmd() : o.qmd!) as { results?: Record<string, unknown>[] } | unknown[]
+    const rows = (Array.isArray(json) ? [] : (json.results ?? [])).slice(0, e.limit)
+    return {
+      value: rows.map(r => ({
+        file: decodeURIComponent(String(r.file ?? '').replace(/^qmd:\/\/[^/]+\//, '')),
+        title: String(r.title ?? ''),
+        snippet: String(r.snippet ?? ''),
+        rerank: e.limit <= 3 ? rerankOf(typeof r.score === 'number' ? r.score : 0) : 0,
+      })),
+    }
   })
+  on('mods.qmdStart', () => ({ value: up() ? { pid: '', out: '' } : { pid: '4242', out: 'Started (PID 4242)' } }))
+  on('mods.qmdStop', (_: any, e: any) => (o.pidfile === e.pid ? (t.stops.push(e.pid), { value: 'stopped' }) : { value: 'other' }))
   on('tool.call', () => ({ result: 'ok' }))
   on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'x', scope: 'shared' }] }))
   on('prompt.submit', (_: any, e: any) => {
@@ -378,7 +395,7 @@ test('a port 8181 answered by something else is not used', async ($, on) => {
 
 test('with the mod off, the daemon it started is stopped, and one it did not start is left alone', async ($, on) => {
   const t = engine(on, { qmd: '[]', pidfile: '4242' })
-  t.write(`${HOME}/.claude/mods/switches.json`, '{"vault": false}')
+  switches.vault = false
   t.store.set('daemon', '4242')
   await start($)
   await settle()
@@ -426,11 +443,7 @@ test('a prompt qmd searched shows one low purple line above the chat; one it did
   t.write(`${VAULT}/Resources/Cache do prompt.md`, '# Prompt cache\nexpira em cinco minutos')
   await say($, 'por quanto tempo a memória temporária das instruções fica guardada?')
   expect(String(t.store.get('state:search'))).toMatch(/^Vault · qmd buscou em \d+ ms · 1 nota sugerida \(qmd 0\.90\)$/)
-  const above = await $.ui.mount(ABOVE as any)
-  expect(await above.find({ type: 'Text', text: /qmd buscou/ })).toBeDefined()
-  // A thin rule on top of its block keeps it apart from the other mods' blocks.
-  expect(await above.find({ type: 'Text', text: /^─+$/ })).toBeDefined()
-  await above.unmount()
+  expect(await (await $.ui.mount(ABOVE as any)).find({ type: 'Text', text: /qmd buscou/ })).toBeDefined()
   await say($, 'ok')
   expect(t.store.get('state:search')).toBe(null)
 })

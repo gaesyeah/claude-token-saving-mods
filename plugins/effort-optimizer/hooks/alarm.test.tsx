@@ -1,4 +1,5 @@
-import { expect, test } from 'claude-code/testing'
+import { expect } from 'claude-code/testing'
+import { test } from './mods-stub'
 
 function engine(on: any, o: { picks: string[]; asked: string[]; toasts: string[]; wrote: number }) {
   on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))

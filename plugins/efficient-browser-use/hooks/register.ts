@@ -29,25 +29,6 @@ let home = ''
 // resort: a pack installed from a local folder (say ~/Downloads) does not sit under ~/.claude.
 let claudeDir = ''
 const fromRoot = ($: EngineInterface) => $.plugin.root.replace(/\\/g, '/').split('/.claude/')[0] ?? ''
-function fwd(p: string, windows: boolean) {
-  let s = p.trim().replace(/\\/g, '/').replace(/\/+$/, '')
-  if (windows) s = s.replace(/^\/([a-zA-Z])\//, (_, d: string) => `${d.toUpperCase()}:/`).replace(/^([a-z]):\//, (_, d: string) => `${d.toUpperCase()}:/`)
-  return s
-}
-async function findHome($: EngineInterface): Promise<string> {
-  const windows = (await $.env.get('OS').catch(() => undefined)) === 'Windows_NT'
-  const profile = ((await $.env.get('USERPROFILE').catch(() => undefined)) ?? '').trim()
-  const unix = ((await $.env.get('HOME').catch(() => undefined)) ?? '').trim()
-  const pick = windows ? profile || unix : unix || profile
-  return pick ? fwd(pick, windows) : fromRoot($)
-}
-async function findClaudeDir($: EngineInterface, home: string): Promise<string> {
-  const windows = (await $.env.get('OS').catch(() => undefined)) === 'Windows_NT'
-  const set = ((await $.env.get('CLAUDE_CONFIG_DIR').catch(() => undefined)) ?? '').trim()
-  const full = set === '~' ? home : set.startsWith('~/') || set.startsWith('~\\') ? `${home}${set.slice(1)}` : set
-  claudeDir = full ? fwd(full, windows) : `${home}/.claude`
-  return claudeDir
-}
 const claudeDirOf = ($: EngineInterface) => claudeDir || `${fromRoot($)}/.claude`
 let session = ''
 let off = false
@@ -429,7 +410,7 @@ type Line = { tool_use_id: string | null; action: string; before: number; after:
 async function ledger($: EngineInterface, line: Line) {
   const ts = new Date(await $.clock.now()).toISOString().replace(/\.\d+Z$/, 'Z')
   const row = { ts, session, tool_use_id: line.tool_use_id, mod: NAME, action: line.action, before: line.before, after: line.after, helper: line.helper, measured: 'estimated', ...(line.detail ? { detail: line.detail } : {}) }
-  await append($, ledgerPath(), JSON.stringify(row))
+  await $.mods.ledger({ row })
 }
 
 // ---- pictures Claude sized itself ----
@@ -511,8 +492,7 @@ export const register: Register = on => {
   registerPane(on)
 
   on('session.start', async ($, e, next) => {
-    home = await findHome($)
-    await findClaudeDir($, home)
+    ;({ home, claudeDir } = await $.mods.paths())
     // A reload starts the module over; the chat's totals live on in $.state.
     Object.assign(totals, await loadTotals($).catch(() => totals))
     await $.command.register({

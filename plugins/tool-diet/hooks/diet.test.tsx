@@ -1,4 +1,5 @@
-import { expect, test } from 'claude-code/testing'
+import { expect } from 'claude-code/testing'
+import { test } from './mods-stub'
 
 const BIG = 'x'.repeat(4 * 3000) // ~3000 tokens
 const SMALL = 'x'.repeat(4 * 100)

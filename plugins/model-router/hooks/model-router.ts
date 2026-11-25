@@ -48,7 +48,6 @@ import {
 } from './policy.ts'
 import type { Decision, Effort, JudgeState, PolicyConfig, StepUsage } from './policy.ts'
 import { rankOf, TIER_ORDER } from './policy.ts'
-import { type Judge, judgeGuess, judgeLine, judgeRemember, judgeReset, judgeSampled, judgeUsed } from './local-judge.ts'
 import { addCard, closePane, family, openPane, registerPane, resetPane, setBusy, setCard, setOff, setSwitchHidden } from './pane.tsx'
 import type { Outcome } from '../types'
 
@@ -63,25 +62,6 @@ let home = ''
 // resort: a pack installed from a local folder (say ~/Downloads) does not sit under ~/.claude.
 let claudeDir = ''
 const fromRoot = ($: EngineInterface) => $.plugin.root.replace(/\\/g, '/').split('/.claude/')[0] ?? ''
-function fwd(p: string, windows: boolean) {
-  let s = p.trim().replace(/\\/g, '/').replace(/\/+$/, '')
-  if (windows) s = s.replace(/^\/([a-zA-Z])\//, (_, d: string) => `${d.toUpperCase()}:/`).replace(/^([a-z]):\//, (_, d: string) => `${d.toUpperCase()}:/`)
-  return s
-}
-async function findHome($: EngineInterface): Promise<string> {
-  const windows = (await $.env.get('OS').catch(() => undefined)) === 'Windows_NT'
-  const profile = ((await $.env.get('USERPROFILE').catch(() => undefined)) ?? '').trim()
-  const unix = ((await $.env.get('HOME').catch(() => undefined)) ?? '').trim()
-  const pick = windows ? profile || unix : unix || profile
-  return pick ? fwd(pick, windows) : fromRoot($)
-}
-async function findClaudeDir($: EngineInterface, home: string): Promise<string> {
-  const windows = (await $.env.get('OS').catch(() => undefined)) === 'Windows_NT'
-  const set = ((await $.env.get('CLAUDE_CONFIG_DIR').catch(() => undefined)) ?? '').trim()
-  const full = set === '~' ? home : set.startsWith('~/') || set.startsWith('~\\') ? `${home}${set.slice(1)}` : set
-  claudeDir = full ? fwd(full, windows) : `${home}/.claude`
-  return claudeDir
-}
 const claudeDirOf = ($: EngineInterface) => claudeDir || `${fromRoot($)}/.claude`
 let session = ''
 let timerStarted = false
@@ -185,8 +165,7 @@ async function log($: EngineInterface, line: string) {
 /** Home, session id and the switch timer, whichever hook runs first. */
 async function ready($: EngineInterface) {
   if (!home) {
-    home = await findHome($)
-    await findClaudeDir($, home)
+    ;({ home, claudeDir } = await $.mods.paths())
   }
   if (!session) session = await $.session.id().catch(() => '')
   if (!timerStarted) {
@@ -297,26 +276,27 @@ async function classify(
 
 // The local judge answers like Haiku did for tasks much like this one (see local-judge.ts); each
 // example keeps Haiku's whole answer beside it, so a local answer is a real Decision.
-const judge = (): Judge => ({ collection: 'router-examples', dir: `${claudeDir}/mods-logs/${NAME}/examples`, labels: TIER_ORDER })
+// The local judge, in mods-core: its qmd collection, its examples' folder and its labels.
+const judge = () => ({ collection: 'router-examples', dir: `${claudeDir}/mods-logs/${NAME}/examples`, labels: [...TIER_ORDER] })
 const taskText = (s: JudgeState) => `${s.agentType}: ${s.description ?? ''}\n${s.prompt}`
 
 async function judgeTask($: EngineInterface, state: JudgeState, cardId: string | null): Promise<Awaited<ReturnType<typeof classify>>> {
   const text = taskText(state)
   const startedAt = await $.clock.now()
-  const local = await judgeGuess($, judge(), text).catch(async err => (await log($, `local judge: ${String(err)}`), null))
+  const local = await $.mods.judgeGuess({ ...judge(), text }).catch(async err => (await log($, `local judge: ${String(err)}`), null))
   if (local) {
     const saved = String(await $.fs.read(local.file.replace(/[^/]*--([^/]+)\.md$/, '$1.json')).catch(() => ''))
     const decision = readJudgement(saved)
     if (decision && decision.tier === local.label) {
       const said = `Local: like ${local.n} past tasks Haiku judged ${local.label} (no Haiku call).`
       // A sample: Haiku judges too, in the background; the card's answer says whether they agree.
-      if (await judgeUsed($))
+      if (await $.mods.judgeUsed({ collection: judge().collection }))
         void (async () => {
           const paid = await classify($, state)
           if (!paid.decision) return
           const agreed = paid.decision.tier === local.label
-          const stopped = await judgeSampled($, agreed)
-          await judgeRemember($, judge(), text, paid.decision.tier, paid.text)
+          const stopped = await $.mods.judgeSampled({ collection: judge().collection, agreed })
+          await $.mods.judgeRemember({ ...judge(), text, label: paid.decision.tier, extra: paid.text })
           await log($, `local sample: local ${local.label}, Haiku ${paid.decision.tier}${stopped ? '; local judge stopped' : ''}`)
           if (cardId) await setCard($, cardId, { judge: `${said}\n\nSample: Haiku ${agreed ? 'agrees' : `says ${paid.decision.tier}`}.\n${paid.text}`.slice(0, 2000) })
         })().catch(err => log($, `local sample: ${String(err)}`))
@@ -324,7 +304,7 @@ async function judgeTask($: EngineInterface, state: JudgeState, cardId: string |
     }
   }
   const judged = await classify($, state)
-  if (judged.decision) void judgeRemember($, judge(), text, judged.decision.tier, judged.text).catch(err => log($, `local remember: ${String(err)}`))
+  if (judged.decision) void $.mods.judgeRemember({ ...judge(), text, label: judged.decision.tier, extra: judged.text }).catch(err => log($, `local remember: ${String(err)}`))
   return judged
 }
 
@@ -395,7 +375,7 @@ async function writeLedger(
     },
     router: pick.router,
   }
-  await append($, ledgerPath(), JSON.stringify(line))
+  await $.mods.ledger({ row: line })
 
   sessionPicks += 1
   if (saved !== null) sessionSaved += saved
@@ -531,7 +511,7 @@ export const register: Register = (on, options) => {
     await ready($)
     if (off) return { text: `${TITLE} is off. Turn it on with /mods.` }
     if (e.args.trim().toLowerCase() === 'reset-local') {
-      await judgeReset($)
+      await $.mods.judgeReset({ collection: judge().collection })
       return { text: `${TITLE}: the local judge answers again, with its samples counted from zero.` }
     }
     await openPane($, true)
@@ -543,7 +523,7 @@ export const register: Register = (on, options) => {
       `Judge: ${JUDGE_MODEL_ID} (JSON tier and confidence). Moves down only at confidence ${policy.minDowngradeConfidence} or more, up at ${policy.minUpgradeConfidence} or more. Time limit ${cfg.timeoutMs}ms.`,
       `Subagent model routing: ${routeSubagentModel ? 'on' : 'off'}. Main chat effort routing: ${routeMainEffort ? 'on' : 'off'}. Main chat model: never changed.`,
       `Tiers: ${policy.tiers.fast} / ${policy.tiers.balanced} / ${policy.tiers.deep}.`,
-      await judgeLine($, judge(), 'Haiku'),
+      await $.mods.judgeLine({ collection: judge().collection, dir: judge().dir, paid: 'Haiku' }),
       `This chat: ${sessionPicks} picks logged, about $${usd(sessionSaved).toFixed(4)} saved at list price (${PRICE_DATE}).`,
       ...(recent.length > 0 ? ['Last picks:', ...recent.slice(-5).map(r => `  ${r}`)] : []),
       `Ledger: ${ledgerPath()}`,

@@ -22,20 +22,12 @@ const trim = (v: string | undefined) => (v ?? '').trim()
 const pt = (n: number) => n.toFixed(1).replace('.', ',')
 
 async function setup($: EngineInterface) {
-  const home = trim(await $.env.get('HOME').catch(() => undefined)) || $.plugin.root.split('/.claude/')[0] || ''
-  const set = trim(await $.env.get('CLAUDE_CONFIG_DIR').catch(() => undefined))
-  claudeDir = set ? set.replace(/^~(?=\/|$)/, home) : `${home}/.claude`
+  claudeDir = (await $.mods.paths()).claudeDir
 }
 
 // The /mods switchboard: false in switches.json turns the mod off.
 async function readSwitch($: EngineInterface) {
-  try {
-    const path = `${claudeDir}/mods/switches.json`
-    const raw = (await $.fs.exists(path)) ? String(await $.fs.read(path)) : ''
-    off = raw ? (JSON.parse(raw) as Record<string, unknown>)[NAME] === false : false
-  } catch {
-    off = false
-  }
+  off = (await $.mods.switches())[NAME] === false
 }
 
 function take(limits: SessionRateLimit[]) {

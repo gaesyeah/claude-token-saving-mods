@@ -1,7 +1,8 @@
 {
   "name": "quota-meter",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shows how much of the 5-hour and weekly limits each turn spends, averaged over recent turns; /quota gives the details",
+  "dependencies": ["mods-core"],
   "author": {
     "name": "Ben AI"
   }

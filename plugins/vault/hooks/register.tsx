@@ -124,33 +124,14 @@ async function createNew($: EngineInterface, path: string, text: string) {
   const r = await $.process.run(['/bin/sh', '-c', 'mkdir -p "$(dirname "$1")" && set -C && cat > "$1"', 'sh', path], { stdin: text, timeoutMs: 10_000 })
   return r.exitCode === 0
 }
-async function withTimeout<T>($: EngineInterface, p: Promise<T>, ms: number, what: string): Promise<T> {
-  const box: { timer?: { cancel: () => void } } = {}
-  const late = new Promise<never>((_, reject) => {
-    box.timer = $.clock.after(ms, () => reject(new Error(`${what} gave no answer in ${ms} ms`)))
-  })
-  try {
-    return await Promise.race([p, late])
-  } finally {
-    box.timer?.cancel()
-  }
-}
 async function log($: EngineInterface, line: string) {
   await append($, `${claudeDir}/mods-logs/vault/vault.log`, `${new Date(await $.clock.now()).toISOString()} ${line}\n`).catch(() => undefined)
 }
 
 async function setup($: EngineInterface) {
-  home = trim(await $.env.get('HOME').catch(() => undefined)) || $.plugin.root.split('/.claude/')[0] || ''
-  const set = trim(await $.env.get('CLAUDE_CONFIG_DIR').catch(() => undefined))
-  claudeDir = set ? set.replace(/^~(?=\/|$)/, home) : `${home}/.claude`
+  ;({ home, claudeDir } = await $.mods.paths())
   root = $.plugin.root
-  try {
-    const path = `${claudeDir}/mods/switches.json`
-    const raw = (await $.fs.exists(path)) ? String(await $.fs.read(path)) : ''
-    off = raw ? (JSON.parse(raw) as Record<string, unknown>)[NAME] === false : false
-  } catch {
-    off = false
-  }
+  off = (await $.mods.switches())[NAME] === false
   cwd = await $.session.cwd().catch(() => '')
   startedAt = await $.clock.now()
   const c = await $.store.get('config').catch(() => undefined)
@@ -158,13 +139,9 @@ async function setup($: EngineInterface) {
   qmd = await findQmd($)
 }
 
-// The desktop app's PATH can miss the folders npm and bun install into.
+// qmd and its daemon live in mods-core ($.mods.qmd*); a fresh look finds a qmd installed since.
 async function findQmd($: EngineInterface) {
-  const r = await sh(
-    $,
-    'command -v qmd && exit 0; for p in "$HOME/.volta/bin/qmd" "$HOME/.bun/bin/qmd" "$HOME/.npm-global/bin/qmd" "$HOME/.local/bin/qmd" "/usr/local/bin/qmd"; do [ -x "$p" ] && echo "$p" && exit 0; done; exit 1',
-  ).catch(() => undefined)
-  return r && r.exitCode === 0 ? trim(r.stdout.split('\n')[0]) : ''
+  return $.mods.qmdFind({ fresh: true }).catch(() => '')
 }
 const qmdEnv = () => ({ QMD_EMBED_MODEL: EMBED })
 async function readVersion($: EngineInterface) {
@@ -368,24 +345,15 @@ async function rgHits($: EngineInterface, terms: string[]): Promise<(Hit & { n: 
 // reload on the next query). Started detached: it outlives the chat and serves every chat after it.
 // The port is fixed, so the answer must be qmd's own ({"status":"ok","uptime":n}) before a prompt goes there.
 async function qmdUp($: EngineInterface) {
-  const r = await withTimeout($, $.http.fetch(`${QMD_URL}/health`), 1000, 'qmd health').catch(() => undefined)
-  let ok = false
-  try {
-    const b = r?.ok ? (JSON.parse(r.text) as { status?: unknown; uptime?: unknown }) : {}
-    ok = b.status === 'ok' && typeof b.uptime === 'number'
-  } catch {
-    // Not JSON: something else holds the port.
-  }
-  qmdLive = ok
-  return ok
+  qmdLive = await $.mods.qmdUp().catch(() => false)
+  return qmdLive
 }
 async function startDaemon($: EngineInterface) {
-  if (!qmd || !vault() || (await qmdUp($))) return
-  const r = await sh($, 'QMD_EMBED_MODEL="$2" "$1" mcp --http --daemon < /dev/null 2>&1', [qmd, EMBED], 20_000)
-  await log($, `qmd daemon: ${oneLine(r.stdout, 160)}`)
+  if (!qmd || !vault()) return
+  const r = await $.mods.qmdStart()
+  if (r.out) await log($, `qmd daemon: ${r.out}`)
   // Its PID, so the mod stops only a daemon it started itself.
-  const pid = r.stdout.match(/\(PID (\d+)\)/)?.[1]
-  if (pid) await $.store.set('daemon', pid).catch(() => undefined)
+  if (r.pid) await $.store.set('daemon', r.pid).catch(() => undefined)
   if (!(await qmdUp($))) return
   // Loads the models now, so the first prompt does not wait for them.
   await qmdQuery($, 'vault', 1, 60_000).catch(() => undefined)
@@ -395,8 +363,8 @@ async function startDaemon($: EngineInterface) {
 async function stopDaemon($: EngineInterface) {
   const pid = await $.store.get('daemon').catch(() => undefined)
   if (!qmd || typeof pid !== 'string' || !pid) return
-  const r = await sh($, 'f="${XDG_CACHE_HOME:-$HOME/.cache}/qmd/mcp.pid"; [ "$(cat "$f" 2>/dev/null)" = "$2" ] || exit 3; "$1" mcp stop', [qmd, pid], 15_000)
-  await log($, r.exitCode === 3 ? `qmd daemon ${pid}: não é mais o do mod, não parei` : `qmd daemon ${pid} parado (mod desligado): ${oneLine(r.stdout, 120)}`)
+  const r = await $.mods.qmdStop({ pid })
+  await log($, r === 'other' ? `qmd daemon ${pid}: não é mais o do mod, não parei` : `qmd daemon ${pid} parado (mod desligado)`)
   await $.store.set('daemon', null).catch(() => undefined)
 }
 
@@ -404,21 +372,12 @@ async function stopDaemon($: EngineInterface) {
 // rank is k (1-3) it is 0.75/k + 0.25 × rerank, so the reranker's own 0..1 relevance is read back from
 // it. The ranges do not overlap for k=1 (0.75-1); for 2 or 3 the lower reading is taken.
 // shortcut: those weights are qmd 2.x's (store.ts, rrfWeight); re-read them if qmd changes its blend.
-const rerankOf = (s: number) => (s >= 0.75 ? (s - 0.75) / 0.25 : s >= 0.375 ? (s - 0.375) / 0.25 : (s - 0.25) / 0.25)
 type QmdRow = { path: string; title: string; line: string; rerank: number }
+// One search through mods-core: `rerank` is the reranker's 0..1 relevance (see mods-core's qmd.ts).
 async function qmdQuery($: EngineInterface, query: string, limit: number, ms = QMD_MS): Promise<QmdRow[]> {
-  // Three candidates keep every vector rank at 3 or under, where the blend above holds; the reranker
-  // reads each whole chunk, so each candidate costs ~0.2 s on a CPU.
-  const body = JSON.stringify({ searches: [{ type: 'vec', query: oneLine(query, 500) }], collections: [COLLECTION], limit, rerank: true, candidateLimit: Math.max(3, limit) })
-  const res = await withTimeout($, $.http.fetch(`${QMD_URL}/query`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }), ms, 'qmd')
-  if (!res.ok) throw new Error(`qmd HTTP ${res.status}: ${res.text.slice(0, 200)}`)
-  const rows = ((JSON.parse(res.text) as { results?: Record<string, unknown>[] }).results ?? []).slice(0, limit)
+  const rows = await $.mods.qmdQuery({ collection: COLLECTION, text: query, limit, ms })
   return rows
-    .map(row => {
-      const rel = decodeURIComponent(String(row.file ?? '').replace(/^qmd:\/\/[^/]+\//, ''))
-      const score = typeof row.score === 'number' ? row.score : 0
-      return { path: `${vault()}/${rel}`, title: String(row.title ?? ''), line: snippetLine(String(row.snippet ?? '')), rerank: limit <= 3 ? Math.max(0, rerankOf(score)) : 0 }
-    })
+    .map(r => ({ path: `${vault()}/${r.file}`, title: r.title, line: snippetLine(r.snippet), rerank: r.rerank }))
     .filter(h => h.path !== `${vault()}/` && !/\/(Daily|Templates)\//.test(h.path))
 }
 // The first line of a qmd snippet that says something: no line numbers, diff header, frontmatter or heading.
@@ -935,7 +894,6 @@ export const register: Register = on => {
       return (
         <Box flexDirection="column">
           {rest}
-          <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(8, e.props.bodyColumns))}</Text>
           {line}
         </Box>
       )
@@ -943,7 +901,6 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         {rest}
-        <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(8, e.props.bodyColumns))}</Text>
         {line}
         <Box flexDirection="column">
           <Text>

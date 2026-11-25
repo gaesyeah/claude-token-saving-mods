@@ -8,6 +8,7 @@ desktop app for Linux and Claude Code 2.1.325.
 
 | Mod | What it does | Command |
 | --- | --- | --- |
+| **mods-core** | What the other mods share, installed first: one layout for their rows above the prompt (a subtle rule between two rows, never above the first, the same spacing), and the helpers they used to copy, on `$.mods` (paths, /mods switches, logs, the savings ledger, opening files, qmd and its daemon, the local judge). Every other mod lists it under `dependencies`. Nothing to switch on or off. | none |
 | **input-router** | Big files, PDFs and connector results are read by Haiku first; Claude gets short notes and a path to the full thing. | `/input-router` |
 | **effort-optimizer** | Reads each prompt and picks the reasoning effort it needs (low for simple questions; bug diagnosis and diff review at least medium, architecture, security and migrations high). If a level change ever rewrites the prompt cache, it stops changing levels in that chat. With qmd up (Local Models), a local judge answers prompts much like ones Sonnet already judged, without calling it; 1 in 5 of those is still asked of Sonnet and compared, and too little agreement stops the local judge (status in `/effort-optimizer`). | `/effort-optimizer` |
 | **model-router** | Haiku judges each **subagent** task and moves it to Haiku, Sonnet or Opus. Never changes the main chat's model. With qmd up (Local Models), a local judge answers prompts much like ones Haiku already judged, without calling it; 1 in 5 of those is still asked of Haiku and compared, and too little agreement stops the local judge (status in `/model-router`). | `/model-router` |
@@ -27,7 +28,7 @@ desktop app for Linux and Claude Code 2.1.325.
 
 ```bash
 claude plugin marketplace add gaesyeah/claude-token-saving-mods
-for m in input-router effort-optimizer model-router cache-clock handoff research-router efficient-browser-use mods savings-proof coding-kit quota-meter tool-diet vault local-models; do
+for m in mods-core input-router effort-optimizer model-router cache-clock handoff research-router efficient-browser-use mods savings-proof coding-kit quota-meter tool-diet vault local-models; do
   claude plugin install "$m@token-saving-mods"
 done
 ```

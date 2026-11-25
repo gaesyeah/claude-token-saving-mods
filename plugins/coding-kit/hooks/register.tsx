@@ -134,16 +134,13 @@ let skillOpen = false
 // is caught by reading the box while the draft starts with a slash.
 let draft = ''
 // Opens a link with the desktop's opener: xdg-open (Linux), gio, or open (macOS).
-const OPEN_SH = 'for c in xdg-open gio open; do command -v "$c" >/dev/null 2>&1 || continue; if [ "$c" = gio ]; then gio open "$1"; else "$c" "$1"; fi </dev/null >/dev/null 2>&1; exit $?; done; exit 3'
 
 // ---- small helpers ----
 
 const trim = (v: string | undefined) => (v ?? '').trim()
 
 async function setup($: EngineInterface) {
-  home = trim(await $.env.get('HOME').catch(() => undefined)) || trim(await $.env.get('USERPROFILE').catch(() => undefined)) || $.plugin.root.split('/.claude/')[0] || ''
-  const set = trim(await $.env.get('CLAUDE_CONFIG_DIR').catch(() => undefined))
-  claudeDir = set ? set.replace(/^~(?=\/|$)/, home) : `${home}/.claude`
+  ;({ home, claudeDir } = await $.mods.paths())
 }
 
 async function readText($: EngineInterface, path: string) {
@@ -890,7 +887,7 @@ export const register: Register = on => {
       serenaBand = false
       const r = await $.process.run(['/bin/sh', '-c', SERENA_SH, 'sh', serenaSession], { timeoutMs: 60_000 }).catch(() => null)
       const url = r?.exitCode === 0 ? r.stdout.trim() : ''
-      if (url) await $.process.run(['/bin/sh', '-c', OPEN_SH, 'sh', url], { timeoutMs: 15_000 }).catch(() => undefined)
+      if (url) await $.mods.open({ target: url })
       else $.ui.toast('Coding Kit: não achei o painel do Serena deste chat.')
     } else if (what === 'serena-dismiss') serenaBand = false
     else if (what === 'skill-open') skillOpen = !skillOpen
@@ -905,7 +902,7 @@ export const register: Register = on => {
       }
       typed = null
     }
-    else if (what === 'repo' && item?.repo) await $.process.run(['/bin/sh', '-c', OPEN_SH, 'sh', item.repo], { timeoutMs: 15_000 }).catch(() => undefined)
+    else if (what === 'repo' && item?.repo) await $.mods.open({ target: item.repo })
     else if (what === 'level' && LEVELS.includes(id as Level)) {
       level = id as Level
       await $.store.set('ponytail', level)
@@ -952,7 +949,7 @@ export const register: Register = on => {
     } else if (what === 'diff' && id) {
       const u = updates.find(x => x.dir === id)
       const url = u ? (u.from ? `https://github.com/${u.repo}/compare/${u.from}...${u.to}` : `https://github.com/${u.repo}/commit/${u.to}`) : ''
-      if (url) await $.process.run(['/bin/sh', '-c', OPEN_SH, 'sh', url], { timeoutMs: 15_000 }).catch(() => undefined)
+      if (url) await $.mods.open({ target: url })
     }
     else if (what === 'refresh') {
       await loadCatalog($)
@@ -1017,7 +1014,6 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         {rest}
-        <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(8, e.props.bodyColumns))}</Text>
         <Box flexDirection="row" alignItems="center" justifyContent="space-between" gap={1} width={width}>
           <Text wrap="truncate-end">
             <Text color={ACCENT}>{`◆ ${label}`}</Text>
@@ -1060,7 +1056,6 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         {rest}
-        <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(8, e.props.bodyColumns))}</Text>
         <Box flexDirection="row" alignItems="center" justifyContent="space-between" gap={1}>
           <Text>
             <Text color={ACCENT}>Serena ativo neste projeto.</Text>

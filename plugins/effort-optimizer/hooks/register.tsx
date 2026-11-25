@@ -1,7 +1,6 @@
 import type { ConfigRow, EngineInterface, Register, SessionMessage } from 'claude-code'
 
 import type { Band, Level } from '../types'
-import { type Judge, judgeGuess, judgeLine, judgeRemember, judgeReset, judgeSampled, judgeUsed } from './local-judge'
 
 const BAND = { plugin: 'effort-optimizer', key: 'band' } as const
 const OVERRIDE = { plugin: 'effort-optimizer', key: 'override' } as const
@@ -27,25 +26,6 @@ let home = ''
 // resort: a pack installed from a local folder (say ~/Downloads) does not sit under ~/.claude.
 let claudeDir = ''
 const fromRoot = ($: EngineInterface) => $.plugin.root.replace(/\\/g, '/').split('/.claude/')[0] ?? ''
-function fwd(p: string, windows: boolean) {
-  let s = p.trim().replace(/\\/g, '/').replace(/\/+$/, '')
-  if (windows) s = s.replace(/^\/([a-zA-Z])\//, (_, d: string) => `${d.toUpperCase()}:/`).replace(/^([a-z]):\//, (_, d: string) => `${d.toUpperCase()}:/`)
-  return s
-}
-async function findHome($: EngineInterface): Promise<string> {
-  const windows = (await $.env.get('OS').catch(() => undefined)) === 'Windows_NT'
-  const profile = ((await $.env.get('USERPROFILE').catch(() => undefined)) ?? '').trim()
-  const unix = ((await $.env.get('HOME').catch(() => undefined)) ?? '').trim()
-  const pick = windows ? profile || unix : unix || profile
-  return pick ? fwd(pick, windows) : fromRoot($)
-}
-async function findClaudeDir($: EngineInterface, home: string): Promise<string> {
-  const windows = (await $.env.get('OS').catch(() => undefined)) === 'Windows_NT'
-  const set = ((await $.env.get('CLAUDE_CONFIG_DIR').catch(() => undefined)) ?? '').trim()
-  const full = set === '~' ? home : set.startsWith('~/') || set.startsWith('~\\') ? `${home}${set.slice(1)}` : set
-  claudeDir = full ? fwd(full, windows) : `${home}/.claude`
-  return claudeDir
-}
 const claudeDirOf = ($: EngineInterface) => claudeDir || `${fromRoot($)}/.claude`
 let enabled = true
 let mode: Mode = 'suggest'
@@ -267,25 +247,26 @@ function parsePick(text: string): Pick | null {
 }
 
 // The local judge answers like Sonnet did for prompts much like this one (see local-judge.ts).
-const judge = (): Judge => ({ collection: 'effort-examples', dir: `${claudeDir}/mods-logs/${NAME}/examples`, labels: LEVELS })
+// The local judge, in mods-core: its qmd collection, its examples' folder and its labels.
+const judge = () => ({ collection: 'effort-examples', dir: `${claudeDir}/mods-logs/${NAME}/examples`, labels: [...LEVELS] })
 
 async function pick($: EngineInterface, text: string, now: Level | ''): Promise<Pick | null> {
-  const local = await judgeGuess($, judge(), text).catch(err => (void log($, 'local judge', err), null))
+  const local = await $.mods.judgeGuess({ ...judge(), text }).catch(err => (void log($, 'local judge', err), null))
   if (local) {
     const level = local.label as Level
     // A sample: Sonnet answers too, in the background, and the two are compared.
-    if (await judgeUsed($))
+    if (await $.mods.judgeUsed({ collection: judge().collection }))
       void (async () => {
         const paid = await pickPaid($, text, now)
         if (!paid) return
-        const stopped = await judgeSampled($, paid.level === level)
-        await judgeRemember($, judge(), text, paid.level)
+        const stopped = await $.mods.judgeSampled({ collection: judge().collection, agreed: paid.level === level })
+        await $.mods.judgeRemember({ ...judge(), text, label: paid.level })
         void log($, 'local sample', `local ${level}, Sonnet ${paid.level}${stopped ? '; local judge stopped' : ''}`)
       })().catch(err => log($, 'local sample', err))
     return { level, why: `like ${local.n} past prompts (local, no Sonnet call)` }
   }
   const p = await pickPaid($, text, now)
-  if (p) void judgeRemember($, judge(), text, p.level).catch(err => log($, 'local remember', err))
+  if (p) void $.mods.judgeRemember({ ...judge(), text, label: p.level }).catch(err => log($, 'local remember', err))
   return p
 }
 
@@ -384,8 +365,7 @@ async function autoAdjust($: EngineInterface, text: string, mine: number) {
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    home = await findHome($)
-    await findClaudeDir($, home)
+    ;({ home, claudeDir } = await $.mods.paths())
     await $.command.register({
       name: 'effort-optimizer',
       description: 'Effort Optimizer. auto: set effort by itself. suggest: offer a switch. off or on',
@@ -512,7 +492,7 @@ export const register: Register = on => {
       return { text: enabled ? `Effort Optimizer is on (${mode}).` : 'Effort Optimizer is off. Type /effort-optimizer on to turn it back on.' }
     }
     if (arg === 'reset-local') {
-      await judgeReset($)
+      await $.mods.judgeReset({ collection: judge().collection })
       return { text: 'Effort Optimizer: the local judge answers again, with its samples counted from zero.' }
     }
     const now = await currentLevel($)
@@ -520,7 +500,7 @@ export const register: Register = on => {
     return {
       text: [
         `Effort Optimizer is ${enabled ? 'on' : 'off'}, mode: ${mode}.`,
-        await judgeLine($, judge(), 'Sonnet'),
+        await $.mods.judgeLine({ collection: judge().collection, dir: judge().dir, paid: 'Sonnet' }),
         `This chat runs at: ${now ? NAMES[now] : 'unknown yet'}${value ? ` (held by the mod: ${NAMES[value]})` : ''}.`,
         `Effort setting: ${rowKey || 'not found, the mod sets the level on each request'}.`,
         'Type /effort-optimizer auto, suggest, off, on or reset-local.',
@@ -594,7 +574,6 @@ export const register: Register = on => {
       return (
         <Box flexDirection="column">
           {rest}
-          <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(8, e.props.bodyColumns))}</Text>
           <Box flexDirection="row" gap={1}>
             <Text wrap="truncate-end">
               <Text color={GOOD}>✓</Text>
@@ -614,7 +593,6 @@ export const register: Register = on => {
       return (
         <Box flexDirection="column">
           {rest}
-          <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(8, e.props.bodyColumns))}</Text>
           <Box flexDirection="column">
             <Text>
               <Text color={ACCENT}>ⓘ</Text>
@@ -635,7 +613,6 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         {rest}
-        <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(8, e.props.bodyColumns))}</Text>
         <Box flexDirection="column">
           <Text>
             <Text color={ACCENT}>●</Text>

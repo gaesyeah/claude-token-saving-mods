@@ -32,16 +32,8 @@ const tok = (chars: number) => Math.round(chars / 4)
 const trim = (v: string | undefined) => (v ?? '').trim()
 
 async function setup($: EngineInterface) {
-  const home = trim(await $.env.get('HOME').catch(() => undefined)) || $.plugin.root.split('/.claude/')[0] || ''
-  const set = trim(await $.env.get('CLAUDE_CONFIG_DIR').catch(() => undefined))
-  claudeDir = set ? set.replace(/^~(?=\/|$)/, home) : `${home}/.claude`
-  try {
-    const path = `${claudeDir}/mods/switches.json`
-    const raw = (await $.fs.exists(path)) ? String(await $.fs.read(path)) : ''
-    off = raw ? (JSON.parse(raw) as Record<string, unknown>)[NAME] === false : false
-  } catch {
-    off = false
-  }
+  claudeDir = (await $.mods.paths()).claudeDir
+  off = (await $.mods.switches())[NAME] === false
   sid = await $.session.id().catch(() => '')
   cwd = await $.session.cwd().catch(() => '')
 }

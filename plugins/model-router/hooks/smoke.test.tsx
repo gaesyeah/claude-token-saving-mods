@@ -1,4 +1,5 @@
-import { expect, test } from 'claude-code/testing'
+import { expect } from 'claude-code/testing'
+import { test } from './mods-stub'
 
 test('the module loads and /model-router shows the local judge line', async ($, on) => {
   on('env.get', (_: any, e: any) => ({ value: e.name === 'HOME' ? '/home/u' : undefined }))
@@ -11,7 +12,8 @@ test('the module loads and /model-router shows the local judge line', async ($, 
   on('fs.list', () => ({ value: [] }))
   on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: '' } }))
   on('clock.now', () => ({ value: 0 }))
+  on('mods.judgeLine', (_: any, e: any) => ({ value: `Local judge: learning, 0/30 examples from ${e.paid}'s answers` }))
   await $.session.start({ cwd: '/w', surface: 'desktop', isInteractive: true } as any)
   const r = (await $.command.run({ command: 'model-router', args: '' } as any)) as any
-  expect(r.text).toContain('Local judge: learning, 0/30')
+  expect(r.text).toContain("Local judge: learning, 0/30 examples from Haiku's answers")
 })
