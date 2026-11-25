@@ -61,7 +61,7 @@ export function createModelCatalogLoader(deps: ModelCatalogLoaderDeps): () => Pr
   }
 }
 
-/** Only explicit preset targets are accepted; names and marketing labels are never heuristics. */
+/** Only explicit targets from the persisted global ladder are accepted; no model-name heuristics. */
 export function resolveModelFromCatalog(catalog: ModelCatalog | null, role: ModelRole, fallback: string): ResolvedModel {
   if (!catalog) return { model: fallback, provider: null, source: 'fallback' }
   if (role === 'judge') {
@@ -70,8 +70,7 @@ export function resolveModelFromCatalog(catalog: ModelCatalog | null, role: Mode
     const candidates = catalog.models.filter(x => x.judgeOnly)
     return candidates.length === 1 ? { model: candidates[0]!.model, provider: candidates[0]!.provider, source: 'clauderipple' } : { model: fallback, provider: null, source: 'fallback' }
   }
-  // Prefer the user's persisted global ladder, not the first of several available presets.
-  // A named preset is accepted only when the settings explicitly select its exact key.
+  // Preset selection is materialized into the persisted global ladder by ClaudeRipple.
   const saved = catalog.settings && typeof catalog.settings === 'object' ? catalog.settings as Record<string, any> : null
   const settings = saved && saved.settings && typeof saved.settings === 'object' ? saved.settings as Record<string, any> : saved
   let ladder: any = settings && settings.mode === 'ladder' && settings.rungs && typeof settings.rungs === 'object' ? settings : null
