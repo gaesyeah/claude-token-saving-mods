@@ -160,8 +160,6 @@ def proxy_request(proxy: str, ca_file: Path, provider: str, model: str) -> dict[
         headers={
             "content-type": "application/json",
             "anthropic-version": "2023-06-01",
-            # This is a dummy local-test value, not a real account/API credential.
-            "x-api-key": "clauderipple-local-proxy-smoke-test",
         },
         method="POST",
     )
@@ -185,7 +183,7 @@ def proxy_request(proxy: str, ca_file: Path, provider: str, model: str) -> dict[
     return body
 
 
-def check_request_log(home: Path, provider: str, model: str, started: float) -> bool:
+def check_request_log(home: Path, provider: str, model: str) -> bool:
     path = home / "requests.jsonl"
     deadline = time.time() + 8
     while time.time() < deadline:
@@ -220,11 +218,10 @@ def main() -> None:
     print(f"ClaudeRipple CA: {ca_file}")
     print(f"Active light target: {provider} / {model}")
     print("Sending one harmless Anthropic Messages request through the HTTPS proxy…")
-    started = time.time()
     response = proxy_request(proxy, ca_file, provider, model)
     print(f"Proxy generation: OK (response model={response.get('model', 'not reported')})")
     print("Model response: CLAUDERIPPLE_PROXY_E2E_OK")
-    if check_request_log(home, provider, model, started):
+    if check_request_log(home, provider, model):
         print(f"Router request log: confirmed provider={provider}, model={model}")
     else:
         print("Router request log: matching row not found (response still succeeded through the configured proxy)")
