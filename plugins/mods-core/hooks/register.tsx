@@ -101,13 +101,7 @@ export const register: Register = on => {
         if (!(await beneath.fs.exists(path).catch(() => false))) return null
         return JSON.parse(String(await beneath.fs.read(path)))
       },
-      readSettings: async () => {
-        const { home } = await paths()
-        const path = `${home}/mod-settings.json`
-        if (!(await beneath.fs.exists(path).catch(() => false))) return null
-        return JSON.parse(String(await beneath.fs.read(path)))
-      },
-      fetch: port => beneath.http.fetch(`http://127.0.0.1:${port}/api/mod-options`),
+      fetch: (port, endpoint) => beneath.http.fetch(`http://127.0.0.1:${port}${endpoint}`),
       within,
     })
     const modelResolve = async ({ role, fallback }: { role: ModelRole; fallback: string }) =>
