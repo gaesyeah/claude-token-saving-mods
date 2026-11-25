@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { completeWithEffort } from './model-completion'
+import { completeWithEffort, completeWithModel } from './model-completion'
 
 test('forwards the ClaudeRipple model and omits an undeclared effort', async () => {
   const calls: Record<string, unknown>[] = []
@@ -42,4 +42,35 @@ test('preserves the legacy low effort for fallback completions', async () => {
   })
 
   expect(calls[0]).toEqual({ model: 'legacy-model', effort: 'low', prompt: 'test prompt' })
+})
+
+test('research worker completion preserves the explicit model and omits absent effort', async () => {
+  const calls: Record<string, unknown>[] = []
+  await completeWithModel(async request => {
+    calls.push(request)
+    return { isAnswered: true }
+  }, 'qwen2.5:3b', {
+    system: 'system prompt',
+    prompt: 'worker prompt',
+    maxTokens: 800,
+    timeoutMs: 60_000,
+  })
+
+  expect(calls).toEqual([{
+    model: 'qwen2.5:3b',
+    system: 'system prompt',
+    prompt: 'worker prompt',
+    maxTokens: 800,
+    timeoutMs: 60_000,
+  }])
+})
+
+test('research worker completion forwards a declared effort', async () => {
+  const calls: Record<string, unknown>[] = []
+  await completeWithModel(async request => {
+    calls.push(request)
+    return { isAnswered: true }
+  }, 'worker-model', { prompt: 'worker prompt' }, 'high')
+
+  expect(calls[0]).toEqual({ model: 'worker-model', effort: 'high', prompt: 'worker prompt' })
 })
