@@ -1,5 +1,5 @@
 import { expect } from 'claude-code/testing'
-import { test } from './mods-stub'
+import { fakes, test } from './mods-stub'
 
 // The local judge lives in mods-core ($.mods.judge*), which tests its rules; here, how Effort Optimizer
 // uses it: a local answer skips Sonnet, a sample asks Sonnet too and reports back, a paid answer is kept.
@@ -21,7 +21,7 @@ function engine(on: any, j: J, resolved?: { model: string; provider: string; sou
   on('process.run', () => ({ value: { exitCode: 0, stdout: '', stderr: '' } }))
   on('session.messages', () => ({ value: [] }))
   on('model.complete', (_: any, e: any) => (j.asked += 1, j.requests.push(e), { value: { isAnswered: true, text: JSON.stringify({ level: j.paid, why: 'x' }) } }))
-  if (resolved) on('mods.modelResolve', () => ({ value: { ...resolved, effort: undefined } }))
+  if (resolved) fakes.modelResolve = () => ({ ...resolved, effort: undefined })
   on('prompt.submit', (_: any, e: any) => ({ text: e.text }))
   on('turn.step', async function* (_: any, e: any) {
     yield { kind: 'stop', ref: 's', stopReason: 'end_turn', usage: { input_tokens: 10, output_tokens: 10, cache_read_input_tokens: 60_000, cache_creation_input_tokens: 500 } }
