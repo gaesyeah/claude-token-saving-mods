@@ -1,6 +1,6 @@
 {
   "name": "savings-proof",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "/savings opens the Savings Proof pane: every token the other mods saved, with today's and this chat's totals",
   "dependencies": [
     "mods-core"

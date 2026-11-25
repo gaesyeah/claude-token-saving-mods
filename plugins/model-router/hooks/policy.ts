@@ -453,26 +453,23 @@ export function describeStatus(
   return `router · ${asked} → ${to}`
 }
 
-/** USD per million tokens. Cache writes are the 5-minute rate (1.25x input). */
-export interface Price {
+/** USD per million tokens; this mod charges cache writes at the 5-minute rate (1.25x input). */
+export interface Card {
   input: number
   output: number
   cacheRead: number
-  cacheWrite: number
+  cacheWrite5m: number
+  cacheWrite1h: number
 }
 
 /**
- * List prices, as the claude-api skill cached them on 2026-10-06. Haiku 5.5
+ * List prices: mods-core's one table ($.mods.prices), copied in at chat start by setPrices. Haiku 5.5
  * has a second card for a prompt over 100K tokens.
  */
-export const PRICE_DATE = '2026-10-06'
-const PRICES: Record<string, { small: Price; large?: Price }> = {
-  'claude-opus-5-5': { small: { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 } },
-  'claude-sonnet-5-5': { small: { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 } },
-  'claude-haiku-5-5': {
-    small: { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
-    large: { input: 0.5, output: 2.5, cacheRead: 0.05, cacheWrite: 0.625 },
-  },
+export const PRICE_DATE = '2026-11-02'
+let PRICES: { pattern: string; name: string; small: Card; large?: Card }[] = []
+export function setPrices(list: typeof PRICES) {
+  PRICES = list
 }
 
 /** A model id without a context suffix (`[1m]`), an alias read as its id. */
@@ -500,7 +497,8 @@ export function totalTokens(usage: StepUsage): number {
  * with no price here. The prompt size picks Haiku's rate card.
  */
 export function requestCost(model: string, usage: StepUsage, oneRequest = true): number | null {
-  const card = PRICES[canonicalModel(model)]
+  const id = canonicalModel(model)
+  const card = PRICES.find(p => new RegExp(p.pattern, 'i').test(id))
   if (!card) return null
   // A turn's summed counts are not one prompt: only a single request's size
   // can pick the long-prompt card.
@@ -510,7 +508,7 @@ export function requestCost(model: string, usage: StepUsage, oneRequest = true):
     (usage.input_tokens * price.input +
       usage.output_tokens * price.output +
       usage.cache_read_input_tokens * price.cacheRead +
-      usage.cache_creation_input_tokens * price.cacheWrite) /
+      usage.cache_creation_input_tokens * price.cacheWrite5m) /
     1_000_000
   )
 }

@@ -28,8 +28,8 @@ let home = ''
 // Read from the environment when a chat starts. The plugin's own path is only the last
 // resort: a pack installed from a local folder (say ~/Downloads) does not sit under ~/.claude.
 let claudeDir = ''
-const fromRoot = ($: EngineInterface) => $.plugin.root.replace(/\\/g, '/').split('/.claude/')[0] ?? ''
-const claudeDirOf = ($: EngineInterface) => claudeDir || `${fromRoot($)}/.claude`
+// Set by $.mods.paths() when the chat starts.
+const claudeDirOf = (_: EngineInterface) => claudeDir
 let session = ''
 let off = false
 let settings: Settings = { ...DEFAULTS }
@@ -52,8 +52,7 @@ async function readSwitch($: EngineInterface) {
   let now = off
   let nowHidden = hidden
   try {
-    const path = `${claudeDir}/mods/switches.json`
-    const json = (await $.fs.exists(path)) ? (JSON.parse(String(await $.fs.read(path))) as Record<string, unknown>) : {}
+    const json = await $.mods.readSwitches()
     now = json[NAME] === false
     nowHidden = json[`${NAME}:hidden`] === true
     switchError = ''
@@ -99,18 +98,14 @@ async function showPane($: EngineInterface): Promise<number> {
 }
 
 // $.fs has no append, and a read-then-write can drop another mod's line, so the shell appends.
+// A true append through mods-core (which falls back to read and write where the shell fails).
 async function append($: EngineInterface, path: string, line: string) {
-  await $.process.run(['/bin/sh', '-c', 'mkdir -p "$(dirname "$1")" && cat >> "$1"', 'sh', path], {
-    stdin: line.endsWith('\n') ? line : `${line}\n`,
-  })
+  await $.mods.append({ path, text: line.endsWith('\n') ? line : `${line}\n` })
 }
 
+// One line through mods-core: stamped with the time, its file kept under 2 MB.
 async function log($: EngineInterface, line: string) {
-  try {
-    await append($, logPath(), `${new Date(await $.clock.now()).toISOString()} ${line}`)
-  } catch {
-    // Nowhere left to report it.
-  }
+  await $.mods.log({ file: logPath(), line }).catch(() => undefined)
 }
 
 // TOKEN-MODS-SPEC section 4: image estimate is width x height / 750.

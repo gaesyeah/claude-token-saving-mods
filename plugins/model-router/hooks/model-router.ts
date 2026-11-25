@@ -32,6 +32,7 @@ import {
   JUDGE_MODEL_ID,
   JUDGE_SYSTEM,
   PRICE_DATE,
+  setPrices,
   canonicalModel,
   describeDecision,
   describeSetup,
@@ -61,8 +62,8 @@ let home = ''
 // Read from the environment when a chat starts. The plugin's own path is only the last
 // resort: a pack installed from a local folder (say ~/Downloads) does not sit under ~/.claude.
 let claudeDir = ''
-const fromRoot = ($: EngineInterface) => $.plugin.root.replace(/\\/g, '/').split('/.claude/')[0] ?? ''
-const claudeDirOf = ($: EngineInterface) => claudeDir || `${fromRoot($)}/.claude`
+// Set by $.mods.paths() when the chat starts.
+const claudeDirOf = (_: EngineInterface) => claudeDir
 let session = ''
 let timerStarted = false
 
@@ -76,8 +77,7 @@ async function readSwitch($: EngineInterface) {
   let now = off
   let nowHidden = hidden
   try {
-    const path = `${claudeDirOf($)}/mods/switches.json`
-    const json = (await $.fs.exists(path)) ? (JSON.parse(String(await $.fs.read(path))) as Record<string, unknown>) : {}
+    const json = await $.mods.readSwitches()
     now = json[NAME] === false
     nowHidden = json[`${NAME}:hidden`] === true
     switchError = ''
@@ -124,46 +124,20 @@ const logPath = () => `${claudeDir}/mods-logs/${NAME}.log`
 const ledgerPath = () => `${claudeDir}/mods-logs/savings.jsonl`
 const detailDir = () => `${claudeDir}/mods-logs/${NAME}`
 
-// Why the shell append stopped working, once it has; 'told' once the log says so.
-let fellBack = ''
-
-// $.fs has no append, and a read-then-write can drop another mod's line, so the
-// shell appends. If the host will not run it, a read-then-write still writes.
+// A true append through mods-core (which falls back to read and write where the shell fails).
 async function append($: EngineInterface, path: string, line: string) {
-  const text = line.endsWith('\n') ? line : `${line}\n`
-  try {
-    // Once the shell append has failed, do not wait on it again.
-    if (fellBack) throw new Error(fellBack)
-    const r = await $.process.run(['/bin/sh', '-c', 'mkdir -p "$(dirname "$1")" && cat >> "$1"', 'sh', path], {
-      stdin: text,
-      timeoutMs: 5000,
-    })
-    if (r.exitCode === 0) return
-    throw new Error(`exit ${r.exitCode}: ${r.stderr.slice(0, 200)}`)
-  } catch (err) {
-    if (!fellBack) fellBack = `shell append failed, using read and write: ${err instanceof Error ? err.message : String(err)}`
-    const old = (await $.fs.exists(path)) ? String(await $.fs.read(path)) : ''
-    await $.fs.write(path, old + text)
-  }
+  await $.mods.append({ path, text: line.endsWith('\n') ? line : `${line}\n` })
 }
 
 async function log($: EngineInterface, line: string) {
-  try {
-    if (fellBack && fellBack !== 'told') {
-      const why = fellBack
-      fellBack = 'told'
-      line = `${why}\n${line}`
-    }
-    await append($, logPath(), `${new Date(await $.clock.now()).toISOString()} ${line}`)
-  } catch {
-    // Nowhere left to report it.
-  }
+  await $.mods.log({ file: logPath(), line }).catch(() => undefined)
 }
 
 /** Home, session id and the switch timer, whichever hook runs first. */
 async function ready($: EngineInterface) {
   if (!home) {
     ;({ home, claudeDir } = await $.mods.paths())
+    setPrices(await $.mods.prices().catch(() => []))
   }
   if (!session) session = await $.session.id().catch(() => '')
   if (!timerStarted) {
@@ -472,7 +446,6 @@ export const register: Register = (on, options) => {
   const { routeSubagentModel, routeMainEffort, logDecisions, policy } = cfg
 
   // A load starts clean: a reload must not keep the last load's state or picks.
-  fellBack = ''
   home = ''
   claudeDir = ''
   session = ''

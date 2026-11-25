@@ -38,8 +38,8 @@ let home = ''
 // Read from the environment when a chat starts. The plugin's own path is only the last
 // resort: a pack installed from a local folder (say ~/Downloads) does not sit under ~/.claude.
 let claudeDir = ''
-const fromRoot = ($: EngineInterface) => $.plugin.root.replace(/\\/g, '/').split('/.claude/')[0] ?? ''
-const claudeDirOf = ($: EngineInterface) => claudeDir || `${fromRoot($)}/.claude`
+// Set by $.mods.paths() when the chat starts.
+const claudeDirOf = (_: EngineInterface) => claudeDir
 let petDir = ''
 let busy = false
 // The model asked for a refresh in the middle of its turn: it starts when the turn ends,
@@ -64,13 +64,9 @@ let hidden = false
 // The offer was asked for (Show or /fresh): it stays whatever the token count.
 let forced = false
 
-const switchesPath = ($: EngineInterface) => `${claudeDirOf($)}/mods/switches.json`
 
 async function readSwitches($: EngineInterface): Promise<Record<string, unknown>> {
-  const path = switchesPath($)
-  if (!(await $.fs.exists(path))) return {}
-  const json = JSON.parse(String(await $.fs.read(path))) as unknown
-  return json && typeof json === 'object' && !Array.isArray(json) ? (json as Record<string, unknown>) : {}
+  return $.mods.readSwitches()
 }
 
 async function readSwitch($: EngineInterface) {
@@ -105,11 +101,7 @@ async function dropOffer($: EngineInterface) {
 // Read, change, write the whole file, so every chat sees the choice within 3 s.
 async function setHidden($: EngineInterface, value: boolean) {
   try {
-    const json = await readSwitches($)
-    if (value) json[HIDE_KEY] = true
-    else delete json[HIDE_KEY]
-    await $.process.run(['mkdir', '-p', `${claudeDir}/mods`])
-    await $.fs.write(switchesPath($), `${JSON.stringify(json, null, 2)}\n`)
+    await $.mods.writeSwitches({ set: { [HIDE_KEY]: value ? true : null } })
   } catch (err) {
     await log($, `save hidden failed: ${String(err)}`)
   }
@@ -326,17 +318,9 @@ async function stamp($: EngineInterface) {
 }
 
 // Every run leaves a line here, so a failure is never silent again.
+// One line through mods-core: stamped with the time, its file kept under 2 MB.
 async function log($: EngineInterface, line: string) {
-  try {
-    const path = `${claudeDir}/handoffs/handoff.log`
-    const old = (await $.fs.exists(path)) ? String(await $.fs.read(path)) : ''
-    const at = new Date(await $.clock.now()).toISOString()
-    const lines = old ? old.trimEnd().split('\n').slice(-400) : []
-    lines.push(`${at} ${sid.slice(0, 8)} ${line}`)
-    await $.fs.write(path, `${lines.join('\n')}\n`)
-  } catch {
-    // The log must never break a run.
-  }
+  await $.mods.log({ file: `${claudeDir}/handoffs/handoff.log`, line: `${sid.slice(0, 8)} ${line}` }).catch(() => undefined)
 }
 
 // A plain handoff built from the transcript alone, saved before the model step,

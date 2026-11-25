@@ -152,13 +152,9 @@ async function readText($: EngineInterface, path: string) {
   }
 }
 
+// One line through mods-core: stamped with the time, its file kept under 2 MB.
 async function log($: EngineInterface, text: string) {
-  try {
-    const line = `${new Date(await $.clock.now()).toISOString()} ${text.replace(/\s+/g, ' ').slice(0, 600)}\n`
-    await $.process.run(['/bin/sh', '-c', 'mkdir -p "$(dirname "$1")" && cat >> "$1"', 'sh', `${claudeDir}/mods-logs/${NAME}.log`], { stdin: line, timeoutMs: 10_000 })
-  } catch {
-    // The log never breaks the mod.
-  }
+  await $.mods.log({ file: `${NAME}.log`, line: text.replace(/\s+/g, ' ').slice(0, 600) }).catch(() => undefined)
 }
 
 const redraw = ($: EngineInterface) => {
@@ -285,8 +281,7 @@ function setTyped($: EngineInterface, t: Typed | null) {
 
 async function readSwitch($: EngineInterface) {
   try {
-    const raw = await readText($, `${claudeDir}/mods/switches.json`)
-    const json = raw ? (JSON.parse(raw) as Record<string, unknown>) : {}
+    const json = await $.mods.readSwitches()
     const now = json[NAME] === false
     if (now !== off) {
       off = now
@@ -297,7 +292,7 @@ async function readSwitch($: EngineInterface) {
   }
   // The /mods pane's Open button leaves this file.
   if (sid && (await $.mods.openAsked({ mod: NAME }))) {
-    if (!off) await openPane($)
+    if (!off) await openPane($, true)
   }
 }
 
@@ -714,7 +709,10 @@ async function findSkills($: EngineInterface) {
 
 // ---- actions ----
 
-async function openPane($: EngineInterface) {
+// Asked (/coding-kit, /mods' Open) always opens it; on its own (the first prompt about code) not after
+// the person closed it in this chat. mods-core keeps that.
+async function openPane($: EngineInterface, asked = false) {
+  if (!(await $.mods.paneAllowed({ mod: NAME, asked }).catch(() => true))) return
   await $.ui.open({ id: PANE, title: TITLE }).catch(err => log($, `open: ${String(err)}`))
 }
 
@@ -783,6 +781,12 @@ function clash(item: Item): Item | undefined {
 // ---- register ----
 
 export const register: Register = on => {
+  // The person closed the pane: it stops opening by itself in this chat.
+  on('ui.close', async ($, e, next) => {
+    if (e.id === PANE && e.origin.kind === 'person') await $.mods.paneClosed({ mod: NAME }).catch(() => undefined)
+    return next(e)
+  })
+
   on('session.start', async ($, e, next) => {
     await setup($)
     sid = await $.session.id().catch(() => '')
@@ -866,7 +870,7 @@ export const register: Register = on => {
       await $.store.set('ponytail', level)
       return { text: `Ponytail: ${level}. Applies from the next chat, so this chat's cache stays.` }
     }
-    await openPane($)
+    await openPane($, true)
     void refreshStatus($).catch(() => undefined)
     void findSkills($).catch(() => undefined)
     return { text: `Coding Kit pane opened. Code project: ${isCode ? 'yes' : 'no'}. Ponytail: ${level}.` }

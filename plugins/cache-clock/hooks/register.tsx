@@ -39,8 +39,8 @@ let home = ''
 // Read from the environment when a chat starts. The plugin's own path is only the last
 // resort: a pack installed from a local folder (say ~/Downloads) does not sit under ~/.claude.
 let claudeDir = ''
-const fromRoot = ($: EngineInterface) => $.plugin.root.replace(/\\/g, '/').split('/.claude/')[0] ?? ''
-const claudeDirOf = ($: EngineInterface) => claudeDir || `${fromRoot($)}/.claude`
+// Set by $.mods.paths() when the chat starts.
+const claudeDirOf = (_: EngineInterface) => claudeDir
 let demo = false
 let detected: 'unknown' | '5m' | '1h' = 'unknown'
 let working = false
@@ -55,13 +55,9 @@ let hidden = false
 // The band starts as one line; Expand shows the whole of it. Kept in $.store for every chat.
 let expanded = false
 
-const switchesPath = ($: EngineInterface) => `${claudeDirOf($)}/mods/switches.json`
 
 async function readSwitches($: EngineInterface): Promise<Record<string, unknown>> {
-  const path = switchesPath($)
-  if (!(await $.fs.exists(path))) return {}
-  const json = JSON.parse(String(await $.fs.read(path))) as unknown
-  return json && typeof json === 'object' && !Array.isArray(json) ? (json as Record<string, unknown>) : {}
+  return $.mods.readSwitches()
 }
 
 async function readSwitch($: EngineInterface) {
@@ -95,11 +91,7 @@ async function redraw($: EngineInterface) {
 // Read, change, write the whole file, so every chat sees the choice within 3 s.
 async function setHidden($: EngineInterface, value: boolean) {
   try {
-    const json = await readSwitches($)
-    if (value) json[HIDE_KEY] = true
-    else delete json[HIDE_KEY]
-    await $.process.run(['mkdir', '-p', `${claudeDir}/mods`])
-    await $.fs.write(switchesPath($), `${JSON.stringify(json, null, 2)}\n`)
+    await $.mods.writeSwitches({ set: { [HIDE_KEY]: value ? true : null } })
   } catch (err) {
     await log($, `save hidden failed: ${String(err)}`)
   }
@@ -251,16 +243,9 @@ function warmLine(w: Warm, left: number): string {
   return parts.join(' · ')
 }
 
+// One line through mods-core: stamped with the time, its file kept under 2 MB.
 async function log($: EngineInterface, line: string) {
-  try {
-    const path = `${claudeDir}/mods-logs/cache-clock.log`
-    const old = (await $.fs.exists(path)) ? String(await $.fs.read(path)) : ''
-    const lines = old ? old.trimEnd().split('\n').slice(-200) : []
-    lines.push(`${new Date(await $.clock.now()).toISOString()} ${sid.slice(0, 8)} ${line}`)
-    await $.fs.write(path, `${lines.join('\n')}\n`)
-  } catch {
-    // The log must never break the clock.
-  }
+  await $.mods.log({ file: 'cache-clock.log', line: `${sid.slice(0, 8)} ${line}` }).catch(() => undefined)
 }
 
 // Reads which cache length this chat's replies were written with (5 min or 1 hour).

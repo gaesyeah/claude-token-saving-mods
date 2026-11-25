@@ -41,8 +41,8 @@ let home = ''
 // Read from the environment when a chat starts. The plugin's own path is only the last
 // resort: a pack installed from a local folder (say ~/Downloads) does not sit under ~/.claude.
 let claudeDir = ''
-const fromRoot = ($: EngineInterface) => $.plugin.root.replace(/\\/g, '/').split('/.claude/')[0] ?? ''
-const claudeDirOf = ($: EngineInterface) => claudeDir || `${fromRoot($)}/.claude`
+// Set by $.mods.paths() when the chat starts.
+const claudeDirOf = (_: EngineInterface) => claudeDir
 let sid = ''
 let mainModel = ''
 let sample = false
@@ -75,39 +75,24 @@ let hidden = false
 
 const PER_M = 1e-6
 
-/**
- * List prices per token, from the claude-api skill (model-migration.md), read 2026-11-02.
- * Anything else (Jev, an unknown model) has no price: the pane says so instead of guessing.
- */
+// List prices: mods-core's one table ($.mods.prices, per million tokens), copied in at chat start.
+// Anything else (Jev, an unknown model) has no price: the pane says so instead of guessing.
+type Card = { input: number; output: number; cacheRead: number; cacheWrite5m: number; cacheWrite1h: number }
+let PRICES: { pattern: string; name: string; small: Card; large?: Card }[] = []
+const entryOf = (model: string) => PRICES.find(p => new RegExp(p.pattern, 'i').test(model))
+
+// Per token; a prompt over 100K tokens takes the long-prompt card where the model has one.
 function priceOf(model: string, prompt: number): { in: number; out: number } | null {
-  const m = model.toLowerCase()
-  if (/fable|mythos/.test(m)) return { in: 10 * PER_M, out: 50 * PER_M }
-  if (/opus-5[-.]5/.test(m) || /^opus(\[|$)/.test(m)) return { in: 4 * PER_M, out: 20 * PER_M }
-  if (/opus-5(?![-.]\d)/.test(m)) return { in: 5 * PER_M, out: 25 * PER_M }
-  if (/sonnet-5/.test(m) || /^sonnet(\[|$)/.test(m)) return { in: 2 * PER_M, out: 10 * PER_M }
-  if (/haiku-5[-.]5/.test(m) || /^haiku(\[|$)/.test(m)) {
-    return prompt <= 100_000 ? { in: 0.1 * PER_M, out: 0.5 * PER_M } : { in: 0.5 * PER_M, out: 2.5 * PER_M }
-  }
-  if (/haiku-4[-.]5/.test(m)) return { in: 1 * PER_M, out: 5 * PER_M }
-  return null
+  const e = entryOf(model)
+  if (!e) return null
+  const c = prompt > 100_000 && e.large ? e.large : e.small
+  return { in: c.input * PER_M, out: c.output * PER_M }
 }
 
-/**
- * Prompt cache prices per token, from the claude-api skill (prompt-caching.md, models.md), read 2026-11-03.
- * Claude Code writes the cache with the 1-hour TTL (ephemeral_1h_input_tokens), so a write is 2x input.
- * A read is 0.05x input on Opus 5.5, 0.025x on Fable 5.1 and Mythos 5.1, 0.1x on the others.
- */
+// Claude Code writes the main chat's cache with the 1-hour TTL, so a write is 2x input.
 function cacheOf(model: string): { write: number; read: number } | null {
-  const p = priceOf(model, 0)
-  if (!p) return null
-  const m = model.toLowerCase()
-  const readX =
-    /(fable|mythos)-5[-.]1/.test(m) || /^(fable|mythos)(\[|$)/.test(m)
-      ? 0.025
-      : /opus-5[-.]5/.test(m) || /^opus(\[|$)/.test(m)
-        ? 0.05
-        : 0.1
-  return { write: 2 * p.in, read: readX * p.in }
+  const e = entryOf(model)
+  return e ? { write: e.small.cacheWrite1h * PER_M, read: e.small.cacheRead * PER_M } : null
 }
 
 /**
@@ -534,16 +519,12 @@ function helperLine(r: Row) {
 
 // ---------- engine helpers ----------
 
-const switchesPath = ($: EngineInterface) => `${claudeDirOf($)}/mods/switches.json`
 const ledgerPath = () => `${claudeDir}/mods-logs/savings.jsonl`
 const samplePath = () => `${root}/test/sample-savings.jsonl`
 const tilde = (p: string) => (home && p.startsWith(home) ? `~${p.slice(home.length)}` : p)
 
 async function readSwitches($: EngineInterface): Promise<Record<string, unknown>> {
-  const path = switchesPath($)
-  if (!(await $.fs.exists(path))) return {}
-  const json = JSON.parse(String(await $.fs.read(path))) as unknown
-  return json && typeof json === 'object' && !Array.isArray(json) ? (json as Record<string, unknown>) : {}
+  return $.mods.readSwitches()
 }
 
 async function readSwitch($: EngineInterface) {
@@ -572,10 +553,7 @@ async function readSwitch($: EngineInterface) {
 // Read, change, write the whole file, so every chat sees the choice within 3 s.
 async function setHidden($: EngineInterface, value: boolean) {
   try {
-    const json = await readSwitches($)
-    if (value) json[HIDE_KEY] = true
-    else delete json[HIDE_KEY]
-    await $.fs.write(switchesPath($), `${JSON.stringify(json, null, 2)}\n`)
+    await $.mods.writeSwitches({ set: { [HIDE_KEY]: value ? true : null } })
   } catch (err) {
     await log($, `save hidden failed: ${String(err instanceof Error ? err.message : err)}`)
   }
@@ -584,20 +562,9 @@ async function setHidden($: EngineInterface, value: boolean) {
 }
 
 // Errors are appended to ~/.claude/mods-logs/savings-proof.log, so a failure is never silent.
+// One line through mods-core: stamped with the time, its file kept under 2 MB.
 async function log($: EngineInterface, text: string) {
-  try {
-    const path = `${claudeDir}/mods-logs/savings-proof.log`
-    let old = ''
-    try {
-      old = String(await $.fs.read(path))
-    } catch {
-      old = ''
-    }
-    const at = new Date(await $.clock.now()).toISOString()
-    await $.fs.write(path, `${old}${at} ${text}\n`)
-  } catch {
-    // Logging must never break the pane.
-  }
+  await $.mods.log({ file: 'savings-proof.log', line: text }).catch(() => undefined)
 }
 
 async function setLedger($: EngineInterface, value: Ledger) {
@@ -919,6 +886,7 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     root = $.plugin.root.replace(/\/\.claude-plugin\/?$/, '')
     ;({ home, claudeDir } = await $.mods.paths())
+    PRICES = await $.mods.prices().catch(() => PRICES)
     prevTokens = null
     lastSig = ''
     await $.command.register({ name: 'savings', description: 'Open Savings Proof: tokens the mods saved today and in this chat', immediate: true })

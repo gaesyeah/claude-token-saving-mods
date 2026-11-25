@@ -24,11 +24,9 @@ async function sh($: EngineInterface, script: string, args: string[] = [], timeo
   return $.process.run(['/bin/sh', '-c', script, 'sh', ...args], { timeoutMs })
 }
 
+// One line through mods-core: stamped with the time, its file kept under 2 MB.
 async function log($: EngineInterface, line: string) {
-  const path = `${claudeDir}/mods-logs/${NAME}.log`
-  await $.process
-    .run(['/bin/sh', '-c', 'mkdir -p "$(dirname "$1")" && cat >> "$1"', 'sh', path], { stdin: `${new Date(await $.clock.now()).toISOString()} ${line}\n`, timeoutMs: 5000 })
-    .catch(() => undefined)
+  await $.mods.log({ file: `${NAME}.log`, line }).catch(() => undefined)
 }
 
 async function setup($: EngineInterface) {

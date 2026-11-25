@@ -28,14 +28,11 @@ export const offAtom = atom({ plugin: 'model-router', key: 'off' } as const, fal
 
 // Module variables start over on a reload; the cards live in $.state.
 let seq = 0
-// The person closed the pane: the mod stops opening it until /model-router asks.
-let closed = false
 // switches.json says "model-router:hidden": the mod never opens the pane by itself.
 let switchHidden = false
 
 export function resetPane() {
   seq = 0
-  closed = false
   switchHidden = false
 }
 
@@ -45,8 +42,8 @@ export function setSwitchHidden(hidden: boolean) {
 
 /** asked: the person asked for the pane (a command, or Open in /mods). That always opens it. */
 export async function openPane($: EngineInterface, asked = false) {
-  if (asked) closed = false
-  else if (closed || switchHidden) return
+  // mods-core keeps whether the person closed it in this chat and whether /mods hides it.
+  if (!(await $.mods.paneAllowed({ mod: NAME, asked }).catch(() => true))) return
   try {
     await $.ui.open({ id: PANE, title: PANE_TITLE })
   } catch {
@@ -114,7 +111,7 @@ function noop() {}
 
 export function registerPane(on: On) {
   on('ui.close', async ($, e, next) => {
-    if (e.id === PANE && e.origin.kind === 'person') closed = true
+    if (e.id === PANE && e.origin.kind === 'person') await $.mods.paneClosed({ mod: NAME }).catch(() => undefined)
     return next(e)
   }).catch(($, e, next) => next(e))
 

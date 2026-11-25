@@ -25,8 +25,8 @@ let home = ''
 // Read from the environment when a chat starts. The plugin's own path is only the last
 // resort: a pack installed from a local folder (say ~/Downloads) does not sit under ~/.claude.
 let claudeDir = ''
-const fromRoot = ($: EngineInterface) => $.plugin.root.replace(/\\/g, '/').split('/.claude/')[0] ?? ''
-const claudeDirOf = ($: EngineInterface) => claudeDir || `${fromRoot($)}/.claude`
+// Set by $.mods.paths() when the chat starts.
+const claudeDirOf = (_: EngineInterface) => claudeDir
 let enabled = true
 let mode: Mode = 'suggest'
 // Bumped on every prompt, so a slow pick for an older prompt is dropped.
@@ -63,12 +63,9 @@ async function readSwitch($: EngineInterface) {
   let now = false
   let nowHidden = false
   try {
-    const path = `${claudeDirOf($)}/mods/switches.json`
-    if (await $.fs.exists(path)) {
-      const json = JSON.parse(String(await $.fs.read(path))) as Record<string, unknown>
-      now = json[NAME] === false
-      nowHidden = json[HIDE_KEY] === true
-    }
+    const json = await $.mods.readSwitches()
+    now = json[NAME] === false
+    nowHidden = json[HIDE_KEY] === true
   } catch {
     now = off
     nowHidden = hidden
@@ -84,15 +81,9 @@ async function readSwitch($: EngineInterface) {
   }
 }
 
+// One line through mods-core: stamped with the time, its file kept under 2 MB.
 async function log($: EngineInterface, what: string, err: unknown) {
-  try {
-    const path = `${claudeDir}/mods-logs/effort-optimizer.log`
-    const old = (await $.fs.exists(path)) ? String(await $.fs.read(path)) : ''
-    const msg = err instanceof Error ? err.message : String(err)
-    await $.fs.write(path, `${old.slice(-20_000)}${new Date(await $.clock.now()).toISOString()} ${what}: ${msg}\n`)
-  } catch {
-    // Nowhere left to report it.
-  }
+  await $.mods.log({ file: 'effort-optimizer.log', line: `${what}: ${err instanceof Error ? err.message : String(err)}` }).catch(() => undefined)
 }
 
 async function getBand($: EngineInterface): Promise<Band | null> {

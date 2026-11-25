@@ -1,6 +1,6 @@
 {
   "name": "local-models",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Installs qmd (and Node 22 through Volta when needed) from an orange band, and keeps its local models running for vault, Effort Optimizer and Model Router: search and judging on your CPU, no tokens",
   "dependencies": [
     "mods-core"

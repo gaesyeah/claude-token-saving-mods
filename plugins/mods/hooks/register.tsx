@@ -200,9 +200,10 @@ let home = ''
 // Read from the environment when a chat starts. The plugin's own path is only the last
 // resort: a pack installed from a local folder (say ~/Downloads) does not sit under ~/.claude.
 let claudeDir = ''
-const fromRoot = ($: EngineInterface) => $.plugin.root.replace(/\\/g, '/').split('/.claude/')[0] ?? ''
-const claudeDirOf = ($: EngineInterface) => claudeDir || `${fromRoot($)}/.claude`
-const homeOf = ($: EngineInterface) => home || fromRoot($)
+// Set by $.mods.paths() when the chat starts.
+const claudeDirOf = (_: EngineInterface) => claudeDir
+// Set by $.mods.paths() when the chat starts.
+const homeOf = (_: EngineInterface) => home
 const switchesPath = ($: EngineInterface) => `${claudeDirOf($)}/mods/switches.json`
 const ledgerPath = ($: EngineInterface) => `${claudeDirOf($)}/mods-logs/savings.jsonl`
 
@@ -211,23 +212,9 @@ function cut(s: string, n: number) {
   return s.length <= n ? s : `${s.slice(0, Math.max(0, n - 1))}…`
 }
 
+// One line through mods-core: stamped with the time, its file kept under 2 MB.
 async function log($: EngineInterface, where: string, err: unknown) {
-  try {
-    const dir = `${claudeDirOf($)}/mods-logs`
-    const file = `${dir}/mods.log`
-    await $.process.run(['mkdir', '-p', dir])
-    let old = ''
-    try {
-      old = String(await $.fs.read(file))
-    } catch {
-      old = ''
-    }
-    const when = new Date(await $.clock.now()).toISOString()
-    const msg = err instanceof Error ? err.message : String(err)
-    await $.fs.write(file, `${old}${when} ${where}: ${msg}\n`.slice(-50_000))
-  } catch {
-    // Nowhere left to report it.
-  }
+  await $.mods.log({ file: 'mods.log', line: `${where}: ${err instanceof Error ? err.message : String(err)}` }).catch(() => undefined)
 }
 
 async function readRaw($: EngineInterface) {

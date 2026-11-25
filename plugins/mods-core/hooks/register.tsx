@@ -1,6 +1,7 @@
 import type { Register } from 'claude-code'
 import { afterSample, decide, EMBED, freshStats, hash, isQmdHealth, judgeLine, MIN_EXAMPLES, QMD_URL, rerankOf, SAMPLE_EVERY } from './qmd'
 import { addCall, type Day, dayKey, rowsOf, type Usage } from './spend'
+import { PRICES } from './prices'
 
 // Mods Core: what the token-saving mods share.
 // 1. $.mods: the helpers every mod used to copy (paths, the /mods switches, logs, shell, the savings
@@ -14,6 +15,8 @@ import { addCall, type Day, dayKey, rowsOf, type Usage } from './spend'
 // Opens a file or link: xdg-open (most Linux desktops), gio (GNOME), open (macOS).
 const OPEN_SH = 'for c in xdg-open gio open; do command -v "$c" >/dev/null 2>&1 || continue; if [ "$c" = gio ]; then gio open "$1"; else "$c" "$1"; fi </dev/null >/dev/null 2>&1; exit $?; done; echo "no opener (xdg-open, gio or open)" >&2; exit 3'
 const APPEND_SH = 'mkdir -p "$(dirname "$1")" && cat >> "$1"'
+// Appends, then trims a log past 2 MB to its last 1 MB (whole lines).
+const LOG_SH = `${APPEND_SH} && [ "$(wc -c < "$1")" -gt 2000000 ] && tail -c 1000000 "$1" | tail -n +2 > "$1.tmp" && mv "$1.tmp" "$1"; exit 0`
 
 export const register: Register = on => {
   on('engine.create', async ($, e, next) => {
@@ -37,9 +40,16 @@ export const register: Register = on => {
       return { home, claudeDir: full ? fwd(full, windows) : `${home}/.claude` }
     }
     const sh = (script: string, args: string[] = [], timeoutMs = 15_000) => beneath.process.run(['/bin/sh', '-c', script, 'sh', ...args], { timeoutMs })
+    // A true append through the shell; where the shell fails, read and write the whole file instead.
+    let shellFailed = false
     const append = async (path: string, text: string) => {
-      const r = await beneath.process.run(['/bin/sh', '-c', APPEND_SH, 'sh', path], { stdin: text, timeoutMs: 10_000 })
-      if (r.exitCode !== 0) throw new Error(`append to ${path} failed: ${r.stderr.slice(0, 200)}`)
+      if (!shellFailed) {
+        const r = await beneath.process.run(['/bin/sh', '-c', APPEND_SH, 'sh', path], { stdin: text, timeoutMs: 10_000 }).catch(() => undefined)
+        if (r?.exitCode === 0) return
+        shellFailed = true
+      }
+      const old = (await beneath.fs.exists(path)) ? String(await beneath.fs.read(path)) : ''
+      await beneath.fs.write(path, old + text)
     }
     // The desktop app's PATH can miss the folders npm, Volta and bun install into.
     let qmd: string | null = null
@@ -88,12 +98,36 @@ export const register: Register = on => {
       if (!counts.has(dir)) counts.set(dir, (await beneath.fs.list(dir).catch(() => [])).filter(f => f.name.endsWith('.md')).length)
       return counts.get(dir) ?? 0
     }
+    // Panes the person closed in a chat ("<chat id>:<mod>"): a mod stops opening those by itself.
+    const closedPanes = new Set<string>()
+    const chatOf = async () => (await beneath.session.id().catch(() => '')) || 'chat'
     const stats = async (collection: string) => freshStats((await beneath.store.get(`judge:${collection}`).catch(() => undefined)) as never)
     const keep = (collection: string, s: ReturnType<typeof freshStats>) => beneath.store.set(`judge:${collection}`, s).catch(() => undefined)
     return {
       ...beneath,
       mods: {
         paths,
+        // The /mods switchboard's switches.json: {} when there is none; throws when it is there but
+        // unreadable, so a mod can keep what it had.
+        readSwitches: async () => {
+          const path = `${(await paths()).claudeDir}/mods/switches.json`
+          if (!(await beneath.fs.exists(path))) return {}
+          const json = JSON.parse(String(await beneath.fs.read(path))) as unknown
+          return json && typeof json === 'object' && !Array.isArray(json) ? (json as Record<string, unknown>) : {}
+        },
+        // Sets keys in switches.json (null removes one) and keeps the rest; throws when it cannot.
+        writeSwitches: async ({ set }: { set: Record<string, unknown> }) => {
+          const dir = `${(await paths()).claudeDir}/mods`
+          const path = `${dir}/switches.json`
+          const was = (await beneath.fs.exists(path)) ? (JSON.parse(String(await beneath.fs.read(path))) as Record<string, unknown>) : {}
+          const json = { ...was }
+          for (const [k, v] of Object.entries(set)) {
+            if (v === null) delete json[k]
+            else json[k] = v
+          }
+          await beneath.process.run(['mkdir', '-p', dir])
+          await beneath.fs.write(path, `${JSON.stringify(json, null, 2)}\n`)
+        },
         switches: async () => {
           try {
             const path = `${(await paths()).claudeDir}/mods/switches.json`
@@ -102,9 +136,13 @@ export const register: Register = on => {
             return {}
           }
         },
+        // `file` under ~/.claude/mods-logs, or a full path; past 2 MB it keeps its last 1 MB.
         log: async ({ file, line }: { file: string; line: string }) => {
           const at = new Date(await beneath.clock.now()).toISOString()
-          await append(`${(await paths()).claudeDir}/mods-logs/${file}`, `${at} ${line}\n`).catch(() => undefined)
+          const path = file.startsWith('/') ? file : `${(await paths()).claudeDir}/mods-logs/${file}`
+          await beneath.process
+            .run(['/bin/sh', '-c', LOG_SH, 'sh', path], { stdin: `${at} ${line.endsWith('\n') ? line : `${line}\n`}`, timeoutMs: 10_000 })
+            .catch(() => undefined)
         },
         append: ({ path, text }: { path: string; text: string }) => append(path, text),
         sh: ({ script, args, timeoutMs }: { script: string; args?: string[]; timeoutMs?: number }) => sh(script, args, timeoutMs),
@@ -120,6 +158,25 @@ export const register: Register = on => {
           await beneath.process.run(['rm', '-f', ask]).catch(() => undefined)
           return true
         },
+        // Whether a mod may open its pane now: asked (its command, /mods' Open) always may, and clears
+        // a close; on its own, not after the person closed it in this chat, nor while /mods hides it.
+        paneAllowed: async ({ mod, asked }: { mod: string; asked?: boolean }) => {
+          const key = `${await chatOf()}:${mod}`
+          if (asked) {
+            closedPanes.delete(key)
+            return true
+          }
+          if (closedPanes.has(key)) return false
+          const path = `${(await paths()).claudeDir}/mods/switches.json`
+          const json = (await beneath.fs.exists(path).catch(() => false)) ? (JSON.parse(String(await beneath.fs.read(path))) as Record<string, unknown>) : {}
+          return json[`${mod}:hidden`] !== true
+        },
+        // The person closed a mod's pane (its ui.close with origin "person").
+        paneClosed: async ({ mod }: { mod: string }) => {
+          closedPanes.add(`${await chatOf()}:${mod}`)
+        },
+        // The shared list-price table: a mod copies it at chat start and looks models up in its copy.
+        prices: async () => PRICES,
         // A mod reports each model call it made; kept per calendar day, the last 14.
         spent: async ({ mod, model, usage }: { mod: string; model: string; usage: Usage }) => {
           const now = await beneath.clock.now()

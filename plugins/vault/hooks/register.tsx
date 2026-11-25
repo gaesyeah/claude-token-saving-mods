@@ -121,9 +121,9 @@ async function sh($: EngineInterface, script: string, args: string[] = [], timeo
   return $.process.run(['/bin/sh', '-c', script, 'sh', ...args], { timeoutMs })
 }
 // A true append: two chats may write the same Daily note.
+// A true append through mods-core (which falls back to read and write where the shell fails).
 async function append($: EngineInterface, path: string, text: string) {
-  const r = await $.process.run(['/bin/sh', '-c', 'mkdir -p "$(dirname "$1")" && cat >> "$1"', 'sh', path], { stdin: text, timeoutMs: 10_000 })
-  if (r.exitCode !== 0) throw new Error(`append to ${path} failed: ${r.stderr.slice(0, 200)}`)
+  await $.mods.append({ path, text })
 }
 // Writes a file only if it is not there yet, atomically (noclobber): two chats copying the same
 // note can not both write it, so only one of them adds its Daily line.
@@ -131,8 +131,9 @@ async function createNew($: EngineInterface, path: string, text: string) {
   const r = await $.process.run(['/bin/sh', '-c', 'mkdir -p "$(dirname "$1")" && set -C && cat > "$1"', 'sh', path], { stdin: text, timeoutMs: 10_000 })
   return r.exitCode === 0
 }
+// One line through mods-core: stamped with the time, its file kept under 2 MB.
 async function log($: EngineInterface, line: string) {
-  await append($, `${claudeDir}/mods-logs/vault/vault.log`, `${new Date(await $.clock.now()).toISOString()} ${line}\n`).catch(() => undefined)
+  await $.mods.log({ file: 'vault/vault.log', line }).catch(() => undefined)
 }
 
 async function setup($: EngineInterface) {

@@ -144,8 +144,8 @@ let home = ''
 // Read from the environment when a chat starts. The plugin's own path is only the last
 // resort: a pack installed from a local folder (say ~/Downloads) does not sit under ~/.claude.
 let claudeDir = ''
-const fromRoot = ($: EngineInterface) => $.plugin.root.replace(/\\/g, '/').split('/.claude/')[0] ?? ''
-const claudeDirOf = ($: EngineInterface) => claudeDir || `${fromRoot($)}/.claude`
+// Set by $.mods.paths() when the chat starts.
+const claudeDirOf = (_: EngineInterface) => claudeDir
 let off = false
 let polling = false
 // The chat id of the newest session.start: the 3-second poll checks that chat's /mods Open file, so after
@@ -167,8 +167,7 @@ const hiddenIn = new Set<string>()
 // The /mods switchboard turns this mod off in every chat with switches.json. Missing means on.
 async function readSwitch($: EngineInterface) {
   try {
-    const path = `${claudeDirOf($)}/mods/switches.json`
-    const json = (await $.fs.exists(path)) ? (JSON.parse(String(await $.fs.read(path))) as Record<string, unknown>) : {}
+    const json = await $.mods.readSwitches()
     const wasShown = !off && !globalHidden
     const wasOff = off
     off = json[NAME] === false
@@ -218,38 +217,18 @@ async function takeFull($: EngineInterface) {
   return fullNext.delete(await sessionId($))
 }
 
-// Why the shell append failed, once, for the plain log.
-let fellBack = ''
 
 // A true append (O_APPEND), so lines from the other mods that share the ledger are never lost. If the host
 // will not run it, read and write back, and never write over a file that could not be read.
+// A true append through mods-core (which falls back to read and write where the shell fails).
 async function append($: EngineInterface, path: string, line: string) {
-  try {
-    // Once the shell append has failed, do not wait on it again.
-    if (fellBack) throw new Error(fellBack)
-    const ran = await $.process.run(['/bin/sh', '-c', 'mkdir -p "$(dirname "$1")" && cat >> "$1"', 'sh', path], {
-      stdin: `${line}\n`,
-      timeoutMs: 5000,
-    })
-    if (ran.exitCode === 0) return
-    throw new Error(`exit ${ran.exitCode}: ${ran.stderr.slice(0, 200)}`)
-  } catch (err) {
-    const first = !fellBack
-    if (first) fellBack = `shell append failed, using read and write: ${err instanceof Error ? err.message : String(err)}`
-    const old = (await $.fs.exists(path)) ? String(await $.fs.read(path)) : ''
-    await $.fs.write(path, `${old}${line}\n`)
-    if (first) await log($, 'mod', fellBack)
-  }
+  await $.mods.append({ path, text: `${line}\n` })
 }
 
+// One line through mods-core: stamped with the time, its file kept under 2 MB.
 async function log($: EngineInterface, part: Part | 'mod', what: string, detail: unknown = '') {
-  try {
-    const msg = detail instanceof Error ? detail.message : String(detail)
-    const ts = new Date(await $.clock.now()).toISOString()
-    await append($, `${claudeDir}/mods-logs/${NAME}.log`, `${ts} ${part} ${what}${msg ? `: ${msg.replace(/\s+/g, ' ').slice(0, 400)}` : ''}`)
-  } catch {
-    // Nowhere left to report it.
-  }
+  const msg = detail instanceof Error ? detail.message : String(detail)
+  await $.mods.log({ file: `${NAME}.log`, line: `${part} ${what}${msg ? `: ${msg.replace(/\s+/g, ' ').slice(0, 400)}` : ''}` }).catch(() => undefined)
 }
 
 function tokens(text: string) {

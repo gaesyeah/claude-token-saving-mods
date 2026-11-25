@@ -29,7 +29,10 @@ test('samples that agree too little stop the local judge, and the status line sa
 })
 
 test('the mods\' spend: list prices per family, summed per mod and model, the dearest first', async () => {
-  expect(usdOf('claude-haiku-5-5', { input_tokens: 1_000_000, output_tokens: 1_000_000 })).toBe(0.6)
+  // Up to 100K prompt tokens the small card; past it, Haiku's long-prompt card.
+  expect(usdOf('claude-haiku-5-5', { input_tokens: 100_000, output_tokens: 1_000_000 })).toBe(0.51)
+  expect(usdOf('claude-haiku-5-5', { input_tokens: 200_000, output_tokens: 0 })).toBe(0.1)
+  expect(usdOf('claude-opus-5-5', { cache_creation_input_tokens: 1_000_000 })).toBe(5)
   let day = addCall({}, 'vault', 'claude-haiku-5-5', { input_tokens: 3000, output_tokens: 200 })
   day = addCall(day, 'vault', 'haiku', { input_tokens: 1000, output_tokens: 100 })
   day = addCall(day, 'effort-optimizer', 'claude-sonnet-5-5', { input_tokens: 2000, output_tokens: 50 })

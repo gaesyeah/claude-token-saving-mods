@@ -13,9 +13,13 @@ export type ModsPaths = {
 export type Mods = {
   /** The home folder and Claude's config folder, read from the environment. */
   paths(): Promise<ModsPaths>
-  /** The /mods switchboard's `switches.json`: `{ "<mod>": false }` turns a mod off; `{}` when there is none. */
+  /** switches.json, `{}` when there is none; throws when it is there but unreadable, so a mod can keep its last state. */
+  readSwitches(): Promise<Record<string, unknown>>
+  /** Sets keys in switches.json (`null` removes one), keeping the rest; throws when it cannot. */
+  writeSwitches(input: { set: Record<string, unknown> }): Promise<void>
+  /** The /mods switchboard's `switches.json`: `{ "<mod>": false }` turns a mod off; `{}` when there is none or it is unreadable. */
   switches(): Promise<Record<string, unknown>>
-  /** Appends one line, stamped with the time, to `~/.claude/mods-logs/<file>`. Never throws. */
+  /** Appends one line, stamped with the time, to `~/.claude/mods-logs/<file>` (or a full path); past 2 MB the file keeps its last 1 MB. Never throws. */
   log(input: { file: string; line: string }): Promise<void>
   /** Appends text to a file, making its folder; a true append, so two chats can share the file. */
   append(input: { path: string; text: string }): Promise<void>
@@ -28,6 +32,14 @@ export type Mods = {
 
   /** True (and the request removed) when the /mods pane's Open button asked this chat for that mod's pane. */
   openAsked(input: { mod: string }): Promise<boolean>
+
+  /** Whether a mod may open its pane now: `asked` (its command, /mods' Open) always may and clears a close; otherwise not after the person closed it in this chat, nor while /mods hides it. */
+  paneAllowed(input: { mod: string; asked?: boolean }): Promise<boolean>
+  /** The person closed a mod's pane in this chat. */
+  paneClosed(input: { mod: string }): Promise<void>
+
+  /** The shared list-price table, per million tokens; `pattern` is a case-insensitive RegExp source, tried in order. */
+  prices(): Promise<ModsPrice[]>
 
   /** A mod reports one model call it made (the call's `usage` as the engine answered it). */
   spent(input: { mod: string; model: string; usage: ModsUsage }): Promise<void>
@@ -79,3 +91,9 @@ export type ModsUsage = { input_tokens?: number; output_tokens?: number; cache_r
 
 /** One mod's spend on one model family: calls, tokens in (cache included) and out, and the list-price estimate in US$. */
 export type ModsSpendRow = { mod: string; model: string; calls: number; in: number; out: number; usd: number }
+
+/** One price card per million tokens: input, output, cache read, cache write for the 5-minute and the 1-hour TTL. */
+export type ModsCard = { input: number; output: number; cacheRead: number; cacheWrite5m: number; cacheWrite1h: number }
+
+/** A model's prices: which ids it covers (`pattern`), its family name, and its card (`large` for a prompt over 100K tokens). */
+export type ModsPrice = { pattern: string; name: string; small: ModsCard; large?: ModsCard }

@@ -169,7 +169,7 @@ export const register: Register = on => {
         <Text bold>{title}</Text>
         {rows.length ? (
           rows.map(r => (
-            <Text key={`${title}-${r.mod}-${r.model}`} dimColor wrap="truncate-end">
+            <Text key={`${title}-${r.mod}-${r.model}`} dimColor wrap="wrap">
               {`${r.mod} · ${r.model} · ${r.calls} ${r.calls === 1 ? 'chamada' : 'chamadas'} · ${k(r.in)} → ${k(r.out)} tok · ${usd(r.usd)}`}
             </Text>
           ))

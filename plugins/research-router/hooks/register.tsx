@@ -10,22 +10,11 @@ const PANE = 'research-router'
 const COMMAND = 'research-router'
 // The cheap worker. Every search, page and brief goes through it, never through the main chat.
 const MODEL = 'claude-haiku-5-5'
-// Haiku 5.5 list prices per million tokens, as Model Router's policy.ts cached them on 2026-10-06.
-const PRICE_IN = 0.1
-const PRICE_OUT = 0.5
-// Subagent list prices per million tokens, as Model Router's policy.ts cached them on 2026-10-06.
+// List prices per million tokens: mods-core's one table ($.mods.prices), copied in at chat start.
 // Haiku has a second card for one request whose prompt is over 100K tokens.
-type Price = { input: number; output: number; cacheRead: number; cacheWrite: number }
-const PRICES: { family: RegExp; name: string; small: Price; large?: Price }[] = [
-  { family: /opus/i, name: 'Opus', small: { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 } },
-  { family: /sonnet/i, name: 'Sonnet', small: { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 } },
-  {
-    family: /haiku/i,
-    name: 'Haiku',
-    small: { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
-    large: { input: 0.5, output: 2.5, cacheRead: 0.05, cacheWrite: 0.625 },
-  },
-]
+type Card = { input: number; output: number; cacheRead: number; cacheWrite5m: number; cacheWrite1h: number }
+let PRICES: { pattern: string; name: string; small: Card; large?: Card }[] = []
+const entryOf = (model: string) => PRICES.find(p => new RegExp(p.pattern, 'i').test(model))
 // How many subagents' tool text and request usage the mod keeps while it waits for their runs.
 const MAX_AGENT_MEMO = 32
 const MAX_RUNS = 8
@@ -106,8 +95,8 @@ let home = ''
 // Read from the environment when a chat starts. The plugin's own path is only the last
 // resort: a pack installed from a local folder (say ~/Downloads) does not sit under ~/.claude.
 let claudeDir = ''
-const fromRoot = ($: EngineInterface) => $.plugin.root.replace(/\\/g, '/').split('/.claude/')[0] ?? ''
-const claudeDirOf = ($: EngineInterface) => claudeDir || `${fromRoot($)}/.claude`
+// Set by $.mods.paths() when the chat starts.
+const claudeDirOf = (_: EngineInterface) => claudeDir
 let off = false
 let router = false
 let kit: Kit | null = null
@@ -118,8 +107,6 @@ const waiters = new Map<string, (d: Done) => void>()
 // Answers that arrived before anyone waited (a fast subagent), and the ids this mod started.
 const answers = new Map<string, Done>()
 const owned = new Set<string>()
-// The person closed the pane: auto mode stops opening it until /research-router asks.
-let closed = false
 // switches.json says "research-router:hidden": the pane opens only when asked.
 let switchHidden = false
 let switchError = ''
@@ -143,8 +130,7 @@ async function readSwitch($: EngineInterface) {
   let nowHidden = switchHidden
   try {
     const mods = `${claudeDirOf($)}/mods`
-    let json: Record<string, unknown> = {}
-    if (await $.fs.exists(`${mods}/switches.json`)) json = JSON.parse(String(await $.fs.read(`${mods}/switches.json`))) as Record<string, unknown>
+    const json = await $.mods.readSwitches()
     now = json[NAME] === false
     nowHidden = json[`${NAME}:hidden`] === true
     // Model Router's manifest is a file; the folder alone is the second check.
@@ -184,18 +170,14 @@ const logsDir = () => `${claudeDir}/mods-logs`
 const notesDir = () => `${claudeDir}/mods-logs/research-router`
 
 // A true append: many mods write the ledger, so a read and rewrite would drop their lines.
+// A true append through mods-core (which falls back to read and write where the shell fails).
 async function append($: EngineInterface, path: string, text: string) {
-  const r = await $.process.run(['/bin/sh', '-c', 'mkdir -p "$(dirname "$1")" && cat >> "$1"', 'sh', path], { stdin: text, timeoutMs: 10_000 })
-  if (r.exitCode !== 0) throw new Error(`append to ${path} failed: ${r.stderr.slice(0, 200)}`)
+  await $.mods.append({ path, text })
 }
 
+// One line through mods-core: stamped with the time, its file kept under 2 MB.
 async function log($: EngineInterface, what: string, detail: unknown) {
-  try {
-    const msg = detail instanceof Error ? detail.message : String(detail)
-    await append($, `${logsDir()}/research-router.log`, `${new Date(await $.clock.now()).toISOString()} ${what}: ${msg}\n`)
-  } catch {
-    // Nowhere left to report it.
-  }
+  await $.mods.log({ file: 'research-router.log', line: `${what}: ${detail instanceof Error ? detail.message : String(detail)}` }).catch(() => undefined)
 }
 
 // Plain text: no em or en dashes, never the banned word.
@@ -220,7 +202,8 @@ function commas(n: number) {
 }
 
 function dollars(helperIn: number, helperOut: number) {
-  return (helperIn * PRICE_IN + helperOut * PRICE_OUT) / 1_000_000
+  const p = entryOf(MODEL)?.small
+  return p ? (helperIn * p.input + helperOut * p.output) / 1_000_000 : 0
 }
 
 function money(d: number) {
@@ -229,19 +212,19 @@ function money(d: number) {
 
 // One request (or, with oneRequest false, a turn's summed counts) at list price; null for a model with no price here.
 function requestCost(model: string, u: ModelUsage, oneRequest: boolean): number | null {
-  const card = PRICES.find(p => p.family.test(model))
+  const card = entryOf(model)
   if (!card) return null
   const input = u.input_tokens ?? 0
   const read = u.cache_read_input_tokens ?? 0
   const write = u.cache_creation_input_tokens ?? 0
   // Summed counts are not one prompt: only a single request's size can pick the long-prompt card.
   const p = oneRequest && input + read + write > 100_000 && card.large ? card.large : card.small
-  return (input * p.input + (u.output_tokens ?? 0) * p.output + read * p.cacheRead + write * p.cacheWrite) / 1_000_000
+  return (input * p.input + (u.output_tokens ?? 0) * p.output + read * p.cacheRead + write * p.cacheWrite5m) / 1_000_000
 }
 
 // "claude-haiku-5-5" reads as "Haiku"; a model with no family here keeps its id.
 function family(model: string) {
-  return PRICES.find(p => p.family.test(model))?.name ?? model
+  return entryOf(model)?.name ?? model
 }
 
 function tally(models: string[]) {
@@ -1200,8 +1183,8 @@ async function runResearch($: EngineInterface, id: number, question: string, rep
 
 // Asked (the command, or Open in /mods) always opens it. On its own it opens only when not hidden and not closed.
 async function openPane($: EngineInterface, asked = false) {
-  if (asked) closed = false
-  else if (closed || switchHidden) return
+  // mods-core keeps whether the person closed it in this chat and whether /mods hides it.
+  if (!(await $.mods.paneAllowed({ mod: NAME, asked }).catch(() => true))) return
   try {
     await $.ui.open({ id: PANE, title: TITLE })
   } catch {
@@ -1322,6 +1305,7 @@ function noop() {}
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     ;({ home, claudeDir } = await $.mods.paths())
+    PRICES = await $.mods.prices().catch(() => PRICES)
     session = await $.session.id().catch(() => '')
     await $.command.register({
       name: COMMAND,
@@ -1422,7 +1406,7 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   on('ui.close', async ($, e, next) => {
-    if (e.id === PANE && e.origin.kind === 'person') closed = true
+    if (e.id === PANE && e.origin.kind === 'person') await $.mods.paneClosed({ mod: NAME }).catch(() => undefined)
     return next(e)
   }).catch(($, e, next) => next(e))
 

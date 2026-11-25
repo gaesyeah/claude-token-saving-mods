@@ -1,5 +1,5 @@
 import { expect } from 'claude-code/testing'
-import { switches, test } from './mods-stub'
+import { fakes, switches, test } from './mods-stub'
 
 // An in-memory home: files, folders, and the few commands the mod runs (mkdir, append, find, rg).
 const HOME = '/home/u'
@@ -95,6 +95,8 @@ function engine(on: any, o: { qmd?: string | (() => string); version?: string; p
     return ok()
   })
   // qmd's HTTP daemon: up when the test gives qmd an answer; /query answers it.
+  // mods-core's append writes into this test's files.
+  fakes.append = (path, text) => write(path, (files[path] ?? '') + text)
   // qmd and its daemon are mods-core's ($.mods.qmd*): answered here from o, the way mods-core reads
   // the daemon (only qmd's own /health counts; the reranker read back from the blended score).
   const rerankOf = (v: number) => Math.max(0, v >= 0.75 ? (v - 0.75) / 0.25 : v >= 0.375 ? (v - 0.375) / 0.25 : (v - 0.25) / 0.25)
