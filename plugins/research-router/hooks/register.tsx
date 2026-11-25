@@ -1280,8 +1280,11 @@ async function shorten($: EngineInterface, query: string, toolUseId: string | un
       commentary.slice(0, ALL_CHARS),
     ].join('\n'),
     maxTokens: 700,
-    // Keep the legacy low effort when ClaudeRipple has no explicit rung effort.
-    effort: resolved.effort ?? 'low',
+    ...(resolved.effort
+      ? { effort: resolved.effort }
+      : resolved.source === 'fallback'
+        ? { effort: 'low' }
+        : {}),
     timeoutMs: AUTO_MS,
   }).finally(() => update($, busyAtom, n => Math.max(0, (n ?? 0) - 1)))
   if (m.usage) void $.mods.spent({ mod: NAME, model: helperModel, usage: m.usage }).catch(() => undefined)
