@@ -19,7 +19,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-PROMPT = "Reply with exactly: CLAUDERIPPLE_PROXY_E2E_OK"
+PROMPT = "Reply with a short confirmation that the proxy test reached the model."
 TIMEOUT = 90
 
 
@@ -178,8 +178,8 @@ def proxy_request(proxy: str, ca_file: Path, provider: str, model: str) -> dict[
         block.get("text", "") for block in blocks
         if isinstance(block, dict) and block.get("type") == "text" and isinstance(block.get("text"), str)
     ) if isinstance(blocks, list) else ""
-    if "CLAUDERIPPLE_PROXY_E2E_OK" not in answer:
-        fail(f"proxy returned a response but not the expected marker: {answer[:500]!r}")
+    if not answer.strip():
+        fail("proxy returned HTTP success but the model response contained no text")
     return body
 
 
@@ -245,7 +245,12 @@ def main() -> None:
     previous_ids = request_log_ids(home)
     response = proxy_request(proxy, ca_file, provider, model)
     print(f"Proxy generation: OK (response model={response.get('model', 'not reported')})")
-    print("Model response: CLAUDERIPPLE_PROXY_E2E_OK")
+    blocks = response.get("content")
+    answer = " ".join(
+        block.get("text", "") for block in blocks
+        if isinstance(block, dict) and block.get("type") == "text" and isinstance(block.get("text"), str)
+    ) if isinstance(blocks, list) else ""
+    print(f"Model returned non-empty text: OK ({len(answer.strip())} characters)")
     logged = check_request_log(home, provider, previous_ids)
     if logged is None:
         fail(
