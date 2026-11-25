@@ -113,7 +113,7 @@ python3 scripts/e2e-clauderipple-ollama.py
 python3 scripts/e2e-clauderipple-proxy.py
 ```
 
-The first test checks the live admin catalogue/settings, reproduces the active light-agent selection, and calls the local Ollama API directly. The second sends a harmless Anthropic Messages request through the `HTTPS_PROXY` and CA configured in `~/.claude/settings.json`, using the provider-qualified model ID to exercise ClaudeRipple's actual HTTPS proxy and Ollama adapter. It does not need an interactive Claude Code session and does not send an API key. Both tests are smoke tests; neither executes the Claude Code plugin engine's `$.model.complete` hook.
+The first test checks the live admin catalogue/settings, reproduces the active light-agent selection, and calls the local Ollama API directly. The second sends a harmless Anthropic Messages request through the `HTTPS_PROXY` and CA configured in `~/.claude/settings.json`, using the provider-qualified model ID to exercise ClaudeRipple's actual HTTPS proxy and Ollama adapter. It snapshots request IDs before the call, then requires a new matching `messages` row with the selected provider and HTTP 200 in `~/.clauderipple/logs/requests.jsonl`. It does not need an interactive Claude Code session and does not send an API key. Both tests are smoke tests; neither executes the Claude Code plugin engine's `$.model.complete` hook.
 
 To inspect ClaudeRipple's actual log filenames and JSON metadata without printing prompts or credentials:
 
