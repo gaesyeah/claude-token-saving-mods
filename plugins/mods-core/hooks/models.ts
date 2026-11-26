@@ -159,8 +159,9 @@ function resolveAgentTarget(catalog: ModelCatalog, settings: Record<string, any>
     const latest = catalog.claudeLatest[alias]
     const provider = providerFor(catalog, 'anthropic')
     if (!latest || (settings.providers?.anthropic === false) || !allowed(`general-purpose:${alias}`, 'anthropic', settings)) return null
-    if (provider && !provider.usable) return null
-    return { model: latest, provider: 'anthropic', effort: effortFor(entry, undefined, catalog, true), source: 'clauderipple' }
+    if (provider && (!provider.usable || providerModelUnavailable(provider, latest))) return null
+    // Native Claude login is not a declared proxy provider; send its bare model id.
+    return { model: latest, provider: provider ? 'anthropic' : null, effort: effortFor(entry, undefined, catalog, true), source: 'clauderipple' }
   }
 
   const agents = catalog.agents.filter(x => x.name === agentName)
@@ -221,4 +222,57 @@ export function resolveModelFromCatalog(catalog: ModelCatalog | null, role: Mode
     if (backupResolved) return backupResolved
   }
   return { model: fallback, provider: null, source: 'fallback' }
+}
+
+/** Ordered candidates for helper calls. Same rung, then one rung above, as with Ripple workers. */
+export function resolveModelCandidatesFromCatalog(catalog: ModelCatalog | null, role: ModelRole, fallback: string): ResolvedModel[] {
+  const legacy: ResolvedModel = { model: fallback, provider: null, source: 'fallback' }
+  if (!catalog) return [legacy]
+  const settings = effectiveSettings(catalog)
+  if (role === 'judge') {
+    // Only explicit configured judges or the user's ordered Low Worker candidates.
+    // A QMD local answer never comes here: the two consumers call judgeGuess first.
+    const choices: ResolvedModel[] = []
+    if (settings.judge === 'model' && typeof settings.judgeModel === 'string') {
+      const name = settings.judgeModel.trim()
+      const matches = catalog.models.filter(entry => (entry.model === name || `${entry.provider}:${entry.model}` === name) &&
+        settings.providers?.[entry.provider] !== false && allowed(entry.model, entry.provider, settings) &&
+        !providerModelUnavailable(providerFor(catalog, entry.provider)!, entry.model))
+      // A judgeOnly model is valid here; it must not be used by ordinary workers.
+      if (matches.length === 1) choices.push({ model: matches[0]!.model, provider: matches[0]!.provider, source: 'clauderipple' })
+    }
+    const selected = resolveModelFromCatalog(catalog, 'judge', fallback)
+    if (selected.source === 'clauderipple') choices.push(selected)
+    choices.push(...resolveModelCandidatesFromCatalog(catalog, 'light', fallback).filter(candidate => candidate.source === 'clauderipple'))
+    const seen = new Set<string>()
+    const unique = choices.filter(candidate => {
+      const key = `${candidate.provider ?? 'native'}:${candidate.model}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    return unique.length ? unique : [legacy]
+  }
+  const rungs = settings.effectiveRungs
+  if (!rungs || typeof rungs !== 'object') return [legacy]
+  const above: Partial<Record<ModelRole, ModelRole>> = { light: 'standard', standard: 'hard', hard: 'plan' }
+  const candidates: ResolvedModel[] = []
+  const seen = new Set<string>()
+  for (const rung of [role, above[role]]) {
+    if (!rung) continue
+    const configured = rungs[rung]
+    const entries = Array.isArray(configured) ? configured : configured && typeof configured === 'object' ? [configured] : []
+    for (const entry of entries) {
+      if (!entry || typeof entry !== 'object') continue
+      for (const target of [entry.target, entry.backup]) {
+        const resolved = resolveAgentTarget(catalog, settings, target, entry)
+          ?? resolveLegacyModel(catalog, settings, target, entry)
+        if (!resolved) continue
+        const key = `${resolved.provider ?? 'native'}:${resolved.model}`
+        if (!seen.has(key)) { seen.add(key); candidates.push(resolved) }
+      }
+    }
+  }
+  // Never silently append the legacy Haiku alias after configured GPT candidates.
+  return candidates.length ? candidates : [legacy]
 }

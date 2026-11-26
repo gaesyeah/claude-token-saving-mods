@@ -1,5 +1,5 @@
 import { expect } from 'claude-code/testing'
-import { test } from './mods-stub'
+import { fakes, test } from './mods-stub'
 
 function engine(on: any, o: { picks: string[]; asked: string[]; toasts: string[]; wrote: number }) {
   on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))
@@ -25,10 +25,10 @@ function engine(on: any, o: { picks: string[]; asked: string[]; toasts: string[]
     o.toasts.push(String(e.text ?? e))
     return { value: undefined }
   })
-  on('model.complete', (_: any, e: any) => {
-    o.asked.push(e.prompt)
-    return { value: { isAnswered: true, text: JSON.stringify({ level: o.picks.shift() ?? 'medium', why: 'x' }) } }
-  })
+  fakes.modelComplete = request => {
+    o.asked.push(String(request.prompt))
+    return { isAnswered: true, text: JSON.stringify({ level: o.picks.shift() ?? 'medium', why: 'x' }) }
+  }
   on('prompt.submit', (_: any, e: any) => ({ text: e.text }))
   on('turn.step', async function* (_: any, e: any) {
     yield { kind: 'stop', ref: 's', stopReason: 'end_turn', usage: { input_tokens: 10, output_tokens: 10, cache_read_input_tokens: e.effort === 'high' ? 1000 : 60_000, cache_creation_input_tokens: e.effort === 'high' ? o.wrote : 500 } }

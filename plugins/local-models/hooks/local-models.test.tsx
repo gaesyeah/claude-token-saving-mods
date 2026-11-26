@@ -13,6 +13,8 @@ function engine(on: any, o: { qmd: boolean; daemon: boolean; runs: string[] }) {
   on('store.set', (_: any, e: any) => (store.set(e.key, e.value), { value: undefined }))
   on('state.get', (_: any, e: any) => ({ value: { value: store.get(`state:${e.key}`) ?? null, version: 1 } }))
   on('state.set', (_: any, e: any) => (store.set(`state:${e.key}`, e.value), { value: undefined }))
+  // AbovePrompt is decorated by the plugin; $.ui.mount needs a base tree.
+  on('ui.render', () => ({ type: 'Text', props: {}, children: ['host drawing'] }))
   on('fs.exists', () => ({ value: false }))
   on('clock.now', () => ({ value: 0 }))
   on('clock.after', () => new Promise(() => undefined))

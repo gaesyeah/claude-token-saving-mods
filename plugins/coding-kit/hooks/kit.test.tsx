@@ -33,6 +33,8 @@ function engine(on: any, opts: { code: boolean; ran: string[][]; filled: string[
     opts.opened?.push(e.id)
     return { value: { isPlaced: true } }
   })
+  // The plugin decorates AbovePrompt; the test host requires a real base tree.
+  on('ui.render', () => ({ type: 'Text', props: {}, children: ['host drawing'] }))
   on('ui.toast', (_: any, e: any) => {
     opts.toasts.push(String(e.text ?? e))
     return { value: undefined }
@@ -290,20 +292,54 @@ test('a typed skill command is painted orange and gets a band; ✕ takes only th
   await band.unmount()
 })
 
-test('a Tab completion (no prompt.edit) is painted too, and once more after the app styles it', async ($, on) => {
-  engine(on, { code: true, ran: [], filled: [], toasts: [] })
-  const painted: any[] = []
-  on('prompt.paint', (_: any, e: any) => {
-    painted.push(e.decorations)
-    return { value: { isPainted: true, text: e.text, cursor: e.text.length } }
+test('a Tab completion without a prompt event updates the skill band by polling', async ($, on) => {
+  const clock = mock.clock(on, { now: 100 * 24 * 3600 * 1000 })
+  const box = { text: '', cursor: 0 }
+  on('prompt.read', () => ({ value: { ...box } }))
+  on('prompt.edit', (_: any, e: any) => {
+    box.text = e.text.slice(0, e.start) + e.inputText + e.text.slice(e.end)
+    box.cursor = box.text.length
+    return { ...box }
   })
-  on('clock.sleep', () => ({ value: undefined }))
-  on('prompt.change', (_: any, e: any) => ({ text: e.text }))
+  engine(on, { code: true, ran: [], filled: [], toasts: [], mockClock: true })
   await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
-  await $.prompt.change({ text: '/coding-kit:grill-me ', cursor: 21, origin: { kind: 'engine' } } as any)
-  await new Promise(r => setTimeout(r, 50))
-  expect(painted.length).toBe(2)
-  expect(painted[0]).toEqual([{ start: 0, end: 20, color: '#d97757' }])
+  const props = { hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 20, bodyColumns: 100, scroll: { offset: 0, bodyRows: 20 } }
+  const band = await $.ui.mount({ plugin: 'coding-kit', component: 'AbovePrompt', props, surface: 'desktop' } as any)
+  // Initial slash typing emits prompt.edit, but the Tab completion does not.
+  await $.prompt.edit({ origin: { kind: 'composer' }, text: '', cursor: 0, start: 0, end: 0, inputText: '/gri' } as any)
+  expect(await band.find({ key: 'skill-close' })).toBeUndefined()
+  box.text = '/coding-kit:grill-me '
+  box.cursor = box.text.length
+  await clock.advance(1000)
+  expect(await band.find({ key: 'skill-close' })).toBeDefined()
+  // A non-skill completion removes the card without needing prompt.change.
+  box.text = '/unknown '
+  box.cursor = box.text.length
+  await clock.advance(1000)
+  expect(await band.find({ key: 'skill-close' })).toBeUndefined()
+  await band.unmount()
+})
+
+test('history and clipboard fills can reveal a skill command even when the prior draft had no slash', async ($, on) => {
+  const clock = mock.clock(on, { now: 100 * 24 * 3600 * 1000 })
+  const box = { text: '', cursor: 0 }
+  on('prompt.read', () => ({ value: { ...box } }))
+  engine(on, { code: true, ran: [], filled: [], toasts: [], mockClock: true })
+  await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
+  const props = { hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 20, bodyColumns: 100, scroll: { offset: 0, bodyRows: 20 } }
+  const band = await $.ui.mount({ plugin: 'coding-kit', component: 'AbovePrompt', props, surface: 'desktop' } as any)
+
+  // Neither a paste nor a history selection emits prompt.edit in this simulation.
+  box.text = '/coding-kit:grill-me '
+  await clock.advance(2000)
+  expect(await band.find({ key: 'skill-close' })).toBeDefined()
+  box.text = 'bom dia'
+  await clock.advance(2000)
+  expect(await band.find({ key: 'skill-close' })).toBeUndefined()
+  box.text = '/grill-me '
+  await clock.advance(2000)
+  expect(await band.find({ key: 'skill-close' })).toBeDefined()
+  await band.unmount()
 })
 
 test('Usar in the pane paints its own fill and shows the band; a Tab completion with no event is read from the box', async ($, on) => {
@@ -311,7 +347,7 @@ test('Usar in the pane paints its own fill and shows the band; a Tab completion 
   const fills: any[] = []
   const box = { text: '', cursor: 0 }
   on('prompt.read', () => ({ value: { ...box } }))
-  on('prompt.paint', (_: any, e: any) => ({ value: { isPainted: true, text: e.text, cursor: e.text.length } }))
+  // prompt.paint is a method, not a hookable event in Claude Code 2.1.330.
   on('prompt.edit', (_: any, e: any) => {
     box.text = e.text.slice(0, e.start) + e.inputText + e.text.slice(e.end)
     box.cursor = box.text.length

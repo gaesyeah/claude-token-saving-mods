@@ -264,18 +264,10 @@ async function pick($: EngineInterface, text: string, now: Level | ''): Promise<
 async function pickPaid($: EngineInterface, text: string, now: Level | ''): Promise<Pick | null> {
   const messages = await $.session.messages()
   const lastReply = lastAssistantText(messages).slice(0, 1200)
-  const resolved = await $.mods.modelResolve({ role: 'judge', fallback: 'claude-sonnet-5-5' })
-  const r = await $.model.complete({
-    model: resolved.source === 'clauderipple' && resolved.provider
-      ? (resolved.model.startsWith(`${resolved.provider}:`) ? resolved.model : `${resolved.provider}:${resolved.model}`)
-      : resolved.model,
-    prompt: pickPrompt(text.slice(0, 4000), lastReply, now),
-    maxTokens: 120,
-    ...(resolved.source === 'fallback' ? { effort: 'low' } : {}),
-    timeoutMs: 20_000,
+  const { result: r } = await $.mods.modelComplete({
+    mod: NAME, role: 'judge', fallback: 'claude-sonnet-5-5',
+    request: { prompt: pickPrompt(text.slice(0, 4000), lastReply, now), maxTokens: 120, timeoutMs: 20_000 },
   })
-  // Quota Meter's pane shows what the mods spend on their own model calls.
-  if (r.usage) void $.mods.spent({ mod: NAME, model: resolved.model, usage: r.usage }).catch(() => undefined)
   if (!r.isAnswered) throw new Error(`pick failed: ${r.reason}`)
   return parsePick(r.text)
 }

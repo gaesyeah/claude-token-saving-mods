@@ -36,9 +36,30 @@ The integration is deliberately optional and fail-safe. If ClaudeRipple is not i
 
 ## Plugin behavior and accounting
 
-Mods request a helper model through `$.mods.modelResolve`, then make their own model calls with `$.model.complete` and report usage through `$.mods.spent`. The resolver chooses a target; it does not perform the model call or centralize retries. Each mod retains its own retry and fallback behavior, and existing local QMD judges remain earlier in their decision paths.
+Mods can use `$.mods.modelCandidates` to inspect the ordered light/standard/hard/plan candidates or `$.mods.modelComplete` to execute a helper call with shared retry, provider qualification and per-attempt usage accounting. The core tries the selected rung's available models, then one rung above, respecting the configured order. It retries only model availability failures, not user cancellation or malformed requests. `$.mods.modelResolve` is retained for backwards compatibility, and existing local QMD judges remain earlier in their decision paths.
 
-Token usage is recorded for helper calls across models. USD estimates are available only when a model ID is covered by `mods-core`'s local price table. The main conversation model is never changed by this integration.
+Token usage is recorded by `mods-core` for every helper response, including failed calls with reported usage. USD estimates are available only when a model ID is covered by `mods-core`'s local price table. The main conversation model is never changed by this integration. Agent-based image description uses the same candidate list but executes via the Agent tool, not the completion API.
+
+### Live fallback integration smoke test
+
+Uses Node 22+, Python 3, and the existing HTTPS proxy E2E helper. The optional judge and agent mods can be tested separately:
+
+```bash
+node --experimental-strip-types scripts/e2e-alternate-mods.mjs --mod=effort-optimizer
+node --experimental-strip-types scripts/e2e-alternate-mods.mjs --mod=model-router
+node --experimental-strip-types scripts/e2e-alternate-mods.mjs --mod=cache-clock
+node --experimental-strip-types scripts/e2e-alternate-mods.mjs --mod=effort-optimizer --live --allow-remote
+node --experimental-strip-types scripts/e2e-alternate-mods.mjs --mod=model-router --live --allow-remote
+```
+
+The deterministic cases exercise the judge selection and 429 recovery, the routed worker ladder marker, and cache-clock's retry policy. The live cases exercise judge/worker fallback through the existing Ripple proxy. These scripts do NOT invoke Claude Desktop hooks; the `*.integration.test.tsx` host tests cover hook boundaries, and `/keepwarm` still needs session QA. Never enable both competing auto-routers simultaneously.
+
+```bash
+node --experimental-strip-types scripts/e2e-clauderipple-fallback.mjs --self-test
+node --experimental-strip-types scripts/e2e-clauderipple-fallback.mjs --allow-remote
+```
+
+The live test loads the saved Ripple worker ladder and catalogue, runs the patched `mods-core` candidate resolver and retry algorithm, injects a reproducible `api-error` for the first worker (without contacting Claude), and sends one real request to the **second** worker through `scripts/e2e-clauderipple-proxy.py`. It requires a new provider/model HTTP 200 row in `requests.jsonl`. `--allow-remote` explicitly permits subscription/provider quota consumption; omit it for a local Ollama fallback. This covers the **core algorithm plus live proxy**. It does not execute `$.mods.modelComplete` inside the Claude Desktop hook runtime or observe a real Anthropic 429; verify that boundary separately in an active Desktop session.
 
 ## Requirements and limitations
 
