@@ -9,6 +9,7 @@ export const calls: { method: string; args: unknown }[] = []
 export const fakes: {
   append?: (path: string, text: string) => void
   modelResolve?: (e: any) => Record<string, unknown>
+  modelComplete?: (request: Record<string, unknown>) => { isAnswered: boolean; text: string; usage?: unknown }
 } = {}
 
 function core(on: any) {
@@ -17,7 +18,7 @@ function core(on: any) {
     const none = async () => {
       throw new Error('answered by the test hooks')
     }
-    const names = ['paths', 'switches', 'readSwitches', 'writeSwitches', 'log', 'append', 'sh', 'ledger', 'open', 'openAsked', 'paneAllowed', 'paneClosed', 'prices', 'spent', 'spend', 'qmdFind', 'qmdUp', 'qmdQuery', 'qmdStart', 'qmdStop', 'judgeGuess', 'judgeRemember', 'judgeUsed', 'judgeSampled', 'judgeReset', 'judgeLine', 'modelCatalog', 'modelResolve']
+    const names = ['paths', 'switches', 'readSwitches', 'writeSwitches', 'log', 'append', 'sh', 'ledger', 'open', 'openAsked', 'paneAllowed', 'paneClosed', 'prices', 'spent', 'spend', 'qmdFind', 'qmdUp', 'qmdQuery', 'qmdStart', 'qmdStop', 'judgeGuess', 'judgeRemember', 'judgeUsed', 'judgeSampled', 'judgeReset', 'judgeLine', 'modelCatalog', 'modelResolve', 'modelCandidates', 'modelComplete']
     return { ...beneath, mods: Object.fromEntries(names.map(n => [n, none])) }
   })
   on('mods.paths', () => ({ value: { home: '/home/u', claudeDir: '/home/u/.claude' } }))
@@ -46,6 +47,14 @@ function core(on: any) {
   on('mods.modelResolve', (_: any, e: any) => ({
     value: fakes.modelResolve?.(e) ?? { model: e.fallback, provider: null, source: 'fallback' },
   }))
+  on('mods.modelComplete', (_: any, e: any) => {
+    const selected = fakes.modelResolve?.(e) ?? { model: e.fallback, provider: null, source: 'fallback' }
+    const model = selected.source === 'clauderipple' && selected.provider && !String(selected.model).startsWith(`${selected.provider}:`)
+      ? `${selected.provider}:${selected.model}` : selected.model
+    const request = { ...e.request, model, ...(selected.source === 'fallback' ? { effort: 'low' } : {}) }
+    const result = fakes.modelComplete?.(request) ?? { isAnswered: true, text: '{}' }
+    return { value: { model: selected.model, result, attempts: [{ model: selected.model, result }] } }
+  })
   on('mods.paneAllowed', () => ({ value: true }))
   on('mods.paneClosed', () => ({ value: undefined }))
   on('mods.spend', () => ({ value: { today: [], week: [] } }))
@@ -59,6 +68,7 @@ export const test = (name: string, body: ($: any, on: any) => unknown) =>
     calls.length = 0
     fakes.append = undefined
     fakes.modelResolve = undefined
+    fakes.modelComplete = undefined
     core(on)
     await body($, on)
   })

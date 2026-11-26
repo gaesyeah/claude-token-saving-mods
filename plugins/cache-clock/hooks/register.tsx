@@ -1,4 +1,5 @@
 import type { EngineInterface, ModelForkResult, Register } from 'claude-code'
+import { warmFailure } from './warm-policy'
 
 import type { Clock, Warm } from '../types'
 
@@ -20,7 +21,6 @@ const LEAD = 45_000
 const MAX_PINGS = 30
 const MAX_MS = 2 * 60 * 60_000
 const MAX_FAILS = 3
-const RETRY_MS = 20_000
 const PING_PROMPT = 'Reply with the single word: ok'
 const TIP = 'Each ping reads the chat from cache for a small part of the price (5 to 10%). Letting it go cold means writing it all again.'
 // Turns that are not the person typing: they do not count as "they are back".
@@ -175,7 +175,7 @@ async function stopWarm($: EngineInterface, why: string, shout = true) {
 }
 
 // Once a second: sends the ping when the cache is 45 s from going cold, and keeps the caps.
-async function warmTick($: EngineInterface) {
+export async function warmTick($: EngineInterface) {
   const w = await getWarm($)
   if (!w || pinging || working) return
   if (off) return stopWarm($, 'Keep warm stopped: Cache Clock was turned off in /mods.')
@@ -225,9 +225,9 @@ async function ping($: EngineInterface, start: number) {
     const c = await getClock($)
     if (c) await setClock($, { ...c, lastEnd: Math.max(c.lastEnd, start), now })
   } else {
-    const failures = w.failures + 1
-    await setWarm($, { ...w, pings: n, error, sending: false, failures, retryAt: now + RETRY_MS })
-    if (failures >= MAX_FAILS) return stopWarm($, `Keep warm stopped: ${MAX_FAILS} pings in a row failed (${error}).`)
+    const failed = warmFailure(w.failures, now)
+    await setWarm($, { ...w, pings: n, error, sending: false, failures: failed.failures, retryAt: failed.retryAt })
+    if (failed.stop) return stopWarm($, `Keep warm stopped: ${MAX_FAILS} pings in a row failed (${error}).`)
   }
   if (n >= MAX_PINGS) await stopWarm($, `Keep warm stopped after ${MAX_PINGS} pings. Type /keepwarm to start it again.`)
 }

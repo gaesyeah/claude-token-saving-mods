@@ -15,6 +15,7 @@ test('the band starts minimized and toggles', async ($, on) => {
       : { value: null, version: 1 },
   }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('ui.render', () => ({ type: 'Text', props: {}, children: ['host drawing'] }))
   on('session.id', () => ({ value: 'test' }))
   on('command.register', () => ({ value: { command: 'x' } }))
   on('clock.every', () => ({ value: undefined }))

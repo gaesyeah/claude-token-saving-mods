@@ -244,8 +244,12 @@ const paintOf = (t: Typed | null) => (t ? [{ start: t.start, end: t.end, color: 
 // Paints the command over a draft no prompt.edit carried (an accepted Tab completion, a fill). The box
 // may still be settling, and the app styles an accepted completion itself: so a stale draft is read
 // again, a miss is tried again, and a hit is painted once more a moment later to stand over that style.
+// Check slash drafts quickly; detect clipboard/history fills that bypass prompt.edit
+// even when the preceding text was plain or empty (once every three 400 ms ticks).
+let idleDraftPolls = 0
 async function watchDraft($: EngineInterface) {
-  if (off || !draft.trimStart().startsWith('/')) return
+  if (off) return
+  if (!draft.trimStart().startsWith('/') && (++idleDraftPolls % 3) !== 0) return
   const box = await $.prompt.read()
   if (box.text === draft) return
   draft = box.text
@@ -989,17 +993,9 @@ export const register: Register = on => {
     return t ? { ...r, decorations: [...(r.decorations ?? []), ...paintOf(t)] } : r
   }).catch(($, e, next) => next(e))
 
-  // Any other change (history, a fill, a clear, a submit): the same, painted over the box as it stands.
-  on('prompt.change', async ($, e, next) => {
-    const r = await next(e)
-    if (off) return r
-    draft = e.text
-    if (e.text.trimStart().startsWith('/')) void log($, `prompt.change ${e.origin.kind}: ${JSON.stringify(e.text.slice(0, 40))}`)
-    const t = typedSkill(e.text)
-    setTyped($, t)
-    if (t) void paintTyped($, e.text).catch(err => log($, `paint: ${String(err)}`))
-    return r
-  }).catch(($, e, next) => next(e))
+  // Claude Code 2.1.330 has no prompt.change hook. prompt.edit handles typing;
+  // watchDraft (registered at session start) polls Tab/history changes and clears.
+  // Pane fills are handled directly by use(), preserving their decorations.
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (off || !typed || e.props.hasSurvey) return next(e)

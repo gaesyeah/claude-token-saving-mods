@@ -14,7 +14,7 @@ function core(on: any) {
     const none = async () => {
       throw new Error('answered by the test hooks')
     }
-    const names = ['paths', 'switches', 'readSwitches', 'writeSwitches', 'log', 'append', 'sh', 'ledger', 'open', 'openAsked', 'paneAllowed', 'paneClosed', 'prices', 'spent', 'spend', 'qmdFind', 'qmdUp', 'qmdQuery', 'qmdStart', 'qmdStop', 'judgeGuess', 'judgeRemember', 'judgeUsed', 'judgeSampled', 'judgeReset', 'judgeLine', 'modelCatalog', 'modelResolve']
+    const names = ['paths', 'switches', 'readSwitches', 'writeSwitches', 'log', 'append', 'sh', 'ledger', 'open', 'openAsked', 'paneAllowed', 'paneClosed', 'prices', 'spent', 'spend', 'qmdFind', 'qmdUp', 'qmdQuery', 'qmdStart', 'qmdStop', 'judgeGuess', 'judgeRemember', 'judgeUsed', 'judgeSampled', 'judgeReset', 'judgeLine', 'modelCatalog', 'modelResolve', 'modelCandidates', 'modelComplete']
     return { ...beneath, mods: Object.fromEntries(names.map(n => [n, none])) }
   })
   on('mods.paths', () => ({ value: { home: '/home/u', claudeDir: '/home/u/.claude' } }))
@@ -41,6 +41,10 @@ function core(on: any) {
   on('mods.prices', () => ({ value: [] }))
   on('mods.modelCatalog', () => ({ value: null }))
   on('mods.modelResolve', (_: any, e: any) => ({ value: { model: e.fallback, provider: null, source: 'fallback' } }))
+  on('mods.modelComplete', (_: any, e: any) => {
+    const result = { isAnswered: true, text: '{"tier":"balanced","confidence":1,"risky":0,"effort":1,"effort_confidence":1}' }
+    return { value: { model: e.fallback, result, attempts: [{ model: e.fallback, result }] } }
+  })
   on('mods.paneAllowed', () => ({ value: true }))
   on('mods.paneClosed', () => ({ value: undefined }))
   on('mods.spend', () => ({ value: { today: [], week: [] } }))

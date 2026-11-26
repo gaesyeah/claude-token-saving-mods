@@ -17,6 +17,10 @@ export type Mods = {
   modelCatalog(): Promise<ModsModelCatalog | null>
   /** Resolve a role from ClaudeRipple's configured presets/catalogue; fallback is returned unchanged when unavailable. */
   modelResolve(input: { role: ModsModelRole; fallback: string }): Promise<ModsResolvedModel>
+  /** Ordered usable worker candidates, then one rung above. No unconfigured model guessing. */
+  modelCandidates(input: { role: ModsModelRole; fallback: string }): Promise<ModsResolvedModel[]>
+  /** Execute a helper call with bounded failover; records usage once for each answered attempt. */
+  modelComplete(input: ModsModelCompleteInput): Promise<ModsModelCompleteOutput>
   /** switches.json, `{}` when there is none; throws when it is there but unreadable, so a mod can keep its last state. */
   readSwitches(): Promise<Record<string, unknown>>
   /** Sets keys in switches.json (`null` removes one), keeping the rest; throws when it cannot. */
@@ -105,6 +109,16 @@ export type ModsPrice = { pattern: string; name: string; small: ModsCard; large?
 
 export type ModsModelRole = 'judge' | 'light' | 'standard' | 'hard' | 'plan'
 export type ModsResolvedModel = { model: string; provider: string | null; effort?: string; source: 'clauderipple' | 'fallback' }
+export type ModsModelCompleteInput = {
+  mod: string; role: ModsModelRole; fallback: string
+  request: Omit<Parameters<import('claude-code').EngineInterface['model']['complete']>[0], 'model' | 'effort'>
+  options?: Parameters<import('claude-code').EngineInterface['model']['complete']>[1]
+}
+export type ModsModelCompleteOutput = {
+  model: string
+  result: Awaited<ReturnType<import('claude-code').EngineInterface['model']['complete']>>
+  attempts: { model: string; result?: Awaited<ReturnType<import('claude-code').EngineInterface['model']['complete']>>; error?: string }[]
+}
 export type ModsModelCatalog = {
   agents: { name: string; model: string; provider: string; efforts: string[] }[]
   models: { model: string; provider: string; name?: string; judgeOnly: boolean }[]

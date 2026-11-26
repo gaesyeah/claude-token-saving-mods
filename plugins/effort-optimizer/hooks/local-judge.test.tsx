@@ -20,7 +20,7 @@ function engine(on: any, j: J, resolved?: { model: string; provider: string; sou
   on('fs.write', () => ({ value: undefined }))
   on('process.run', () => ({ value: { exitCode: 0, stdout: '', stderr: '' } }))
   on('session.messages', () => ({ value: [] }))
-  on('model.complete', (_: any, e: any) => (j.asked += 1, j.requests.push(e), { value: { isAnswered: true, text: JSON.stringify({ level: j.paid, why: 'x' }) } }))
+  fakes.modelComplete = request => (j.asked += 1, j.requests.push(request), { isAnswered: true, text: JSON.stringify({ level: j.paid, why: 'x' }) })
   if (resolved) fakes.modelResolve = () => ({ ...resolved, effort: undefined })
   on('prompt.submit', (_: any, e: any) => ({ text: e.text }))
   on('turn.step', async function* (_: any, e: any) {

@@ -121,9 +121,11 @@ function engine(on: any, o: { qmd?: string | (() => string); version?: string; p
   on('mods.qmdStart', () => ({ value: up() ? { pid: '', out: '' } : { pid: '4242', out: 'Started (PID 4242)' } }))
   on('mods.qmdStop', (_: any, e: any) => (o.pidfile === e.pid ? (t.stops.push(e.pid), { value: 'stopped' }) : { value: 'other' }))
   on('tool.call', () => ({ result: 'ok' }))
+  // ui.render needs a valid base tree; null is rejected by the test host.
+  on('ui.render', () => ({ type: 'Text', props: {}, children: ['host drawing'] }))
   if (resolved) {
     fakes.modelResolve = () => resolved
-    on('model.complete', (_: any, e: any) => (modelRequests.push(e), { value: { isAnswered: true, text: '{"save":false}' } }))
+    fakes.modelComplete = request => (modelRequests.push(request), { isAnswered: true, text: '{"save":false}' })
   }
   on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'x', scope: 'shared' }] }))
   on('prompt.submit', (_: any, e: any) => {
@@ -480,7 +482,7 @@ test('at the end of an answer Haiku keeps one note in the Inbox when there is so
   const t = engine(on)
   let reply = '{"save": true, "title": "O cache do prompt expira em 5 minutos", "body": "Decidimos manter o cache quente com /keepwarm.", "tags": ["cache"]}'
   const asked: string[] = []
-  on('model.complete', (_: any, e: any) => (asked.push(e.model), { value: { isAnswered: true, text: reply } }))
+  fakes.modelComplete = request => (asked.push(String(request.model)), { isAnswered: true, text: reply })
   await start($)
   await cmd($, 'use ~/Vault')
   await cmd($, 'setup para')
@@ -523,7 +525,7 @@ test('the weekly review shows in the band 7 days after the last one, for the per
   expect(t.store.get('state:review')).toBe(null)
 })
 
-test('capture sends the provider-qualified ClaudeRipple model to model.complete', async ($, on) => {
+test('capture sends the provider-qualified ClaudeRipple model to mods.modelComplete', async ($, on) => {
   const t = engine(on, {}, { model: 'qwen2.5:3b', provider: 'ollama-local', source: 'clauderipple' })
   await start($)
   await cmd($, 'use ~/Vault')

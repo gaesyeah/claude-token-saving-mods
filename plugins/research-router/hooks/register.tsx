@@ -1,6 +1,5 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ModelUsage, Register, TurnUsage } from 'claude-code'
-import { completeWithEffort, completeWithModel, modelForRequest } from './model-completion'
 import type { AgentView, AutoView, FoundView, RunView, SourceView, ToolUse } from '../types'
 import { explorerSvg } from './mascot.ts'
 
@@ -74,7 +73,7 @@ type Link = { title: string; url: string }
 type Source = Link & { text: string; via: string; newest?: string }
 // `noWebFetch`: WebFetch failed to answer once in this run (missing, or no answer in time), so the run stops asking it.
 // `agentCost`: dollars the deep-mode subagents used, at list price.
-type Job = { id: number; question: string; reply: number; tools: ToolUse[]; helperIn: number; helperOut: number; helperModel: string; helperRequestModel: string; helperEffort?: string; read: number; agentCost: number; noWebFetch?: boolean }
+type Job = { id: number; question: string; reply: number; tools: ToolUse[]; helperIn: number; helperOut: number; helperCost: number; helperModel: string; read: number; agentCost: number; noWebFetch?: boolean }
 type CallResult = { text?: string; result?: unknown; isError?: true; deny?: string }
 // `since`: the first day of the time window the request names, YYYY-MM-DD. `official`: pages to read first.
 type Plan = { mode: 'quick' | 'deep'; queries: string[]; parts: string[]; since: string | null; official: string[] }
@@ -385,23 +384,19 @@ function countUsage(u: ModelUsage | undefined) {
 }
 
 async function ask($: EngineInterface, job: Job, prompt: string, maxTokens: number, timeoutMs: number) {
-  const usedModel = job.helperModel
-  const r = await completeWithModel(
-    request => $.model.complete(request as Parameters<EngineInterface['model']['complete']>[0]),
-    job.helperRequestModel,
-    {
-      system: SYSTEM,
-      prompt,
-      maxTokens,
-      timeoutMs,
-    },
-    job.helperEffort,
-  )
-  if (r.usage) void $.mods.spent({ mod: NAME, model: usedModel, usage: r.usage }).catch(() => undefined)
-  const u = countUsage(r.usage)
-  job.helperIn += u.input
-  job.helperOut += u.output
-  await used($, job, usedModel, 'model')
+  const { model, result: r, attempts } = await $.mods.modelComplete({
+    mod: NAME, role: 'light', fallback: MODEL,
+    request: { system: SYSTEM, prompt, maxTokens, timeoutMs },
+  })
+  job.helperModel = model
+  for (const attempt of attempts) {
+    if (!attempt.result?.usage) continue
+    const u = countUsage(attempt.result.usage)
+    job.helperIn += u.input
+    job.helperOut += u.output
+    job.helperCost += dollars(u.input, u.output, attempt.model)
+  }
+  await used($, job, model, 'model')
   if (!r.isAnswered) throw new Error(`the worker model did not answer (${r.reason})`)
   return r.text
 }
@@ -1064,15 +1059,12 @@ function notesFile(o: {
 }
 
 async function runResearch($: EngineInterface, id: number, question: string, reply: number, forceDeep: boolean) {
-  const job: Job = { id, question, reply, tools: [], helperIn: 0, helperOut: 0, helperModel: MODEL, helperRequestModel: MODEL, read: 0, agentCost: 0 }
+  const job: Job = { id, question, reply, tools: [], helperIn: 0, helperOut: 0, helperCost: 0, helperModel: MODEL, read: 0, agentCost: 0 }
   const t0 = await $.clock.now()
   const today = day(t0)
   const secs = async () => Math.round((await $.clock.now()) - t0) / 1000
   try {
-    const helper = await $.mods.modelResolve({ role: 'light', fallback: MODEL })
-    job.helperModel = helper.model
-    job.helperRequestModel = modelForRequest(helper)
-    job.helperEffort = helper.effort
+    job.helperModel = (await $.mods.modelResolve({ role: 'light', fallback: MODEL })).model
     await step($, id, 'Planning')
     await $.process.run(['/bin/mkdir', '-p', notesDir()], { timeoutMs: 10_000 }).catch(() => undefined)
     const k = await refreshTools($)
@@ -1140,7 +1132,7 @@ async function runResearch($: EngineInterface, id: number, question: string, rep
     const message = briefMessage(question, brief, sources, notesPath, failed)
     const before = tokens(job.read)
     const after = tokens(job.reply + message.length)
-    const cost = dollars(job.helperIn, job.helperOut, job.helperModel) + job.agentCost
+    const cost = job.helperCost + job.agentCost
     const pagesRead = p.mode === 'quick' ? sources.filter(s => s.text).length : undefined
     await $.fs.write(notesPath, notesFile({ question, when, mode: p.mode, job, queries: p.queries, brief, notes: more, sources, before, after, cost, models, failed, since, unread }))
     const line = {
@@ -1190,7 +1182,7 @@ async function runResearch($: EngineInterface, id: number, question: string, rep
     const why = err instanceof Error ? err.message : String(err)
     await log($, 'failed', `run ${id}: ${why}`)
     const took = await secs()
-    await setRun($, id, r => ({ ...r, status: 'failed', step: 'Stopped', error: oneLine(why, 200), secs: took, cost: dollars(job.helperIn, job.helperOut, job.helperModel) + job.agentCost }))
+    await setRun($, id, r => ({ ...r, status: 'failed', step: 'Stopped', error: oneLine(why, 200), secs: took, cost: job.helperCost + job.agentCost }))
     await $.prompt
       .submit({ text: `${TITLE} could not finish the research for: ${oneLine(question, 300)}\nReason: ${oneLine(why, 200)}\nTell me, and research it another way only if I ask.` })
       .catch(() => undefined)
@@ -1251,8 +1243,8 @@ async function shorten($: EngineInterface, query: string, toolUseId: string | un
   }
   const sid = await $.session.id().catch(() => 'unknown')
   // Every Haiku call gets a ledger line, the ones that saved nothing too: they cost money.
-  const resolved = await $.mods.modelResolve({ role: 'light', fallback: MODEL })
-  const helperModel = resolved.model
+  let helperModel = MODEL
+  let helperCost = 0
   const ledger = async (after: number, result: string, u: { input: number; output: number }) => {
     const line = {
       ts: new Date(at).toISOString(),
@@ -1272,10 +1264,9 @@ async function shorten($: EngineInterface, query: string, toolUseId: string | un
   // Haiku is about to work on this search: show the pane, and the mascot moves until it answers.
   void openPane($)
   await update($, busyAtom, n => (n ?? 0) + 1)
-  const m = await completeWithEffort(
-    request => $.model.complete(request as Parameters<EngineInterface['model']['complete']>[0]),
-    resolved,
-    {
+  const completed = await $.mods.modelComplete({
+    mod: NAME, role: 'light', fallback: MODEL,
+    request: {
       system: SYSTEM,
       prompt: [
         `Search query: ${query}`,
@@ -1289,10 +1280,15 @@ async function shorten($: EngineInterface, query: string, toolUseId: string | un
       maxTokens: 700,
       timeoutMs: AUTO_MS,
     },
-  ).finally(() => update($, busyAtom, n => Math.max(0, (n ?? 0) - 1)))
-  if (m.usage) void $.mods.spent({ mod: NAME, model: helperModel, usage: m.usage }).catch(() => undefined)
-  const u = countUsage(m.usage)
-  const cost = dollars(u.input, u.output, helperModel)
+  }).finally(() => update($, busyAtom, n => Math.max(0, (n ?? 0) - 1)))
+  const { model, result: m, attempts } = completed
+  helperModel = model
+  const u = attempts.reduce((sum, attempt) => {
+    const used = countUsage(attempt.result?.usage)
+    helperCost += dollars(used.input, used.output, attempt.model)
+    return { input: sum.input + used.input, output: sum.output + used.output }
+  }, { input: 0, output: 0 })
+  const cost = helperCost
   if (!m.isAnswered || !m.text.trim()) {
     await log($, 'auto', `The helper model gave no answer for "${oneLine(query, 80)}" (${m.isAnswered ? 'empty' : m.reason}), original kept, cost ${money(cost)}`)
     await ledger(before, 'failed', u)

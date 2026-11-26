@@ -1,5 +1,5 @@
 import type { EngineInterface, Register } from 'claude-code'
-import { modelForRequest } from './model-request'
+import { modelForRequest, retryableAgentFailure } from './model-request'
 import { addShots, closePane, loadTotals, openPane, registerPane, resetPane, restoreShots, setBusy, setOff, setSwitchHidden, setThumb, setTotals } from './pane.tsx'
 import type { ShotCard } from '../types'
 
@@ -382,23 +382,34 @@ async function registerDescriber($: EngineInterface) {
 }
 
 async function describe($: EngineInterface, file: string): Promise<{ text: string; tokens: number | null; model: string }> {
-  const helper = await $.mods.modelResolve({ role: 'light', fallback: 'haiku' })
-  const model = modelForRequest(helper)
-  const r = await $.tool.call({
-    tool: 'Agent',
-    description: 'Describe a picture',
-    prompt: describerReady ? `Describe the picture at ${file}` : `${DESCRIBER_PROMPT}\n\nThe picture: ${file}`,
-    subagent_type: describerReady ? `${NAME}:describer` : 'general-purpose',
-    model,
-  } as never)
-  const raw = 'text' in r && typeof r.text === 'string' ? r.text : ''
-  if (r.deny !== undefined || r.isError || !raw.trim()) throw new Error(r.deny ?? (raw.slice(0, 200) || 'no description'))
-  const used = /total_tokens:\s*(\d+)/.exec(raw)
-  const text = raw
-    .replace(/<usage>[\s\S]*?<\/usage>/g, '')
-    .replace(/^agentId:.*$/gm, '')
-    .trim()
-  return { text, tokens: used ? Number(used[1]) : null, model: helper.model }
+  const candidates = await $.mods.modelCandidates({ role: 'light', fallback: 'haiku' })
+  let lastError: unknown
+  for (const helper of candidates.slice(0, 8)) {
+    const model = modelForRequest(helper)
+    let denied = false
+    try {
+      const r = await $.tool.call({
+        tool: 'Agent', description: 'Describe a picture',
+        prompt: describerReady ? `Describe the picture at ${file}` : `${DESCRIBER_PROMPT}\n\nThe picture: ${file}`,
+        subagent_type: describerReady ? `${NAME}:describer` : 'general-purpose', model,
+      } as never)
+      const raw = 'text' in r && typeof r.text === 'string' ? r.text : ''
+      if (r.deny !== undefined) { denied = true; throw new Error(r.deny) }
+      if (r.isError || !raw.trim()) {
+        const error = new Error(raw.slice(0, 200) || 'no description')
+        if (!retryableAgentFailure(error.message)) throw error
+        lastError = error
+        continue
+      }
+      const used = /total_tokens:\s*(\d+)/.exec(raw)
+      const text = raw.replace(/<usage>[\s\S]*?<\/usage>/g, '').replace(/^agentId:.*$/gm, '').trim()
+      return { text, tokens: used ? Number(used[1]) : null, model: helper.model }
+    } catch (error) {
+      if (!retryableAgentFailure(error, denied)) throw error
+      lastError = error
+    }
+  }
+  throw lastError ?? new Error('No available image describer')
 }
 
 // ---- the ledger ----

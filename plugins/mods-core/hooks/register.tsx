@@ -2,7 +2,8 @@ import type { Register } from 'claude-code'
 import { afterSample, decide, EMBED, freshStats, hash, isQmdHealth, judgeLine, MIN_EXAMPLES, QMD_URL, rerankOf, SAMPLE_EVERY } from './qmd'
 import { addCall, type Day, dayKey, rowsOf, type Usage } from './spend'
 import { PRICES } from './prices'
-import { createModelCatalogLoader, resolveModelFromCatalog, type ModelRole } from './models'
+import { createModelCatalogLoader, resolveModelCandidatesFromCatalog, resolveModelFromCatalog, type ModelRole } from './models'
+import { completeWithFallback } from './model-completion'
 
 // Mods Core: what the token-saving mods share.
 // 1. $.mods: the helpers every mod used to copy (paths, the /mods switches, logs, shell, the savings
@@ -112,6 +113,30 @@ export const register: Register = on => {
     })
     const modelResolve = async ({ role, fallback }: { role: ModelRole; fallback: string }) =>
       resolveModelFromCatalog(await modelCatalog(), role, fallback)
+    const modelCandidates = async ({ role, fallback }: { role: ModelRole; fallback: string }) =>
+      resolveModelCandidatesFromCatalog(await modelCatalog(), role, fallback)
+    const spent = async ({ mod, model, usage }: { mod: string; model: string; usage: Usage }) => {
+      const now = await beneath.clock.now()
+      const all = ((await beneath.store.get('spend').catch(() => undefined)) ?? {}) as Record<string, Day>
+      const key = dayKey(now)
+      const kept = Object.fromEntries(Object.entries(all).filter(([d]) => d >= dayKey(now - 13 * 86_400_000)))
+      await beneath.store.set('spend', { ...kept, [key]: addCall(kept[key] ?? {}, mod, model, usage ?? {}) }).catch(() => undefined)
+    }
+    const modelComplete = async ({ mod, role, fallback, request, options }: {
+      mod: string; role: ModelRole; fallback: string
+      request: Omit<Parameters<typeof beneath.model.complete>[0], 'model' | 'effort'>
+      options?: Parameters<typeof beneath.model.complete>[1]
+    }) => completeWithFallback({
+      candidates: await modelCandidates({ role, fallback }),
+      request: request as Record<string, unknown>, options,
+      complete: (input, opts) => beneath.model.complete(
+        input as Parameters<typeof beneath.model.complete>[0],
+        opts as Parameters<typeof beneath.model.complete>[1],
+      ),
+      onAttempt: async attempt => {
+        if (attempt.result?.usage) await spent({ mod, model: attempt.model, usage: attempt.result.usage as Usage })
+      },
+    })
 
     // Judges: a collection's examples counted once, its index refreshed at most once a minute.
     const counts = new Map<string, number>()
@@ -132,6 +157,8 @@ export const register: Register = on => {
         paths,
         modelCatalog,
         modelResolve,
+        modelCandidates,
+        modelComplete,
         // The /mods switchboard's switches.json: {} when there is none; throws when it is there but
         // unreadable, so a mod can keep what it had.
         readSwitches: async () => {
@@ -203,13 +230,7 @@ export const register: Register = on => {
         // The shared list-price table: a mod copies it at chat start and looks models up in its copy.
         prices: async () => PRICES,
         // A mod reports each model call it made; kept per calendar day, the last 14.
-        spent: async ({ mod, model, usage }: { mod: string; model: string; usage: Usage }) => {
-          const now = await beneath.clock.now()
-          const all = ((await beneath.store.get('spend').catch(() => undefined)) ?? {}) as Record<string, Day>
-          const key = dayKey(now)
-          const kept = Object.fromEntries(Object.entries(all).filter(([d]) => d >= dayKey(now - 13 * 86_400_000)))
-          await beneath.store.set('spend', { ...kept, [key]: addCall(kept[key] ?? {}, mod, model, usage ?? {}) }).catch(() => undefined)
-        },
+        spent,
         // Today's and the last 7 days' spend, one row per mod and model, the dearest first.
         spend: async () => {
           const now = await beneath.clock.now()

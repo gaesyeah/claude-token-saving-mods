@@ -26,6 +26,7 @@
  * time limit or answers something unreadable leaves the request exactly as
  * the engine built it.
  */
+import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 import {
   JUDGE_MODEL,
@@ -48,11 +49,48 @@ import {
 } from './policy.ts'
 import type { Decision, Effort, JudgeState, PolicyConfig, StepUsage } from './policy.ts'
 import { rankOf, TIER_ORDER } from './policy.ts'
-import { addCard, closePane, family, openPane, registerPane, resetPane, setBusy, setCard, setOff, setSwitchHidden } from './pane.tsx'
-import type { Outcome } from '../types'
+import { family, registerPane, resetPane, setSwitchHidden } from './pane.tsx'
+import type { Outcome, PickCard } from '../types'
+import { workerFallbackLine } from './worker-fallback'
 
 const NAME = 'model-router'
+let workerFallbackSequence = 0
+let paneCardSequence = 0
 const TITLE = 'Model Router'
+
+// Atom sources must be declared in the module that calls read/update: the
+// Claude Code static scanner cannot trace atom objects across imports.
+// These keys and the cards shape match the UI renderer in pane.tsx.
+const cardsAtom = atom({ plugin: 'model-router', key: 'cards' } as const, [] as PickCard[], { shape: 'cards-1' })
+const busyAtom = atom({ plugin: 'model-router', key: 'busy' } as const, 0)
+const offAtom = atom({ plugin: 'model-router', key: 'off' } as const, false)
+
+// Keep engine API access in the hooks module: the Claude Code host cannot follow
+// `$` through an imported helper (the pane module only declares UI hooks/atoms).
+async function openPane($: EngineInterface, asked = false): Promise<void> {
+  if (!(await $.mods.paneAllowed({ mod: NAME, asked }).catch(() => true))) return
+  try { await $.ui.open({ id: NAME, title: 'Subagent Model Selector' }) } catch { /* optional pane */ }
+}
+async function closePane($: EngineInterface): Promise<void> {
+  try { await $.ui.close({ id: NAME }) } catch { /* optional pane */ }
+}
+async function setOff($: EngineInterface, value: boolean): Promise<void> {
+  await update($, offAtom, () => value)
+}
+async function setBusy($: EngineInterface, busy: boolean): Promise<void> {
+  await update($, busyAtom, n => Math.max(0, (typeof n === 'number' ? n : 0) + (busy ? 1 : -1)))
+}
+async function setCard($: EngineInterface, id: string, change: Partial<PickCard>): Promise<void> {
+  await update($, cardsAtom, list => (list ?? []).map(card => card.id === id ? { ...card, ...change } : card))
+}
+async function addCard($: EngineInterface, card: Omit<PickCard, 'id' | 'at'>): Promise<string> {
+  const at = await $.clock.now()
+  const cards = (await read($, cardsAtom)) ?? []
+  paneCardSequence = Math.max(paneCardSequence, ...cards.map(x => Number(x.id) || 0)) + 1
+  const id = String(paneCardSequence)
+  await update($, cardsAtom, list => [{ ...card, id, at }, ...(list ?? [])].slice(0, 20))
+  return id
+}
 
 // Module variables reset on a reload.
 let home = ''
@@ -219,23 +257,18 @@ async function classify(
   let judgeModel = JUDGE_MODEL
   let text = ''
   try {
-    const resolved = await $.mods.modelResolve({ role: 'judge', fallback: JUDGE_MODEL })
-    judgeModel = resolved.model
-    const result = await $.model.complete({
-      model: modelForRequest(resolved),
-      system: JUDGE_SYSTEM,
-      prompt: judgePrompt(state),
-      maxTokens: JUDGE_MAX_TOKENS,
-      ...(resolved.source === 'fallback' ? { effort: 'low' } : {}),
-      timeoutMs: cfg.timeoutMs,
+    const completed = await $.mods.modelComplete({
+      mod: NAME, role: 'judge', fallback: JUDGE_MODEL,
+      request: { system: JUDGE_SYSTEM, prompt: judgePrompt(state), maxTokens: JUDGE_MAX_TOKENS, timeoutMs: cfg.timeoutMs },
     })
-    if (result.usage) void $.mods.spent({ mod: NAME, model: resolved.model, usage: result.usage }).catch(() => undefined)
+    const { model, result } = completed
+    judgeModel = model
     // No usd here: Savings Proof reads a helper's usd as a billed amount, and
     // this is list price. It prices the helper itself from the model id.
     const used = result.usage
     if (used) {
       helper = {
-        model: resolved.model,
+        model,
         in: used.input_tokens + used.cache_read_input_tokens + used.cache_creation_input_tokens,
         out: used.output_tokens,
       }
@@ -487,6 +520,7 @@ export const register: Register = (on, options) => {
   picks.clear()
   cardOf.clear()
   resetPane()
+  paneCardSequence = 0
   recent.length = 0
   sessionSaved = 0
   sessionPicks = 0
@@ -660,7 +694,18 @@ export const register: Register = (on, options) => {
         judgeMs: Math.round(ms),
       }).catch(() => undefined)
     }
-    const result = await next(requestModel ? { ...e, model: requestModel } : e)
+    let spawn = requestModel ? { ...e, model: requestModel } : e
+    if (requestModel) {
+      const tier = (['fast', 'balanced', 'deep'] as const).find(name => activePolicy.requestTiers?.[name] === requestModel)
+      if (tier) {
+        const role = tier === 'fast' ? 'light' : tier === 'balanced' ? 'standard' : 'hard'
+        const candidates = await $.mods.modelCandidates({ role, fallback: activePolicy.tiers[tier] }).catch(() => [])
+        const pick = `mr-${(await $.clock.now()).toString(36)}-${(++workerFallbackSequence).toString(36)}`
+        const marker = workerFallbackLine(pick, requestModel, candidates)
+        if (marker) spawn = { ...spawn, prompt: `${marker}\n${e.prompt}` }
+      }
+    }
+    const result = await next(spawn)
 
     await log($, `${e.subagentType}${task}: ${model ? `${current} -> ${model}` : `kept ${current}`}: ${reason}`)
     if (logDecisions) {
